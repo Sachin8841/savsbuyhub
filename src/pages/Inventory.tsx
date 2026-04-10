@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useInventory } from '@/hooks/useData';
 import { useAuthStore } from '@/stores/authStore';
 import { supabase } from '@/integrations/supabase/client';
@@ -36,13 +36,12 @@ export default function Inventory() {
 
   const form = useForm<FormData>({ resolver: zodResolver(schema), defaultValues: { sku: '', product_name: '', average_cost_price: 0, total_bulk_stock_in: 0 } });
 
-  // Fetch current stocks
-  useState(() => {
+  useEffect(() => {
     inventory.forEach(async (item) => {
       const { data } = await supabase.rpc('get_current_stock', { inv_id: item.id });
       if (data !== null) setCurrentStocks(prev => ({ ...prev, [item.id]: data as number }));
     });
-  });
+  }, [inventory]);
 
   const filtered = inventory.filter(i =>
     i.sku.toLowerCase().includes(search.toLowerCase()) ||

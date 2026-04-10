@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { useToast } from '@/hooks/use-toast';
 import { exportToCsv } from '@/lib/csv';
 import { Plus, Download, Pencil, Trash2, Search } from 'lucide-react';
+import { CsvImportButton } from '@/components/CsvImportButton';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';

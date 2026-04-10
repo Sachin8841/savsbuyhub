@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { exportToCsv } from '@/lib/csv';
 import { Plus, Download, Pencil, Trash2, Search } from 'lucide-react';
+import { CsvImportButton } from '@/components/CsvImportButton';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';

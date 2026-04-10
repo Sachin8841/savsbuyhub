@@ -121,12 +121,45 @@ export default function Sales() {
     }));
   };
 
+  const handleImport = async (rows: Record<string, string>[]) => {
+    let success = 0;
+    const errors: string[] = [];
+    for (const row of rows) {
+      const sku = row.sku || row.SKU || '';
+      const inv = inventory.find(i => i.sku.toLowerCase() === sku.toLowerCase());
+      if (!inv) { errors.push(`SKU not found: ${sku}`); continue; }
+      const dispatch_date = row.dispatch_date || row.date || row.Date || '';
+      const platform = row.platform || row.Platform || '';
+      const quantity_sold = parseInt(row.quantity_sold || row.qty || row.Qty || '0', 10);
+      const average_selling_price = parseFloat(row.average_selling_price || row.selling_price || row['Selling Price'] || '0');
+      const courier_partner = row.courier_partner || row.courier || row.Courier || '';
+      const payment_status = row.payment_status || row['Payment Status'] || 'Pending';
+      const settlement_date = row.settlement_date || row['Settlement Date'] || null;
+      if (!dispatch_date || !platform || !quantity_sold) { errors.push(`Missing data for SKU: ${sku}`); continue; }
+      const validPlatforms = ['Meesho', 'Flipkart', 'Amazon', 'Offline'];
+      if (!validPlatforms.includes(platform)) { errors.push(`Invalid platform: ${platform}`); continue; }
+      const { error } = await supabase.from('sales').insert({
+        dispatch_date, platform: platform as any, inventory_id: inv.id,
+        quantity_sold, average_selling_price, courier_partner,
+        payment_status: (payment_status === 'Settled' ? 'Settled' : 'Pending') as any,
+        settlement_date: payment_status === 'Settled' && settlement_date ? settlement_date : null,
+      });
+      if (error) errors.push(`${sku}: ${error.message}`);
+      else success++;
+    }
+    qc.invalidateQueries({ queryKey: ['sales'] });
+    qc.invalidateQueries({ queryKey: ['inventory'] });
+    return { success, errors };
+  };
+
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <h2 className="text-2xl font-bold">Sales Ledger</h2>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={handleExport}><Download className="mr-1 h-4 w-4" />Export CSV</Button>
+          {admin && <CsvImportButton onImport={handleImport} expectedColumns={['sku', 'dispatch_date', 'platform', 'quantity_sold', 'average_selling_price', 'courier_partner', 'payment_status']} label="Import CSV" />}
           {admin && (
             <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) { setEditId(null); form.reset(); } }}>
               <DialogTrigger asChild><Button size="sm"><Plus className="mr-1 h-4 w-4" />Log Sale</Button></DialogTrigger>

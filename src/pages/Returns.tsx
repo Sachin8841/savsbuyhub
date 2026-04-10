@@ -93,12 +93,36 @@ export default function Returns() {
     }));
   };
 
+  const handleImport = async (rows: Record<string, string>[]) => {
+    let success = 0;
+    const errors: string[] = [];
+    for (const row of rows) {
+      const sales_id = row.sales_id || row['Sale ID'] || '';
+      const return_type = row.return_type || row['Return Type'] || '';
+      const quantity_returned = parseInt(row.quantity_returned || row['Qty Returned'] || '0', 10);
+      const is_restockable = (row.is_restockable || row.Restockable || '').toLowerCase() === 'yes' || row.is_restockable === 'true';
+      if (!sales_id || !return_type || !quantity_returned) { errors.push(`Missing data for sale: ${sales_id}`); continue; }
+      const validTypes = ['Customer Return', 'RTO'];
+      if (!validTypes.includes(return_type)) { errors.push(`Invalid return type: ${return_type}`); continue; }
+      const penalty_amount = return_type === 'Customer Return' ? 160 : 0;
+      const { error } = await supabase.from('returns').insert({
+        sales_id, return_type: return_type as any, quantity_returned, is_restockable, penalty_amount,
+      });
+      if (error) errors.push(`${sales_id}: ${error.message}`);
+      else success++;
+    }
+    qc.invalidateQueries({ queryKey: ['returns'] });
+    qc.invalidateQueries({ queryKey: ['inventory'] });
+    return { success, errors };
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <h2 className="text-2xl font-bold">Returns</h2>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={handleExport}><Download className="mr-1 h-4 w-4" />Export CSV</Button>
+          {admin && <CsvImportButton onImport={handleImport} expectedColumns={['sales_id', 'return_type', 'quantity_returned', 'is_restockable']} label="Import CSV" />}
           {admin && (
             <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) form.reset(); }}>
               <DialogTrigger asChild><Button size="sm"><Plus className="mr-1 h-4 w-4" />Log Return</Button></DialogTrigger>

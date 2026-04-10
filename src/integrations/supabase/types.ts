@@ -14,16 +14,158 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      inventory: {
+        Row: {
+          average_cost_price: number
+          created_at: string
+          id: string
+          product_name: string
+          sku: string
+          total_bulk_stock_in: number
+          updated_at: string
+        }
+        Insert: {
+          average_cost_price?: number
+          created_at?: string
+          id?: string
+          product_name: string
+          sku: string
+          total_bulk_stock_in?: number
+          updated_at?: string
+        }
+        Update: {
+          average_cost_price?: number
+          created_at?: string
+          id?: string
+          product_name?: string
+          sku?: string
+          total_bulk_stock_in?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      returns: {
+        Row: {
+          created_at: string
+          id: string
+          is_restockable: boolean
+          penalty_amount: number
+          quantity_returned: number
+          return_type: Database["public"]["Enums"]["return_type"]
+          sales_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_restockable?: boolean
+          penalty_amount?: number
+          quantity_returned: number
+          return_type: Database["public"]["Enums"]["return_type"]
+          sales_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_restockable?: boolean
+          penalty_amount?: number
+          quantity_returned?: number
+          return_type?: Database["public"]["Enums"]["return_type"]
+          sales_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "returns_sales_id_fkey"
+            columns: ["sales_id"]
+            isOneToOne: true
+            referencedRelation: "sales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sales: {
+        Row: {
+          average_selling_price: number
+          courier_partner: string
+          created_at: string
+          dispatch_date: string
+          id: string
+          inventory_id: string
+          payment_status: Database["public"]["Enums"]["payment_status_type"]
+          platform: Database["public"]["Enums"]["platform_type"]
+          quantity_sold: number
+          settlement_date: string | null
+        }
+        Insert: {
+          average_selling_price: number
+          courier_partner: string
+          created_at?: string
+          dispatch_date: string
+          id?: string
+          inventory_id: string
+          payment_status?: Database["public"]["Enums"]["payment_status_type"]
+          platform: Database["public"]["Enums"]["platform_type"]
+          quantity_sold: number
+          settlement_date?: string | null
+        }
+        Update: {
+          average_selling_price?: number
+          courier_partner?: string
+          created_at?: string
+          dispatch_date?: string
+          id?: string
+          inventory_id?: string
+          payment_status?: Database["public"]["Enums"]["payment_status_type"]
+          platform?: Database["public"]["Enums"]["platform_type"]
+          quantity_sold?: number
+          settlement_date?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sales_inventory_id_fkey"
+            columns: ["inventory_id"]
+            isOneToOne: false
+            referencedRelation: "inventory"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_current_stock: { Args: { inv_id: string }; Returns: number }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "user"
+      payment_status_type: "Pending" | "Settled"
+      platform_type: "Meesho" | "Flipkart" | "Amazon" | "Offline"
+      return_type: "Customer Return" | "RTO"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +292,11 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "user"],
+      payment_status_type: ["Pending", "Settled"],
+      platform_type: ["Meesho", "Flipkart", "Amazon", "Offline"],
+      return_type: ["Customer Return", "RTO"],
+    },
   },
 } as const

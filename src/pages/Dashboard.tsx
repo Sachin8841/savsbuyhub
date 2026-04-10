@@ -1,5 +1,4 @@
-import { useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { useSales, useReturns, useInventory } from '@/hooks/useData';
 import { useSales, useReturns, useInventory } from '@/hooks/useData';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DollarSign, Clock, TrendingUp, AlertTriangle } from 'lucide-react';

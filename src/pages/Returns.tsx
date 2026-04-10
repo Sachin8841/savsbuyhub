@@ -21,7 +21,7 @@ import { z } from 'zod';
 const schema = z.object({
   sales_id: z.string().min(1, 'Select a sale'),
   return_type: z.enum(['Customer Return', 'RTO']),
-  quantity_returned: z.coerce.number().int().min(1),
+  quantity_returned: z.number().int().min(1),
   is_restockable: z.boolean(),
 });
 type FormData = z.infer<typeof schema>;

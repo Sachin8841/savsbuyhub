@@ -18,8 +18,8 @@ import { z } from 'zod';
 const schema = z.object({
   sku: z.string().min(1, 'SKU required').max(50),
   product_name: z.string().min(1, 'Product name required').max(255),
-  average_cost_price: z.coerce.number().min(0),
-  total_bulk_stock_in: z.coerce.number().int().min(0),
+  average_cost_price: z.number().min(0),
+  total_bulk_stock_in: z.number().int().min(0),
 });
 type FormData = z.infer<typeof schema>;
 

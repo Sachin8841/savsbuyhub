@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useSales, useInventory } from '@/hooks/useData';
 import { useAuthStore } from '@/stores/authStore';
 import { supabase } from '@/integrations/supabase/client';
@@ -30,7 +30,7 @@ const schema = z.object({
 type FormData = z.infer<typeof schema>;
 
 export default function Sales() {
-  const { data: sales = [], isLoading } = useSales();
+  const { data: sales = [] } = useSales();
   const { data: inventory = [] } = useInventory();
   const { isAdmin } = useAuthStore();
   const admin = isAdmin();

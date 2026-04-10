@@ -24,7 +24,7 @@ const schema = z.object({
 type FormData = z.infer<typeof schema>;
 
 export default function Inventory() {
-  const { data: inventory = [], isLoading } = useInventory();
+  const { data: inventory = [] } = useInventory();
   const { isAdmin } = useAuthStore();
   const [search, setSearch] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);

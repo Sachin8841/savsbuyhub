@@ -156,8 +156,8 @@ export default function Sales() {
                     )} />
                     {form.formState.errors.inventory_id && <p className="text-sm text-destructive">{form.formState.errors.inventory_id.message}</p>}
                   </div>
-                  <div><Label>Quantity Sold</Label><Input type="number" {...form.register('quantity_sold')} /></div>
-                  <div><Label>Average Selling Price</Label><Input type="number" step="0.01" {...form.register('average_selling_price')} /></div>
+                  <div><Label>Quantity Sold</Label><Input type="number" {...form.register('quantity_sold', { valueAsNumber: true })} /></div>
+                  <div><Label>Average Selling Price</Label><Input type="number" step="0.01" {...form.register('average_selling_price', { valueAsNumber: true })} /></div>
                   <div><Label>Courier Partner</Label><Input {...form.register('courier_partner')} /></div>
                   <div>
                     <Label>Payment Status</Label>

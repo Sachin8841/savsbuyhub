@@ -131,7 +131,7 @@ export default function Returns() {
                       </Select>
                     )} />
                   </div>
-                  <div><Label>Quantity Returned</Label><Input type="number" {...form.register('quantity_returned')} /></div>
+                  <div><Label>Quantity Returned</Label><Input type="number" {...form.register('quantity_returned', { valueAsNumber: true })} /></div>
                   <div className="flex items-center gap-2">
                     <Controller name="is_restockable" control={form.control} render={({ field }) => (
                       <Checkbox checked={field.value} onCheckedChange={field.onChange} id="restockable" />

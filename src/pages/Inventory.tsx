@@ -90,6 +90,23 @@ export default function Inventory() {
     })));
   };
 
+  const handleImport = async (rows: Record<string, string>[]) => {
+    let success = 0;
+    const errors: string[] = [];
+    for (const row of rows) {
+      const sku = row.sku || '';
+      const product_name = row.product_name || row.product || '';
+      const average_cost_price = parseFloat(row.average_cost_price || row.avg_cost_price || '0');
+      const total_bulk_stock_in = parseInt(row.total_bulk_stock_in || row.bulk_stock_in || '0', 10);
+      if (!sku || !product_name) { errors.push(`Missing SKU/name: ${sku}`); continue; }
+      const { error } = await supabase.from('inventory').insert({ sku, product_name, average_cost_price, total_bulk_stock_in });
+      if (error) errors.push(`${sku}: ${error.message}`);
+      else success++;
+    }
+    qc.invalidateQueries({ queryKey: ['inventory'] });
+    return { success, errors };
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-4">

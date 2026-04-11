@@ -24,14 +24,24 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isAdmin: () => get().role === 'admin',
   signOut: async () => {
     await supabase.auth.signOut();
-    set({ user: null, role: null });
+    set({ user: null, role: null, loading: false });
   },
   fetchRole: async (userId: string) => {
-    const { data } = await supabase
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', userId)
-      .maybeSingle();
-    set({ role: (data?.role as 'admin' | 'user') ?? 'user' });
+    try {
+      const { data, error } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (error) {
+        set({ role: 'user' });
+        return;
+      }
+
+      set({ role: (data?.role as 'admin' | 'user') ?? 'user' });
+    } catch {
+      set({ role: 'user' });
+    }
   },
 }));

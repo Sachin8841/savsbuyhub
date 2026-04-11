@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -63,6 +63,9 @@ export default function Login() {
               {isSignUp ? 'Sign In' : 'Sign Up'}
             </button>
           </p>
+          <div className="mt-3 text-center">
+            <Link to="/forecast" className="text-sm text-primary hover:underline">View Public Forecast →</Link>
+          </div>
         </CardContent>
       </Card>
     </div>

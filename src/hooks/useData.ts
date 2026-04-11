@@ -1,7 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuthStore } from '@/stores/authStore';
 
 export function useInventory() {
+  const loading = useAuthStore((state) => state.loading);
+
   return useQuery({
     queryKey: ['inventory'],
     queryFn: async () => {
@@ -9,10 +12,13 @@ export function useInventory() {
       if (error) throw error;
       return data;
     },
+    enabled: !loading,
   });
 }
 
 export function useSales() {
+  const loading = useAuthStore((state) => state.loading);
+
   return useQuery({
     queryKey: ['sales'],
     queryFn: async () => {
@@ -23,10 +29,13 @@ export function useSales() {
       if (error) throw error;
       return data;
     },
+    enabled: !loading,
   });
 }
 
 export function useReturns() {
+  const loading = useAuthStore((state) => state.loading);
+
   return useQuery({
     queryKey: ['returns'],
     queryFn: async () => {
@@ -37,10 +46,13 @@ export function useReturns() {
       if (error) throw error;
       return data;
     },
+    enabled: !loading,
   });
 }
 
 export function useCurrentStock(inventoryId: string) {
+  const loading = useAuthStore((state) => state.loading);
+
   return useQuery({
     queryKey: ['current_stock', inventoryId],
     queryFn: async () => {
@@ -48,6 +60,6 @@ export function useCurrentStock(inventoryId: string) {
       if (error) throw error;
       return data as number;
     },
-    enabled: !!inventoryId,
+    enabled: !loading && !!inventoryId,
   });
 }

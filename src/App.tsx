@@ -6,6 +6,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/components/AuthProvider";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { AppLayout } from "@/components/AppLayout";
+import { ThemeProvider } from "@/components/ThemeProvider";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Inventory from "./pages/Inventory";
@@ -19,27 +21,29 @@ const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <AuthProvider>
-        <BrowserRouter>
-          <Routes>
-            {/* Public route - no login required */}
-            <Route path="/forecast" element={<Forecast />} />
-            <Route path="/login" element={<Login />} />
-            <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/inventory" element={<Inventory />} />
-              <Route path="/sales" element={<Sales />} />
-              <Route path="/returns" element={<Returns />} />
-              <Route path="/settings" element={<Settings />} />
-            </Route>
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </AuthProvider>
-    </TooltipProvider>
+    <ThemeProvider>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <ThemeToggle />
+        <AuthProvider>
+          <BrowserRouter>
+            <Routes>
+              <Route path="/forecast" element={<Forecast />} />
+              <Route path="/login" element={<Login />} />
+              <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
+                <Route path="/" element={<Dashboard />} />
+                <Route path="/inventory" element={<Inventory />} />
+                <Route path="/sales" element={<Sales />} />
+                <Route path="/returns" element={<Returns />} />
+                <Route path="/settings" element={<Settings />} />
+              </Route>
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BrowserRouter>
+        </AuthProvider>
+      </TooltipProvider>
+    </ThemeProvider>
   </QueryClientProvider>
 );
 

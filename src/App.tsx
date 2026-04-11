@@ -12,6 +12,7 @@ import Inventory from "./pages/Inventory";
 import Sales from "./pages/Sales";
 import Returns from "./pages/Returns";
 import Settings from "./pages/Settings";
+import Forecast from "./pages/Forecast";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -24,6 +25,8 @@ const App = () => (
       <AuthProvider>
         <BrowserRouter>
           <Routes>
+            {/* Public route - no login required */}
+            <Route path="/forecast" element={<Forecast />} />
             <Route path="/login" element={<Login />} />
             <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
               <Route path="/" element={<Dashboard />} />

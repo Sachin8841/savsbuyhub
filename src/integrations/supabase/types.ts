@@ -14,10 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      ad_expenses: {
+        Row: {
+          amount: number
+          created_at: string
+          description: string | null
+          expense_date: string
+          id: string
+          platform: string
+        }
+        Insert: {
+          amount?: number
+          created_at?: string
+          description?: string | null
+          expense_date?: string
+          id?: string
+          platform: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          description?: string | null
+          expense_date?: string
+          id?: string
+          platform?: string
+        }
+        Relationships: []
+      }
       inventory: {
         Row: {
           average_cost_price: number
+          average_selling_price: number
           created_at: string
+          delivery_fee: number
           id: string
           product_name: string
           sku: string
@@ -26,7 +55,9 @@ export type Database = {
         }
         Insert: {
           average_cost_price?: number
+          average_selling_price?: number
           created_at?: string
+          delivery_fee?: number
           id?: string
           product_name: string
           sku: string
@@ -35,7 +66,9 @@ export type Database = {
         }
         Update: {
           average_cost_price?: number
+          average_selling_price?: number
           created_at?: string
+          delivery_fee?: number
           id?: string
           product_name?: string
           sku?: string
@@ -47,28 +80,34 @@ export type Database = {
       returns: {
         Row: {
           created_at: string
+          delivered_date: string | null
+          delivery_status: Database["public"]["Enums"]["delivery_status_type"]
           id: string
-          is_restockable: boolean
           penalty_amount: number
           quantity_returned: number
+          return_date: string
           return_type: Database["public"]["Enums"]["return_type"]
           sales_id: string
         }
         Insert: {
           created_at?: string
+          delivered_date?: string | null
+          delivery_status?: Database["public"]["Enums"]["delivery_status_type"]
           id?: string
-          is_restockable?: boolean
           penalty_amount?: number
           quantity_returned: number
+          return_date?: string
           return_type: Database["public"]["Enums"]["return_type"]
           sales_id: string
         }
         Update: {
           created_at?: string
+          delivered_date?: string | null
+          delivery_status?: Database["public"]["Enums"]["delivery_status_type"]
           id?: string
-          is_restockable?: boolean
           penalty_amount?: number
           quantity_returned?: number
+          return_date?: string
           return_type?: Database["public"]["Enums"]["return_type"]
           sales_id?: string
         }
@@ -85,7 +124,7 @@ export type Database = {
       sales: {
         Row: {
           average_selling_price: number
-          courier_partner: string
+          courier_partner: string | null
           created_at: string
           dispatch_date: string
           id: string
@@ -97,7 +136,7 @@ export type Database = {
         }
         Insert: {
           average_selling_price: number
-          courier_partner: string
+          courier_partner?: string | null
           created_at?: string
           dispatch_date: string
           id?: string
@@ -109,7 +148,7 @@ export type Database = {
         }
         Update: {
           average_selling_price?: number
-          courier_partner?: string
+          courier_partner?: string | null
           created_at?: string
           dispatch_date?: string
           id?: string
@@ -163,6 +202,14 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "user"
+      courier_type:
+        | "Valmo"
+        | "Delhivery"
+        | "Shadowfax"
+        | "XpressBees"
+        | "SAVS Trans X"
+        | "Other"
+      delivery_status_type: "In Transit" | "Received"
       payment_status_type: "Pending" | "Settled"
       platform_type: "Meesho" | "Flipkart" | "Amazon" | "Offline"
       return_type: "Customer Return" | "RTO"
@@ -294,6 +341,15 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "user"],
+      courier_type: [
+        "Valmo",
+        "Delhivery",
+        "Shadowfax",
+        "XpressBees",
+        "SAVS Trans X",
+        "Other",
+      ],
+      delivery_status_type: ["In Transit", "Received"],
       payment_status_type: ["Pending", "Settled"],
       platform_type: ["Meesho", "Flipkart", "Amazon", "Offline"],
       return_type: ["Customer Return", "RTO"],

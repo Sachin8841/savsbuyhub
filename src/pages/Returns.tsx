@@ -10,10 +10,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Checkbox } from '@/components/ui/checkbox';
+import { Card, CardContent } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { exportToCsv } from '@/lib/csv';
-import { Plus, Download, Trash2, Search } from 'lucide-react';
+import { Plus, Download, Trash2, Search, AlertTriangle, Package } from 'lucide-react';
 import { CsvImportButton } from '@/components/CsvImportButton';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -23,7 +23,7 @@ const schema = z.object({
   sales_id: z.string().min(1, 'Select a sale'),
   return_type: z.enum(['Customer Return', 'RTO']),
   quantity_returned: z.number().int().min(1),
-  is_restockable: z.boolean(),
+  return_date: z.string().min(1, 'Return date required'),
 });
 type FormData = z.infer<typeof schema>;
 
@@ -39,10 +39,9 @@ export default function Returns() {
 
   const form = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: { sales_id: '', return_type: 'Customer Return', quantity_returned: 1, is_restockable: false },
+    defaultValues: { sales_id: '', return_type: 'Customer Return', quantity_returned: 1, return_date: new Date().toISOString().slice(0, 10) },
   });
 
-  // Sales that don't already have a return
   const returnedSaleIds = new Set(returns.map(r => r.sales_id));
   const availableSales = sales.filter(s => !returnedSaleIds.has(s.id));
 
@@ -55,12 +54,23 @@ export default function Returns() {
       r.return_type.toLowerCase().includes(search.toLowerCase());
   });
 
+  // Summary stats
+  const totalReturns = returns.reduce((sum, r) => sum + r.quantity_returned, 0);
+  const totalPenalty = returns.reduce((sum, r) => sum + r.penalty_amount, 0);
+  const inTransit = returns.filter(r => r.delivery_status === 'In Transit').length;
+  const received = returns.filter(r => r.delivery_status === 'Received').length;
+  const fmt = (n: number) => '₹' + n.toLocaleString('en-IN', { maximumFractionDigits: 0 });
+
   const onSubmit = async (values: FormData) => {
     try {
       const penalty_amount = values.return_type === 'Customer Return' ? 160 : 0;
       const { error } = await supabase.from('returns').insert({
-        ...values,
+        sales_id: values.sales_id,
+        return_type: values.return_type,
+        quantity_returned: values.quantity_returned,
+        return_date: values.return_date,
         penalty_amount,
+        delivery_status: 'In Transit' as const,
       });
       if (error) throw error;
       toast({ title: 'Return recorded' });
@@ -78,7 +88,19 @@ export default function Returns() {
     const { error } = await supabase.from('returns').delete().eq('id', id);
     if (error) { toast({ title: 'Error', description: error.message, variant: 'destructive' }); return; }
     qc.invalidateQueries({ queryKey: ['returns'] });
+    qc.invalidateQueries({ queryKey: ['inventory'] });
     toast({ title: 'Return deleted' });
+  };
+
+  // Toggle delivery status
+  const toggleDeliveryStatus = async (ret: any) => {
+    const newStatus = ret.delivery_status === 'In Transit' ? 'Received' : 'In Transit';
+    const delivered_date = newStatus === 'Received' ? new Date().toISOString().slice(0, 10) : null;
+    const { error } = await supabase.from('returns').update({ delivery_status: newStatus, delivered_date }).eq('id', ret.id);
+    if (error) { toast({ title: 'Error', description: error.message, variant: 'destructive' }); return; }
+    qc.invalidateQueries({ queryKey: ['returns'] });
+    qc.invalidateQueries({ queryKey: ['inventory'] });
+    toast({ title: `Marked as ${newStatus}` });
   };
 
   const handleExport = () => {
@@ -86,9 +108,14 @@ export default function Returns() {
       const sale = r.sales as any;
       const inv = sale?.inventory;
       return {
-        'Sale ID': r.sales_id.slice(0, 8), SKU: inv?.sku ?? '', Product: inv?.product_name ?? '',
-        'Return Type': r.return_type, 'Qty Returned': r.quantity_returned,
-        Restockable: r.is_restockable ? 'Yes' : 'No', Penalty: r.penalty_amount,
+        'Return Date': r.return_date ?? '',
+        SKU: inv?.sku ?? '',
+        'Product Name': inv?.product_name ?? '',
+        'Return Type': r.return_type,
+        'Qty Returned': r.quantity_returned,
+        'Delivery Status': r.delivery_status,
+        'Delivered Date': r.delivered_date ?? '',
+        'Penalty Amount': r.penalty_amount,
       };
     }));
   };
@@ -100,13 +127,14 @@ export default function Returns() {
       const sales_id = row.sales_id || row['Sale ID'] || '';
       const return_type = row.return_type || row['Return Type'] || '';
       const quantity_returned = parseInt(row.quantity_returned || row['Qty Returned'] || '0', 10);
-      const is_restockable = (row.is_restockable || row.Restockable || '').toLowerCase() === 'yes' || row.is_restockable === 'true';
+      const return_date = row.return_date || row['Return Date'] || new Date().toISOString().slice(0, 10);
       if (!sales_id || !return_type || !quantity_returned) { errors.push(`Missing data for sale: ${sales_id}`); continue; }
       const validTypes = ['Customer Return', 'RTO'];
       if (!validTypes.includes(return_type)) { errors.push(`Invalid return type: ${return_type}`); continue; }
       const penalty_amount = return_type === 'Customer Return' ? 160 : 0;
       const { error } = await supabase.from('returns').insert({
-        sales_id, return_type: return_type as any, quantity_returned, is_restockable, penalty_amount,
+        sales_id, return_type: return_type as any, quantity_returned, penalty_amount, return_date,
+        delivery_status: 'In Transit' as const,
       });
       if (error) errors.push(`${sales_id}: ${error.message}`);
       else success++;
@@ -122,13 +150,17 @@ export default function Returns() {
         <h2 className="text-2xl font-bold">Returns</h2>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={handleExport}><Download className="mr-1 h-4 w-4" />Export CSV</Button>
-          {admin && <CsvImportButton onImport={handleImport} expectedColumns={['sales_id', 'return_type', 'quantity_returned', 'is_restockable']} label="Import CSV" />}
+          {admin && <CsvImportButton onImport={handleImport} expectedColumns={['sales_id', 'return_type', 'quantity_returned', 'return_date']} label="Import CSV" />}
           {admin && (
             <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) form.reset(); }}>
               <DialogTrigger asChild><Button size="sm"><Plus className="mr-1 h-4 w-4" />Log Return</Button></DialogTrigger>
               <DialogContent>
                 <DialogHeader><DialogTitle>Log Return</DialogTitle></DialogHeader>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                  <div>
+                    <Label>Return Date</Label>
+                    <Input type="date" {...form.register('return_date')} />
+                  </div>
                   <div>
                     <Label>Sales Order</Label>
                     <Controller name="sales_id" control={form.control} render={({ field }) => (
@@ -157,18 +189,20 @@ export default function Returns() {
                     )} />
                   </div>
                   <div><Label>Quantity Returned</Label><Input type="number" {...form.register('quantity_returned', { valueAsNumber: true })} /></div>
-                  <div className="flex items-center gap-2">
-                    <Controller name="is_restockable" control={form.control} render={({ field }) => (
-                      <Checkbox checked={field.value} onCheckedChange={field.onChange} id="restockable" />
-                    )} />
-                    <Label htmlFor="restockable">Restockable (adds back to current stock)</Label>
-                  </div>
                   <Button type="submit" className="w-full">Log Return</Button>
                 </form>
               </DialogContent>
             </Dialog>
           )}
         </div>
+      </div>
+
+      {/* Summary Cards */}
+      <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
+        <Card><CardContent className="p-3 flex items-center gap-2"><Package className="h-4 w-4 text-primary" /><div><p className="text-xs text-muted-foreground">Total Returns</p><p className="font-bold text-sm">{totalReturns} units</p></div></CardContent></Card>
+        <Card><CardContent className="p-3 flex items-center gap-2"><AlertTriangle className="h-4 w-4 text-destructive" /><div><p className="text-xs text-muted-foreground">Total Penalty</p><p className="font-bold text-sm">{fmt(totalPenalty)}</p></div></CardContent></Card>
+        <Card><CardContent className="p-3 flex items-center gap-2"><Package className="h-4 w-4 text-amber-500" /><div><p className="text-xs text-muted-foreground">In Transit</p><p className="font-bold text-sm">{inTransit}</p></div></CardContent></Card>
+        <Card><CardContent className="p-3 flex items-center gap-2"><Package className="h-4 w-4 text-emerald-500" /><div><p className="text-xs text-muted-foreground">Received</p><p className="font-bold text-sm">{received}</p></div></CardContent></Card>
       </div>
 
       <div className="relative max-w-sm">
@@ -180,12 +214,13 @@ export default function Returns() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Sale ID</TableHead>
+              <TableHead>Return Date</TableHead>
               <TableHead>SKU</TableHead>
               <TableHead>Product</TableHead>
               <TableHead>Type</TableHead>
               <TableHead className="text-right">Qty</TableHead>
-              <TableHead>Restockable</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Delivered</TableHead>
               <TableHead className="text-right">Penalty</TableHead>
               {admin && <TableHead className="text-right">Actions</TableHead>}
             </TableRow>
@@ -196,12 +231,26 @@ export default function Returns() {
               const inv = sale?.inventory;
               return (
                 <TableRow key={r.id}>
-                  <TableCell className="font-mono text-sm">{r.sales_id.slice(0, 8)}</TableCell>
+                  <TableCell>{r.return_date ?? '—'}</TableCell>
                   <TableCell className="font-mono text-sm">{inv?.sku}</TableCell>
                   <TableCell>{inv?.product_name}</TableCell>
                   <TableCell><Badge variant={r.return_type === 'RTO' ? 'outline' : 'secondary'}>{r.return_type}</Badge></TableCell>
                   <TableCell className="text-right">{r.quantity_returned}</TableCell>
-                  <TableCell>{r.is_restockable ? <Badge variant="default">Yes</Badge> : <Badge variant="outline">No</Badge>}</TableCell>
+                  <TableCell>
+                    {admin ? (
+                      <Button
+                        variant={r.delivery_status === 'Received' ? 'default' : 'outline'}
+                        size="sm"
+                        className="text-xs h-7"
+                        onClick={() => toggleDeliveryStatus(r)}
+                      >
+                        {r.delivery_status}
+                      </Button>
+                    ) : (
+                      <Badge variant={r.delivery_status === 'Received' ? 'default' : 'outline'}>{r.delivery_status}</Badge>
+                    )}
+                  </TableCell>
+                  <TableCell>{r.delivered_date ?? '—'}</TableCell>
                   <TableCell className="text-right">₹{r.penalty_amount}</TableCell>
                   {admin && (
                     <TableCell className="text-right">
@@ -212,7 +261,7 @@ export default function Returns() {
               );
             })}
             {filtered.length === 0 && (
-              <TableRow><TableCell colSpan={admin ? 8 : 7} className="text-center text-muted-foreground py-8">No returns found</TableCell></TableRow>
+              <TableRow><TableCell colSpan={admin ? 9 : 8} className="text-center text-muted-foreground py-8">No returns found</TableCell></TableRow>
             )}
           </TableBody>
         </Table>

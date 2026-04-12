@@ -1,6 +1,5 @@
-import { LayoutDashboard, Package, Receipt, RotateCcw, Settings, LogOut } from 'lucide-react';
+import { LayoutDashboard, Package, Receipt, RotateCcw, Settings, LogOut, BarChart3 } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
-import { useLocation } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import {
   Sidebar,
@@ -30,14 +29,15 @@ const adminItems = [
 export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === 'collapsed';
-  const location = useLocation();
   const { isAdmin, signOut, user } = useAuthStore();
 
   return (
     <Sidebar collapsible="icon">
       <SidebarContent>
         <div className="flex items-center gap-3 px-4 py-4">
-          <img src="/savs-logo-placeholder.png" alt="SAVS Buyhub Logo" className="h-10 w-auto" />
+          <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center flex-shrink-0">
+            <BarChart3 className="h-5 w-5 text-primary-foreground" />
+          </div>
           {!collapsed && <span className="text-lg font-bold text-sidebar-foreground">SAVS BuyHub</span>}
         </div>
 

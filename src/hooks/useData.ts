@@ -24,7 +24,7 @@ export function useSales() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('sales')
-        .select('*, inventory(sku, product_name, average_cost_price)')
+        .select('*, inventory(sku, product_name, average_cost_price, average_selling_price)')
         .order('dispatch_date', { ascending: false });
       if (error) throw error;
       return data;
@@ -41,8 +41,25 @@ export function useReturns() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('returns')
-        .select('*, sales(id, platform, inventory_id, quantity_sold, average_selling_price, inventory(sku, product_name))')
+        .select('*, sales(id, platform, inventory_id, quantity_sold, average_selling_price, dispatch_date, inventory(sku, product_name))')
         .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !loading,
+  });
+}
+
+export function useAdExpenses() {
+  const loading = useAuthStore((state) => state.loading);
+
+  return useQuery({
+    queryKey: ['ad_expenses'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('ad_expenses')
+        .select('*')
+        .order('expense_date', { ascending: false });
       if (error) throw error;
       return data;
     },

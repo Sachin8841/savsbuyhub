@@ -10,13 +10,16 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { exportToCsv } from '@/lib/csv';
-import { Plus, Download, Pencil, Trash2, Search } from 'lucide-react';
+import { Plus, Download, Pencil, Trash2, Search, DollarSign, Clock } from 'lucide-react';
 import { CsvImportButton } from '@/components/CsvImportButton';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+
+const COURIER_OPTIONS = ['Valmo', 'Delhivery', 'Shadowfax', 'XpressBees', 'SAVS Trans X', 'Other'];
 
 const schema = z.object({
   dispatch_date: z.string().min(1, 'Date required'),
@@ -24,7 +27,7 @@ const schema = z.object({
   inventory_id: z.string().min(1, 'Select a product'),
   quantity_sold: z.number().int().min(1, 'Min 1'),
   average_selling_price: z.number().min(0),
-  courier_partner: z.string().min(1, 'Required').max(100),
+  courier_partner: z.string().optional(),
   payment_status: z.enum(['Pending', 'Settled']),
   settlement_date: z.string().optional(),
 });
@@ -49,18 +52,32 @@ export default function Sales() {
   });
 
   const paymentStatus = form.watch('payment_status');
+  const selectedInvId = form.watch('inventory_id');
+
+  // Auto-fill selling price from inventory
+  const selectedInv = inventory.find(i => i.id === selectedInvId);
+  const autoFillPrice = () => {
+    if (selectedInv && selectedInv.average_selling_price > 0) {
+      form.setValue('average_selling_price', selectedInv.average_selling_price);
+    }
+  };
 
   const filtered = sales.filter(s => {
     const inv = s.inventory as any;
-    const matchSearch = search === '' || inv?.sku?.toLowerCase().includes(search.toLowerCase()) || inv?.product_name?.toLowerCase().includes(search.toLowerCase()) || s.courier_partner.toLowerCase().includes(search.toLowerCase());
+    const matchSearch = search === '' || inv?.sku?.toLowerCase().includes(search.toLowerCase()) || inv?.product_name?.toLowerCase().includes(search.toLowerCase()) || (s.courier_partner ?? '').toLowerCase().includes(search.toLowerCase());
     const matchPlatform = platformFilter === 'all' || s.platform === platformFilter;
     const matchStatus = statusFilter === 'all' || s.payment_status === statusFilter;
     return matchSearch && matchPlatform && matchStatus;
   });
 
+  // Summary stats
+  const totalRevenue = filtered.reduce((sum, s) => sum + s.quantity_sold * s.average_selling_price, 0);
+  const pendingAmount = filtered.filter(s => s.payment_status === 'Pending').reduce((sum, s) => sum + s.quantity_sold * s.average_selling_price, 0);
+  const settledAmount = filtered.filter(s => s.payment_status === 'Settled').reduce((sum, s) => sum + s.quantity_sold * s.average_selling_price, 0);
+  const fmt = (n: number) => '₹' + n.toLocaleString('en-IN', { maximumFractionDigits: 0 });
+
   const onSubmit = async (values: FormData) => {
     try {
-      // Check stock
       if (!editId) {
         const { data: stock } = await supabase.rpc('get_current_stock', { inv_id: values.inventory_id });
         if (stock !== null && values.quantity_sold > (stock as number)) {
@@ -70,6 +87,7 @@ export default function Sales() {
       }
       const payload = {
         ...values,
+        courier_partner: values.courier_partner || null,
         settlement_date: values.payment_status === 'Settled' && values.settlement_date ? values.settlement_date : null,
       };
       if (editId) {
@@ -96,7 +114,7 @@ export default function Sales() {
     form.reset({
       dispatch_date: s.dispatch_date, platform: s.platform, inventory_id: s.inventory_id,
       quantity_sold: s.quantity_sold, average_selling_price: s.average_selling_price,
-      courier_partner: s.courier_partner, payment_status: s.payment_status,
+      courier_partner: s.courier_partner ?? '', payment_status: s.payment_status,
       settlement_date: s.settlement_date ?? '',
     });
     setDialogOpen(true);
@@ -110,13 +128,29 @@ export default function Sales() {
     toast({ title: 'Sale deleted' });
   };
 
+  // Quick payment status toggle
+  const togglePaymentStatus = async (sale: any) => {
+    const newStatus = sale.payment_status === 'Pending' ? 'Settled' : 'Pending';
+    const settlement_date = newStatus === 'Settled' ? new Date().toISOString().slice(0, 10) : null;
+    const { error } = await supabase.from('sales').update({ payment_status: newStatus, settlement_date }).eq('id', sale.id);
+    if (error) { toast({ title: 'Error', description: error.message, variant: 'destructive' }); return; }
+    qc.invalidateQueries({ queryKey: ['sales'] });
+    toast({ title: `Payment marked as ${newStatus}` });
+  };
+
   const handleExport = () => {
     exportToCsv('sales.csv', filtered.map(s => {
       const inv = s.inventory as any;
       return {
-        Date: s.dispatch_date, Platform: s.platform, SKU: inv?.sku ?? '', Product: inv?.product_name ?? '',
-        Qty: s.quantity_sold, 'Selling Price': s.average_selling_price, Courier: s.courier_partner,
-        'Payment Status': s.payment_status, 'Settlement Date': s.settlement_date ?? '',
+        'Dispatch Date': s.dispatch_date,
+        Platform: s.platform,
+        SKU: inv?.sku ?? '',
+        'Product Name': inv?.product_name ?? '',
+        'Quantity Sold': s.quantity_sold,
+        'Selling Price': s.average_selling_price,
+        'Courier Partner': s.courier_partner ?? '',
+        'Payment Status': s.payment_status,
+        'Settlement Date': s.settlement_date ?? '',
       };
     }));
   };
@@ -128,11 +162,11 @@ export default function Sales() {
       const sku = row.sku || row.SKU || '';
       const inv = inventory.find(i => i.sku.toLowerCase() === sku.toLowerCase());
       if (!inv) { errors.push(`SKU not found: ${sku}`); continue; }
-      const dispatch_date = row.dispatch_date || row.date || row.Date || '';
+      const dispatch_date = row.dispatch_date || row.date || row['Dispatch Date'] || '';
       const platform = row.platform || row.Platform || '';
-      const quantity_sold = parseInt(row.quantity_sold || row.qty || row.Qty || '0', 10);
-      const average_selling_price = parseFloat(row.average_selling_price || row.selling_price || row['Selling Price'] || '0');
-      const courier_partner = row.courier_partner || row.courier || row.Courier || '';
+      const quantity_sold = parseInt(row.quantity_sold || row.qty || row['Quantity Sold'] || '0', 10);
+      const average_selling_price = parseFloat(row.average_selling_price || row['Selling Price'] || '0');
+      const courier_partner = row.courier_partner || row['Courier Partner'] || null;
       const payment_status = row.payment_status || row['Payment Status'] || 'Pending';
       const settlement_date = row.settlement_date || row['Settlement Date'] || null;
       if (!dispatch_date || !platform || !quantity_sold) { errors.push(`Missing data for SKU: ${sku}`); continue; }
@@ -152,14 +186,13 @@ export default function Sales() {
     return { success, errors };
   };
 
-
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <h2 className="text-2xl font-bold">Sales Ledger</h2>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={handleExport}><Download className="mr-1 h-4 w-4" />Export CSV</Button>
-          {admin && <CsvImportButton onImport={handleImport} expectedColumns={['sku', 'dispatch_date', 'platform', 'quantity_sold', 'average_selling_price', 'courier_partner', 'payment_status']} label="Import CSV" />}
+          {admin && <CsvImportButton onImport={handleImport} expectedColumns={['sku', 'dispatch_date', 'platform', 'quantity_sold', 'average_selling_price']} label="Import CSV" />}
           {admin && (
             <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) { setEditId(null); form.reset(); } }}>
               <DialogTrigger asChild><Button size="sm"><Plus className="mr-1 h-4 w-4" />Log Sale</Button></DialogTrigger>
@@ -181,7 +214,7 @@ export default function Sales() {
                   <div>
                     <Label>Product (SKU)</Label>
                     <Controller name="inventory_id" control={form.control} render={({ field }) => (
-                      <Select value={field.value} onValueChange={field.onChange}>
+                      <Select value={field.value} onValueChange={(v) => { field.onChange(v); setTimeout(autoFillPrice, 0); }}>
                         <SelectTrigger><SelectValue placeholder="Select product" /></SelectTrigger>
                         <SelectContent>
                           {inventory.map(i => <SelectItem key={i.id} value={i.id}>{i.sku} - {i.product_name}</SelectItem>)}
@@ -190,9 +223,22 @@ export default function Sales() {
                     )} />
                     {form.formState.errors.inventory_id && <p className="text-sm text-destructive">{form.formState.errors.inventory_id.message}</p>}
                   </div>
-                  <div><Label>Quantity Sold</Label><Input type="number" {...form.register('quantity_sold', { valueAsNumber: true })} /></div>
-                  <div><Label>Average Selling Price</Label><Input type="number" step="0.01" {...form.register('average_selling_price', { valueAsNumber: true })} /></div>
-                  <div><Label>Courier Partner</Label><Input {...form.register('courier_partner')} /></div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><Label>Quantity Sold</Label><Input type="number" {...form.register('quantity_sold', { valueAsNumber: true })} /></div>
+                    <div><Label>Selling Price (₹)</Label><Input type="number" step="0.01" {...form.register('average_selling_price', { valueAsNumber: true })} /></div>
+                  </div>
+                  <div>
+                    <Label>Courier Partner (Optional)</Label>
+                    <Controller name="courier_partner" control={form.control} render={({ field }) => (
+                      <Select value={field.value || '_none'} onValueChange={(v) => field.onChange(v === '_none' ? '' : v)}>
+                        <SelectTrigger><SelectValue placeholder="Select courier" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="_none">None</SelectItem>
+                          {COURIER_OPTIONS.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    )} />
+                  </div>
                   <div>
                     <Label>Payment Status</Label>
                     <Controller name="payment_status" control={form.control} render={({ field }) => (
@@ -214,6 +260,13 @@ export default function Sales() {
             </Dialog>
           )}
         </div>
+      </div>
+
+      {/* Summary Cards */}
+      <div className="grid gap-3 grid-cols-3">
+        <Card><CardContent className="p-3 flex items-center gap-2"><DollarSign className="h-4 w-4 text-primary" /><div><p className="text-xs text-muted-foreground">Total Revenue</p><p className="font-bold text-sm">{fmt(totalRevenue)}</p></div></CardContent></Card>
+        <Card><CardContent className="p-3 flex items-center gap-2"><Clock className="h-4 w-4 text-amber-500" /><div><p className="text-xs text-muted-foreground">Pending</p><p className="font-bold text-sm">{fmt(pendingAmount)}</p></div></CardContent></Card>
+        <Card><CardContent className="p-3 flex items-center gap-2"><DollarSign className="h-4 w-4 text-emerald-500" /><div><p className="text-xs text-muted-foreground">Settled</p><p className="font-bold text-sm">{fmt(settledAmount)}</p></div></CardContent></Card>
       </div>
 
       <div className="flex flex-wrap gap-3">
@@ -264,11 +317,22 @@ export default function Sales() {
                   <TableCell>{inv?.product_name}</TableCell>
                   <TableCell className="text-right">{s.quantity_sold}</TableCell>
                   <TableCell className="text-right">₹{s.average_selling_price}</TableCell>
-                  <TableCell>{s.courier_partner}</TableCell>
+                  <TableCell>{s.courier_partner ?? '—'}</TableCell>
                   <TableCell>
-                    <Badge variant={s.payment_status === 'Settled' ? 'default' : 'outline'}>
-                      {s.payment_status}
-                    </Badge>
+                    {admin ? (
+                      <Button
+                        variant={s.payment_status === 'Settled' ? 'default' : 'outline'}
+                        size="sm"
+                        className="text-xs h-7"
+                        onClick={() => togglePaymentStatus(s)}
+                      >
+                        {s.payment_status}
+                      </Button>
+                    ) : (
+                      <Badge variant={s.payment_status === 'Settled' ? 'default' : 'outline'}>
+                        {s.payment_status}
+                      </Badge>
+                    )}
                   </TableCell>
                   {admin && (
                     <TableCell className="text-right">

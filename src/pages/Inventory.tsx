@@ -20,7 +20,9 @@ const schema = z.object({
   sku: z.string().min(1, 'SKU required').max(50),
   product_name: z.string().min(1, 'Product name required').max(255),
   average_cost_price: z.number().min(0),
+  average_selling_price: z.number().min(0),
   total_bulk_stock_in: z.number().int().min(0),
+  delivery_fee: z.number().min(0),
 });
 type FormData = z.infer<typeof schema>;
 
@@ -35,7 +37,7 @@ export default function Inventory() {
   const { toast } = useToast();
   const admin = isAdmin();
 
-  const form = useForm<FormData>({ resolver: zodResolver(schema), defaultValues: { sku: '', product_name: '', average_cost_price: 0, total_bulk_stock_in: 0 } });
+  const form = useForm<FormData>({ resolver: zodResolver(schema), defaultValues: { sku: '', product_name: '', average_cost_price: 0, average_selling_price: 0, total_bulk_stock_in: 0, delivery_fee: 0 } });
 
   useEffect(() => {
     inventory.forEach(async (item) => {
@@ -48,6 +50,12 @@ export default function Inventory() {
     i.sku.toLowerCase().includes(search.toLowerCase()) ||
     i.product_name.toLowerCase().includes(search.toLowerCase())
   );
+
+  // Calculate stock holding value
+  const totalStockValue = inventory.reduce((sum, item) => {
+    const stock = currentStocks[item.id] ?? 0;
+    return sum + stock * item.average_cost_price + item.delivery_fee;
+  }, 0);
 
   const onSubmit = async (values: FormData) => {
     try {
@@ -71,7 +79,7 @@ export default function Inventory() {
 
   const handleEdit = (item: any) => {
     setEditId(item.id);
-    form.reset({ sku: item.sku, product_name: item.product_name, average_cost_price: item.average_cost_price, total_bulk_stock_in: item.total_bulk_stock_in });
+    form.reset({ sku: item.sku, product_name: item.product_name, average_cost_price: item.average_cost_price, average_selling_price: item.average_selling_price ?? 0, total_bulk_stock_in: item.total_bulk_stock_in, delivery_fee: item.delivery_fee ?? 0 });
     setDialogOpen(true);
   };
 
@@ -83,10 +91,17 @@ export default function Inventory() {
     toast({ title: 'Item deleted' });
   };
 
+  const fmt = (n: number) => '₹' + n.toLocaleString('en-IN', { maximumFractionDigits: 2 });
+
   const handleExport = () => {
     exportToCsv('inventory.csv', filtered.map(i => ({
-      SKU: i.sku, Product: i.product_name, 'Avg Cost Price': i.average_cost_price,
-      'Bulk Stock In': i.total_bulk_stock_in, 'Current Stock': currentStocks[i.id] ?? 'N/A',
+      SKU: i.sku,
+      'Product Name': i.product_name,
+      'Cost Price': i.average_cost_price,
+      'Selling Price': i.average_selling_price ?? 0,
+      'Bulk Stock In': i.total_bulk_stock_in,
+      'Current Stock': currentStocks[i.id] ?? 0,
+      'Delivery Fee': i.delivery_fee ?? 0,
     })));
   };
 
@@ -94,12 +109,14 @@ export default function Inventory() {
     let success = 0;
     const errors: string[] = [];
     for (const row of rows) {
-      const sku = row.sku || '';
-      const product_name = row.product_name || row.product || '';
-      const average_cost_price = parseFloat(row.average_cost_price || row.avg_cost_price || '0');
-      const total_bulk_stock_in = parseInt(row.total_bulk_stock_in || row.bulk_stock_in || '0', 10);
+      const sku = row.sku || row.SKU || '';
+      const product_name = row.product_name || row.product || row['Product Name'] || '';
+      const average_cost_price = parseFloat(row.average_cost_price || row['Cost Price'] || '0');
+      const average_selling_price = parseFloat(row.average_selling_price || row['Selling Price'] || '0');
+      const total_bulk_stock_in = parseInt(row.total_bulk_stock_in || row.bulk_stock_in || row['Bulk Stock In'] || '0', 10);
+      const delivery_fee = parseFloat(row.delivery_fee || row['Delivery Fee'] || '0');
       if (!sku || !product_name) { errors.push(`Missing SKU/name: ${sku}`); continue; }
-      const { error } = await supabase.from('inventory').insert({ sku, product_name, average_cost_price, total_bulk_stock_in });
+      const { error } = await supabase.from('inventory').insert({ sku, product_name, average_cost_price, average_selling_price, total_bulk_stock_in, delivery_fee });
       if (error) errors.push(`${sku}: ${error.message}`);
       else success++;
     }
@@ -110,10 +127,13 @@ export default function Inventory() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <h2 className="text-2xl font-bold">Inventory</h2>
+        <div>
+          <h2 className="text-2xl font-bold">Inventory</h2>
+          <p className="text-sm text-muted-foreground">Stock Holding Value: <span className="font-semibold text-primary">{fmt(totalStockValue)}</span></p>
+        </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={handleExport}><Download className="mr-1 h-4 w-4" />Export CSV</Button>
-          {admin && <CsvImportButton onImport={handleImport} expectedColumns={['sku', 'product_name', 'average_cost_price', 'total_bulk_stock_in']} label="Import CSV" />}
+          {admin && <CsvImportButton onImport={handleImport} expectedColumns={['sku', 'product_name', 'average_cost_price', 'average_selling_price', 'total_bulk_stock_in']} label="Import CSV" />}
           {admin && (
             <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) { setEditId(null); form.reset(); } }}>
               <DialogTrigger asChild>
@@ -124,8 +144,14 @@ export default function Inventory() {
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                   <div><Label>SKU</Label><Input {...form.register('sku')} />{form.formState.errors.sku && <p className="text-sm text-destructive">{form.formState.errors.sku.message}</p>}</div>
                   <div><Label>Product Name</Label><Input {...form.register('product_name')} />{form.formState.errors.product_name && <p className="text-sm text-destructive">{form.formState.errors.product_name.message}</p>}</div>
-                  <div><Label>Average Cost Price</Label><Input type="number" step="0.01" {...form.register('average_cost_price', { valueAsNumber: true })} /></div>
-                  <div><Label>Total Bulk Stock In</Label><Input type="number" {...form.register('total_bulk_stock_in', { valueAsNumber: true })} /></div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><Label>Cost Price (₹)</Label><Input type="number" step="0.01" {...form.register('average_cost_price', { valueAsNumber: true })} /></div>
+                    <div><Label>Selling Price (₹)</Label><Input type="number" step="0.01" {...form.register('average_selling_price', { valueAsNumber: true })} /></div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><Label>Bulk Stock In</Label><Input type="number" {...form.register('total_bulk_stock_in', { valueAsNumber: true })} /></div>
+                    <div><Label>Delivery Fee (₹)</Label><Input type="number" step="0.01" {...form.register('delivery_fee', { valueAsNumber: true })} /></div>
+                  </div>
                   <Button type="submit" className="w-full">{editId ? 'Update' : 'Add'}</Button>
                 </form>
               </DialogContent>
@@ -145,9 +171,10 @@ export default function Inventory() {
             <TableRow>
               <TableHead>SKU</TableHead>
               <TableHead>Product Name</TableHead>
-              <TableHead className="text-right">Avg Cost Price</TableHead>
-              <TableHead className="text-right">Bulk Stock In</TableHead>
+              <TableHead className="text-right">Cost Price</TableHead>
+              <TableHead className="text-right">Selling Price</TableHead>
               <TableHead className="text-right">Current Stock</TableHead>
+              <TableHead className="text-right">Delivery Fee</TableHead>
               {admin && <TableHead className="text-right">Actions</TableHead>}
             </TableRow>
           </TableHeader>
@@ -156,9 +183,10 @@ export default function Inventory() {
               <TableRow key={item.id}>
                 <TableCell className="font-mono text-sm">{item.sku}</TableCell>
                 <TableCell>{item.product_name}</TableCell>
-                <TableCell className="text-right">₹{item.average_cost_price}</TableCell>
-                <TableCell className="text-right">{item.total_bulk_stock_in}</TableCell>
+                <TableCell className="text-right">{fmt(item.average_cost_price)}</TableCell>
+                <TableCell className="text-right">{fmt(item.average_selling_price ?? 0)}</TableCell>
                 <TableCell className="text-right font-semibold">{currentStocks[item.id] ?? '—'}</TableCell>
+                <TableCell className="text-right">{fmt(item.delivery_fee ?? 0)}</TableCell>
                 {admin && (
                   <TableCell className="text-right">
                     <Button variant="ghost" size="icon" onClick={() => handleEdit(item)}><Pencil className="h-4 w-4" /></Button>
@@ -168,7 +196,7 @@ export default function Inventory() {
               </TableRow>
             ))}
             {filtered.length === 0 && (
-              <TableRow><TableCell colSpan={admin ? 6 : 5} className="text-center text-muted-foreground py-8">No inventory items found</TableCell></TableRow>
+              <TableRow><TableCell colSpan={admin ? 7 : 6} className="text-center text-muted-foreground py-8">No inventory items found</TableCell></TableRow>
             )}
           </TableBody>
         </Table>

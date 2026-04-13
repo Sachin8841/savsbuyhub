@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { exportToCsv } from '@/lib/csv';
+import { exportToXlsx } from '@/lib/xlsx-export';
 import { Plus, Download, Pencil, Trash2, Search, DollarSign, Clock } from 'lucide-react';
 import { CsvImportButton } from '@/components/CsvImportButton';
 import { useForm, Controller } from 'react-hook-form';
@@ -139,20 +139,26 @@ export default function Sales() {
   };
 
   const handleExport = () => {
-    exportToCsv('sales.csv', filtered.map(s => {
-      const inv = s.inventory as any;
-      return {
-        'Dispatch Date': s.dispatch_date,
-        Platform: s.platform,
-        SKU: inv?.sku ?? '',
-        'Product Name': inv?.product_name ?? '',
-        'Quantity Sold': s.quantity_sold,
-        'Selling Price': s.average_selling_price,
-        'Courier Partner': s.courier_partner ?? '',
-        'Payment Status': s.payment_status,
-        'Settlement Date': s.settlement_date ?? '',
-      };
-    }));
+    exportToXlsx({
+      filename: `SAVS_Sales_${new Date().toISOString().slice(0, 10)}.xlsx`,
+      sheetName: 'Sales',
+      title: 'SAVS BuyHub - Sales Report',
+      rows: filtered.map(s => {
+        const inv = s.inventory as any;
+        return {
+          'Dispatch Date': s.dispatch_date,
+          Platform: s.platform,
+          SKU: inv?.sku ?? '',
+          'Product Name': inv?.product_name ?? '',
+          'Qty Sold': s.quantity_sold,
+          'Selling Price (₹)': s.average_selling_price,
+          'Revenue (₹)': s.quantity_sold * s.average_selling_price,
+          'Courier Partner': s.courier_partner ?? '',
+          'Payment Status': s.payment_status,
+          'Settlement Date': s.settlement_date ?? '',
+        };
+      }),
+    });
   };
 
   const handleImport = async (rows: Record<string, string>[]) => {

@@ -1,19 +1,27 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { TrendingUp, Package, BarChart3, ShoppingCart, LogIn } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend, PieChart, Pie, Cell } from 'recharts';
+import { TrendingUp, Package, BarChart3, ShoppingCart, LogIn, DollarSign, ArrowUpRight, AlertTriangle } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend, PieChart, Pie, Cell, ComposedChart, Area } from 'recharts';
 import { useNavigate } from 'react-router-dom';
 
-const COLORS = ['hsl(224, 76%, 48%)', 'hsl(142, 76%, 36%)', 'hsl(38, 92%, 50%)', 'hsl(0, 84%, 60%)'];
+const PERIOD_OPTIONS = [
+  { label: '7D', value: 'week' },
+  { label: '30D', value: 'month' },
+  { label: '1Y', value: 'year' },
+  { label: 'Max', value: 'max' },
+];
+
+const fmt = (n: number) => '₹' + n.toLocaleString('en-IN', { maximumFractionDigits: 0 });
 
 export default function Forecast() {
   const [sales, setSales] = useState<any[]>([]);
   const [inventory, setInventory] = useState<any[]>([]);
   const [returns, setReturns] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [period, setPeriod] = useState('max');
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -31,6 +39,113 @@ export default function Forecast() {
     fetchData();
   }, []);
 
+  const getFilterDate = (p: string) => {
+    const d = new Date();
+    if (p === 'week') d.setDate(d.getDate() - 7);
+    else if (p === 'month') d.setMonth(d.getMonth() - 1);
+    else if (p === 'year') d.setFullYear(d.getFullYear() - 1);
+    else return null;
+    return d;
+  };
+  const filterDate = getFilterDate(period);
+  const filteredSales = filterDate ? sales.filter(s => new Date(s.created_at) >= filterDate) : sales;
+  const filteredReturns = filterDate ? returns.filter(r => new Date(r.created_at) >= filterDate) : returns;
+
+  const totalRevenue = filteredSales.reduce((sum, s) => sum + s.quantity_sold * s.average_selling_price, 0);
+  const totalUnits = filteredSales.reduce((sum, s) => sum + s.quantity_sold, 0);
+  const totalOrders = filteredSales.length;
+  const totalCost = filteredSales.reduce((sum, s) => sum + s.quantity_sold * ((s.inventory as any)?.average_cost_price ?? 0), 0);
+  const netProfit = totalRevenue - totalCost;
+  const returnedQty = filteredReturns.reduce((s, r) => s + r.quantity_returned, 0);
+  const returnRate = totalUnits > 0 ? ((returnedQty / totalUnits) * 100).toFixed(1) : '0';
+
+  // Platform data
+  const platformData = useMemo(() => ['Meesho', 'Flipkart', 'Amazon', 'Offline'].map(p => {
+    const platSales = filteredSales.filter(s => s.platform === p);
+    const revenue = platSales.reduce((sum, s) => sum + s.quantity_sold * s.average_selling_price, 0);
+    const cost = platSales.reduce((sum, s) => sum + s.quantity_sold * ((s.inventory as any)?.average_cost_price ?? 0), 0);
+    return { platform: p, revenue, profit: revenue - cost, orders: platSales.length, units: platSales.reduce((sum, s) => sum + s.quantity_sold, 0) };
+  }), [filteredSales]);
+
+  // Monthly trend
+  const trendData = useMemo(() => {
+    const dataMap: Record<string, { label: string; revenue: number; cost: number; profit: number; units: number; orders: number }> = {};
+    filteredSales.forEach(s => {
+      const key = period === 'week' || period === 'month'
+        ? new Date(s.created_at).toISOString().slice(0, 10)
+        : (s.dispatch_date?.slice(0, 7) ?? new Date(s.created_at).toISOString().slice(0, 7));
+      if (!dataMap[key]) dataMap[key] = { label: key, revenue: 0, cost: 0, profit: 0, units: 0, orders: 0 };
+      dataMap[key].revenue += s.quantity_sold * s.average_selling_price;
+      dataMap[key].cost += s.quantity_sold * ((s.inventory as any)?.average_cost_price ?? 0);
+      dataMap[key].units += s.quantity_sold;
+      dataMap[key].orders += 1;
+    });
+    const arr = Object.values(dataMap).sort((a, b) => a.label.localeCompare(b.label));
+    arr.forEach(m => { m.profit = m.revenue - m.cost; });
+    return arr;
+  }, [filteredSales, period]);
+
+  // Forecast
+  const last3 = trendData.slice(-3);
+  const avgRevenue = last3.length > 0 ? last3.reduce((s, m) => s + m.revenue, 0) / last3.length : 0;
+  const avgUnits = last3.length > 0 ? last3.reduce((s, m) => s + m.units, 0) / last3.length : 0;
+  const growthRate = last3.length >= 2 && last3[0].revenue > 0 ? ((last3[last3.length - 1].revenue / last3[0].revenue - 1) * 100) : 0;
+
+  const forecastMonths: any[] = [];
+  const lastMonth = trendData.length > 0 ? trendData[trendData.length - 1].label : new Date().toISOString().slice(0, 7);
+  for (let i = 1; i <= 3; i++) {
+    const d = new Date(lastMonth.length === 7 ? lastMonth + '-01' : lastMonth);
+    d.setMonth(d.getMonth() + i);
+    forecastMonths.push({
+      label: d.toISOString().slice(0, 7),
+      revenue: Math.round(avgRevenue * (1 + (growthRate / 100) * i * 0.3)),
+      units: Math.round(avgUnits * (1 + (growthRate / 100) * i * 0.3)),
+    });
+  }
+
+  // Combined trend for chart
+  const combinedTrend = [
+    ...trendData.map(m => ({ ...m, forecastRevenue: undefined as number | undefined })),
+    ...forecastMonths.map(m => ({ ...m, forecastRevenue: m.revenue, revenue: undefined as number | undefined, profit: undefined, cost: 0, orders: 0 })),
+  ];
+
+  // Top products
+  const topProducts = useMemo(() => {
+    const map: Record<string, { name: string; sku: string; revenue: number; units: number }> = {};
+    filteredSales.forEach(s => {
+      const inv = s.inventory as any;
+      if (!inv) return;
+      if (!map[inv.sku]) map[inv.sku] = { name: inv.product_name, sku: inv.sku, revenue: 0, units: 0 };
+      map[inv.sku].revenue += s.quantity_sold * s.average_selling_price;
+      map[inv.sku].units += s.quantity_sold;
+    });
+    return Object.values(map).sort((a, b) => b.revenue - a.revenue).slice(0, 5);
+  }, [filteredSales]);
+
+  // Return pie
+  const customerReturnQty = filteredReturns.filter(r => r.return_type === 'Customer Return').reduce((sum, r) => sum + r.quantity_returned, 0);
+  const rtoReturnQty = filteredReturns.filter(r => r.return_type === 'RTO').reduce((sum, r) => sum + r.quantity_returned, 0);
+  const returnPieData = [
+    { name: 'Customer Returns', value: customerReturnQty },
+    { name: 'RTO', value: rtoReturnQty },
+  ].filter(d => d.value > 0);
+
+  const CustomTooltip = ({ active, payload, label }: any) => {
+    if (!active || !payload?.length) return null;
+    return (
+      <div className="rounded-lg border bg-card p-3 shadow-lg text-sm">
+        <p className="font-medium text-foreground mb-1">{label}</p>
+        {payload.map((p: any, i: number) => (
+          <div key={i} className="flex items-center gap-2">
+            <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: p.color }} />
+            <span className="text-muted-foreground">{p.name}:</span>
+            <span className="font-medium text-foreground">{p.name === 'Orders' || p.name === 'Units' ? p.value : fmt(p.value)}</span>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
@@ -39,65 +154,9 @@ export default function Forecast() {
     );
   }
 
-  const totalRevenue = sales.reduce((sum, s) => sum + s.quantity_sold * s.average_selling_price, 0);
-  const totalUnits = sales.reduce((sum, s) => sum + s.quantity_sold, 0);
-  const returnRate = totalUnits > 0 ? ((returns.reduce((s, r) => s + r.quantity_returned, 0) / totalUnits) * 100).toFixed(1) : '0';
-  const totalProducts = inventory.length;
-
-  const platformData = ['Meesho', 'Flipkart', 'Amazon', 'Offline'].map(p => ({
-    platform: p,
-    revenue: sales.filter(s => s.platform === p).reduce((sum, s) => sum + s.quantity_sold * s.average_selling_price, 0),
-    units: sales.filter(s => s.platform === p).reduce((sum, s) => sum + s.quantity_sold, 0),
-  }));
-
-  const monthlyMap: Record<string, { month: string; revenue: number; units: number }> = {};
-  sales.forEach(s => {
-    const month = s.dispatch_date?.slice(0, 7);
-    if (!month) return;
-    if (!monthlyMap[month]) monthlyMap[month] = { month, revenue: 0, units: 0 };
-    monthlyMap[month].revenue += s.quantity_sold * s.average_selling_price;
-    monthlyMap[month].units += s.quantity_sold;
-  });
-  const monthlyTrend = Object.values(monthlyMap).sort((a, b) => a.month.localeCompare(b.month));
-
-  const last3 = monthlyTrend.slice(-3);
-  const avgRevenue = last3.length > 0 ? last3.reduce((s, m) => s + m.revenue, 0) / last3.length : 0;
-  const avgUnits = last3.length > 0 ? last3.reduce((s, m) => s + m.units, 0) / last3.length : 0;
-  const growthRate = last3.length >= 2 ? ((last3[last3.length - 1].revenue / last3[0].revenue - 1) * 100) : 0;
-
-  const forecastMonths: any[] = [];
-  const lastMonth = monthlyTrend.length > 0 ? monthlyTrend[monthlyTrend.length - 1].month : new Date().toISOString().slice(0, 7);
-  for (let i = 1; i <= 3; i++) {
-    const d = new Date(lastMonth + '-01');
-    d.setMonth(d.getMonth() + i);
-    forecastMonths.push({
-      month: d.toISOString().slice(0, 7),
-      revenue: Math.round(avgRevenue * (1 + (growthRate / 100) * i * 0.3)),
-      units: Math.round(avgUnits * (1 + (growthRate / 100) * i * 0.3)),
-      forecast: true,
-    });
-  }
-
-  const combinedTrend = [
-    ...monthlyTrend.map(m => ({ ...m, forecast: false, forecastRevenue: undefined as number | undefined })),
-    ...forecastMonths.map(m => ({ ...m, forecastRevenue: m.revenue, revenue: undefined as number | undefined })),
-  ];
-
-  const productSales: Record<string, { name: string; sku: string; units: number; revenue: number }> = {};
-  sales.forEach(s => {
-    const inv = s.inventory as any;
-    if (!inv) return;
-    if (!productSales[inv.sku]) productSales[inv.sku] = { name: inv.product_name, sku: inv.sku, units: 0, revenue: 0 };
-    productSales[inv.sku].units += s.quantity_sold;
-    productSales[inv.sku].revenue += s.quantity_sold * s.average_selling_price;
-  });
-  const topProducts = Object.values(productSales).sort((a, b) => b.revenue - a.revenue).slice(0, 5);
-
-  const fmt = (n: number) => '₹' + n.toLocaleString('en-IN', { maximumFractionDigits: 0 });
-
   return (
     <div className="min-h-screen bg-background">
-      {/* Header with login button */}
+      {/* Header */}
       <div className="bg-gradient-to-br from-primary/10 via-background to-primary/5 border-b">
         <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between mb-4">
@@ -112,12 +171,14 @@ export default function Forecast() {
             </Button>
           </div>
           <p className="text-lg text-muted-foreground">Sales Forecast & Business Intelligence</p>
+
+          {/* KPI Cards */}
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mt-6">
             {[
-              { title: 'Total Revenue', value: fmt(totalRevenue), icon: TrendingUp, color: 'text-primary' },
-              { title: 'Units Sold', value: totalUnits.toLocaleString(), icon: ShoppingCart, color: 'text-emerald-500' },
-              { title: 'Products', value: totalProducts.toString(), icon: Package, color: 'text-amber-500' },
-              { title: 'Return Rate', value: `${returnRate}%`, icon: BarChart3, color: 'text-destructive' },
+              { title: 'Total Revenue', value: fmt(totalRevenue), icon: DollarSign, color: 'text-primary' },
+              { title: 'Net Profit', value: fmt(netProfit), icon: ArrowUpRight, color: 'text-emerald-500' },
+              { title: 'Orders / Units', value: `${totalOrders} / ${totalUnits.toLocaleString()}`, icon: ShoppingCart, color: 'text-amber-500' },
+              { title: 'Return Rate', value: `${returnRate}%`, icon: AlertTriangle, color: 'text-destructive' },
             ].map(kpi => (
               <Card key={kpi.title} className="border-none shadow-md">
                 <CardContent className="flex items-center gap-4 p-5">
@@ -134,61 +195,88 @@ export default function Forecast() {
       </div>
 
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 space-y-6">
-        <div className="grid gap-6 lg:grid-cols-2">
-          <Card className="lg:col-span-2">
-            <CardHeader><CardTitle className="text-base flex items-center gap-2">Revenue Trend & Forecast <Badge variant="secondary">AI Projected</Badge></CardTitle></CardHeader>
-            <CardContent className="h-80">
-              {combinedTrend.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={combinedTrend}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="month" fontSize={12} />
-                    <YAxis fontSize={12} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} />
-                    <Tooltip formatter={(v: number) => fmt(v)} />
-                    <Line type="monotone" dataKey="revenue" stroke="hsl(224, 76%, 48%)" strokeWidth={2} name="Actual" dot={{ r: 4 }} />
-                    <Line type="monotone" dataKey="forecastRevenue" stroke="hsl(224, 76%, 48%)" strokeWidth={2} strokeDasharray="8 4" name="Forecast" dot={{ r: 4 }} />
-                    <Legend />
-                  </LineChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="flex h-full items-center justify-center text-muted-foreground">No data yet</div>
-              )}
-            </CardContent>
-          </Card>
+        {/* Period selector */}
+        <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1 w-fit">
+          {PERIOD_OPTIONS.map(p => (
+            <Button key={p.value} variant={period === p.value ? 'default' : 'ghost'} size="sm" className="text-xs h-7 px-3"
+              onClick={() => setPeriod(p.value)}>{p.label}</Button>
+          ))}
+        </div>
 
+        {/* Revenue Trend & Forecast */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">Revenue & Profit Trend <Badge variant="secondary">AI Forecast</Badge></CardTitle>
+            <CardDescription>Historical performance with 3-month projection</CardDescription>
+          </CardHeader>
+          <CardContent className="h-80">
+            {combinedTrend.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={combinedTrend}>
+                  <defs>
+                    <linearGradient id="fRevGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="hsl(224, 76%, 48%)" stopOpacity={0.15} />
+                      <stop offset="100%" stopColor="hsl(224, 76%, 48%)" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis dataKey="label" fontSize={11} tick={{ fill: 'hsl(var(--muted-foreground))' }} />
+                  <YAxis fontSize={11} tickFormatter={(v) => `₹${v >= 1000 ? (v / 1000).toFixed(0) + 'k' : v}`} tick={{ fill: 'hsl(var(--muted-foreground))' }} />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Area type="monotone" dataKey="revenue" stroke="hsl(224, 76%, 48%)" strokeWidth={2.5} fill="url(#fRevGrad)" name="Revenue" />
+                  <Line type="monotone" dataKey="profit" stroke="hsl(142, 76%, 36%)" strokeWidth={2} name="Profit" dot={false} />
+                  <Line type="monotone" dataKey="forecastRevenue" stroke="hsl(224, 76%, 48%)" strokeWidth={2} strokeDasharray="8 4" name="Forecast" dot={{ r: 4, fill: 'hsl(224, 76%, 48%)' }} />
+                  <Legend />
+                </ComposedChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex h-full items-center justify-center text-muted-foreground">No data yet</div>
+            )}
+          </CardContent>
+        </Card>
+
+        <div className="grid gap-6 lg:grid-cols-2">
+          {/* Platform Performance */}
           <Card>
-            <CardHeader><CardTitle className="text-base">Revenue by Platform</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-base">Platform Performance</CardTitle><CardDescription>Revenue & profit by platform</CardDescription></CardHeader>
             <CardContent className="h-72">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={platformData} barSize={40}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="platform" fontSize={12} />
-                  <YAxis fontSize={12} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} />
-                  <Tooltip formatter={(v: number) => fmt(v)} />
-                  <Bar dataKey="revenue" radius={[6, 6, 0, 0]} name="Revenue">
-                    {platformData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                  </Bar>
+                <BarChart data={platformData} barGap={4}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis dataKey="platform" fontSize={12} tick={{ fill: 'hsl(var(--muted-foreground))' }} />
+                  <YAxis fontSize={11} tickFormatter={(v) => `₹${v >= 1000 ? (v / 1000).toFixed(0) + 'k' : v}`} tick={{ fill: 'hsl(var(--muted-foreground))' }} />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Bar dataKey="revenue" name="Revenue" fill="hsl(224, 76%, 48%)" radius={[4, 4, 0, 0]} barSize={28} />
+                  <Bar dataKey="profit" name="Profit" fill="hsl(142, 76%, 36%)" radius={[4, 4, 0, 0]} barSize={28} />
+                  <Legend />
                 </BarChart>
               </ResponsiveContainer>
             </CardContent>
           </Card>
 
+          {/* Returns */}
           <Card>
-            <CardHeader><CardTitle className="text-base">Units by Platform</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-base">Return Breakdown</CardTitle><CardDescription>Units returned by type</CardDescription></CardHeader>
             <CardContent className="h-72">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={platformData.filter(p => p.units > 0)} cx="50%" cy="50%" innerRadius={40} outerRadius={80} dataKey="units" nameKey="platform" label>
-                    {platformData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                  </Pie>
-                  <Tooltip />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
+              {returnPieData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={returnPieData} cx="50%" cy="50%" innerRadius={45} outerRadius={75} dataKey="value" label={({ name, value }) => `${name}: ${value}`} labelLine={false}>
+                      <Cell fill="hsl(38, 92%, 50%)" />
+                      <Cell fill="hsl(0, 84%, 60%)" />
+                    </Pie>
+                    <Tooltip />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex h-full items-center justify-center text-muted-foreground">No returns yet</div>
+              )}
             </CardContent>
           </Card>
         </div>
 
+        {/* Top Products */}
         <Card>
           <CardHeader><CardTitle className="text-base">Top Performing Products</CardTitle></CardHeader>
           <CardContent>
@@ -210,14 +298,15 @@ export default function Forecast() {
           </CardContent>
         </Card>
 
+        {/* Forecast Cards */}
         {forecastMonths.length > 0 && avgRevenue > 0 && (
           <Card className="border-primary/20 bg-primary/5">
             <CardHeader><CardTitle className="text-base flex items-center gap-2"><TrendingUp className="h-5 w-5 text-primary" />3-Month Forecast</CardTitle></CardHeader>
             <CardContent>
               <div className="grid gap-4 sm:grid-cols-3">
                 {forecastMonths.map((m: any) => (
-                  <div key={m.month} className="rounded-lg border bg-card p-4 text-center">
-                    <p className="text-sm text-muted-foreground">{m.month}</p>
+                  <div key={m.label} className="rounded-lg border bg-card p-4 text-center">
+                    <p className="text-sm text-muted-foreground">{m.label}</p>
                     <p className="text-xl font-bold text-primary mt-1">{fmt(m.revenue)}</p>
                     <p className="text-sm text-muted-foreground">{m.units} units est.</p>
                   </div>

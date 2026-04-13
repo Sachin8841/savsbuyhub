@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { exportToCsv } from '@/lib/csv';
+import { exportToXlsx } from '@/lib/xlsx-export';
 import { Plus, Download, Trash2, Search, AlertTriangle, Package } from 'lucide-react';
 import { CsvImportButton } from '@/components/CsvImportButton';
 import { useForm, Controller } from 'react-hook-form';
@@ -104,20 +104,25 @@ export default function Returns() {
   };
 
   const handleExport = () => {
-    exportToCsv('returns.csv', filtered.map(r => {
-      const sale = r.sales as any;
-      const inv = sale?.inventory;
-      return {
-        'Return Date': r.return_date ?? '',
-        SKU: inv?.sku ?? '',
-        'Product Name': inv?.product_name ?? '',
-        'Return Type': r.return_type,
-        'Qty Returned': r.quantity_returned,
-        'Delivery Status': r.delivery_status,
-        'Delivered Date': r.delivered_date ?? '',
-        'Penalty Amount': r.penalty_amount,
-      };
-    }));
+    exportToXlsx({
+      filename: `SAVS_Returns_${new Date().toISOString().slice(0, 10)}.xlsx`,
+      sheetName: 'Returns',
+      title: 'SAVS BuyHub - Returns Report',
+      rows: filtered.map(r => {
+        const sale = r.sales as any;
+        const inv = sale?.inventory;
+        return {
+          'Return Date': r.return_date ?? '',
+          SKU: inv?.sku ?? '',
+          'Product Name': inv?.product_name ?? '',
+          'Return Type': r.return_type,
+          'Qty Returned': r.quantity_returned,
+          'Delivery Status': r.delivery_status,
+          'Delivered Date': r.delivered_date ?? '',
+          'Penalty (₹)': r.penalty_amount,
+        };
+      }),
+    });
   };
 
   const handleImport = async (rows: Record<string, string>[]) => {
@@ -149,7 +154,7 @@ export default function Returns() {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <h2 className="text-2xl font-bold">Returns</h2>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={handleExport}><Download className="mr-1 h-4 w-4" />Export CSV</Button>
+          <Button variant="outline" size="sm" onClick={handleExport}><Download className="mr-1 h-4 w-4" />Export Excel</Button>
           {admin && <CsvImportButton onImport={handleImport} expectedColumns={['sales_id', 'return_type', 'quantity_returned', 'return_date']} label="Import CSV" />}
           {admin && (
             <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) form.reset(); }}>

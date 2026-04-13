@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { exportToCsv } from '@/lib/csv';
+import { exportToXlsx } from '@/lib/xlsx-export';
 import { Plus, Download, Pencil, Trash2, Search } from 'lucide-react';
 import { CsvImportButton } from '@/components/CsvImportButton';
 import { useForm } from 'react-hook-form';
@@ -94,15 +94,20 @@ export default function Inventory() {
   const fmt = (n: number) => '₹' + n.toLocaleString('en-IN', { maximumFractionDigits: 2 });
 
   const handleExport = () => {
-    exportToCsv('inventory.csv', filtered.map(i => ({
-      SKU: i.sku,
-      'Product Name': i.product_name,
-      'Cost Price': i.average_cost_price,
-      'Selling Price': i.average_selling_price ?? 0,
-      'Bulk Stock In': i.total_bulk_stock_in,
-      'Current Stock': currentStocks[i.id] ?? 0,
-      'Delivery Fee': i.delivery_fee ?? 0,
-    })));
+    exportToXlsx({
+      filename: `SAVS_Inventory_${new Date().toISOString().slice(0, 10)}.xlsx`,
+      sheetName: 'Inventory',
+      title: 'SAVS BuyHub - Inventory Report',
+      rows: filtered.map(i => ({
+        SKU: i.sku,
+        'Product Name': i.product_name,
+        'Cost Price (₹)': i.average_cost_price,
+        'Selling Price (₹)': i.average_selling_price ?? 0,
+        'Current Stock': currentStocks[i.id] ?? 0,
+        'Delivery Fee (₹)': i.delivery_fee ?? 0,
+        'Stock Value (₹)': (currentStocks[i.id] ?? 0) * i.average_cost_price,
+      })),
+    });
   };
 
   const handleImport = async (rows: Record<string, string>[]) => {
@@ -132,7 +137,7 @@ export default function Inventory() {
           <p className="text-sm text-muted-foreground">Stock Holding Value: <span className="font-semibold text-primary">{fmt(totalStockValue)}</span></p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={handleExport}><Download className="mr-1 h-4 w-4" />Export CSV</Button>
+          <Button variant="outline" size="sm" onClick={handleExport}><Download className="mr-1 h-4 w-4" />Export Excel</Button>
           {admin && <CsvImportButton onImport={handleImport} expectedColumns={['sku', 'product_name', 'average_cost_price', 'average_selling_price', 'total_bulk_stock_in']} label="Import CSV" />}
           {admin && (
             <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) { setEditId(null); form.reset(); } }}>

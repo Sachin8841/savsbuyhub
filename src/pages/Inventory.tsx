@@ -137,7 +137,7 @@ export default function Inventory() {
           <p className="text-sm text-muted-foreground">Stock Holding Value: <span className="font-semibold text-primary">{fmt(totalStockValue)}</span></p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={handleExport}><Download className="mr-1 h-4 w-4" />Export CSV</Button>
+          <Button variant="outline" size="sm" onClick={handleExport}><Download className="mr-1 h-4 w-4" />Export Excel</Button>
           {admin && <CsvImportButton onImport={handleImport} expectedColumns={['sku', 'product_name', 'average_cost_price', 'average_selling_price', 'total_bulk_stock_in']} label="Import CSV" />}
           {admin && (
             <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) { setEditId(null); form.reset(); } }}>

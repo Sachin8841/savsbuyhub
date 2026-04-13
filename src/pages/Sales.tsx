@@ -197,7 +197,7 @@ export default function Sales() {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <h2 className="text-2xl font-bold">Sales Ledger</h2>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={handleExport}><Download className="mr-1 h-4 w-4" />Export CSV</Button>
+          <Button variant="outline" size="sm" onClick={handleExport}><Download className="mr-1 h-4 w-4" />Export Excel</Button>
           {admin && <CsvImportButton onImport={handleImport} expectedColumns={['sku', 'dispatch_date', 'platform', 'quantity_sold', 'average_selling_price']} label="Import CSV" />}
           {admin && (
             <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) { setEditId(null); form.reset(); } }}>

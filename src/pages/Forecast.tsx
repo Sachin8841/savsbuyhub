@@ -3,11 +3,12 @@ import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { TrendingUp, Package, BarChart3, ShoppingCart, LogIn, DollarSign, ArrowUpRight, AlertTriangle } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend, PieChart, Pie, Cell, ComposedChart, Area } from 'recharts';
+import { TrendingUp, Package, BarChart3, ShoppingCart, LogIn, DollarSign, ArrowUpRight } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Line, Legend, PieChart, Pie, Cell, ComposedChart, Area } from 'recharts';
 import { useNavigate } from 'react-router-dom';
 
 const PERIOD_OPTIONS = [
+  { label: '1D', value: 'day' },
   { label: '7D', value: 'week' },
   { label: '30D', value: 'month' },
   { label: '1Y', value: 'year' },
@@ -15,6 +16,15 @@ const PERIOD_OPTIONS = [
 ];
 
 const fmt = (n: number) => '₹' + n.toLocaleString('en-IN', { maximumFractionDigits: 0 });
+
+const PeriodSelector = ({ value, onChange }: { value: string; onChange: (v: string) => void }) => (
+  <div className="flex items-center gap-0.5 bg-muted/50 rounded-lg p-0.5 w-fit">
+    {PERIOD_OPTIONS.map(p => (
+      <Button key={p.value} variant={value === p.value ? 'default' : 'ghost'} size="sm" className="text-xs h-6 px-2.5"
+        onClick={() => onChange(p.value)}>{p.label}</Button>
+    ))}
+  </div>
+);
 
 export default function Forecast() {
   const [sales, setSales] = useState<any[]>([]);
@@ -27,7 +37,7 @@ export default function Forecast() {
   useEffect(() => {
     const fetchData = async () => {
       const [salesRes, invRes, retRes] = await Promise.all([
-        supabase.from('sales').select('*, inventory(sku, product_name, average_cost_price, average_selling_price)').order('dispatch_date', { ascending: false }),
+        supabase.from('sales').select('*, inventory(sku, product_name, average_cost_price, average_selling_price, delivery_fee)').order('dispatch_date', { ascending: false }),
         supabase.from('inventory').select('*'),
         supabase.from('returns').select('*, sales(id, platform, dispatch_date, inventory_id, quantity_sold, average_selling_price, inventory(sku, product_name))'),
       ]);
@@ -41,21 +51,23 @@ export default function Forecast() {
 
   const getFilterDate = (p: string) => {
     const d = new Date();
-    if (p === 'week') d.setDate(d.getDate() - 7);
+    if (p === 'day') d.setDate(d.getDate() - 1);
+    else if (p === 'week') d.setDate(d.getDate() - 7);
     else if (p === 'month') d.setMonth(d.getMonth() - 1);
     else if (p === 'year') d.setFullYear(d.getFullYear() - 1);
     else return null;
     return d;
   };
   const filterDate = getFilterDate(period);
-  const filteredSales = filterDate ? sales.filter(s => new Date(s.created_at) >= filterDate) : sales;
-  const filteredReturns = filterDate ? returns.filter(r => new Date(r.created_at) >= filterDate) : returns;
+  const filteredSales = filterDate ? sales.filter(s => new Date(s.dispatch_date) >= filterDate) : sales;
+  const filteredReturns = filterDate ? returns.filter(r => new Date(r.return_date) >= filterDate) : returns;
 
   const totalRevenue = filteredSales.reduce((sum, s) => sum + s.quantity_sold * s.average_selling_price, 0);
   const totalUnits = filteredSales.reduce((sum, s) => sum + s.quantity_sold, 0);
   const totalOrders = filteredSales.length;
   const totalCost = filteredSales.reduce((sum, s) => sum + s.quantity_sold * ((s.inventory as any)?.average_cost_price ?? 0), 0);
-  const netProfit = totalRevenue - totalCost;
+  const totalDeliveryFees = filteredSales.reduce((sum, s) => sum + ((s.inventory as any)?.delivery_fee ?? 0), 0);
+  const netProfit = totalRevenue - totalCost - totalDeliveryFees;
   const returnedQty = filteredReturns.reduce((s, r) => s + r.quantity_returned, 0);
   const returnRate = totalUnits > 0 ? ((returnedQty / totalUnits) * 100).toFixed(1) : '0';
 
@@ -64,24 +76,32 @@ export default function Forecast() {
     const platSales = filteredSales.filter(s => s.platform === p);
     const revenue = platSales.reduce((sum, s) => sum + s.quantity_sold * s.average_selling_price, 0);
     const cost = platSales.reduce((sum, s) => sum + s.quantity_sold * ((s.inventory as any)?.average_cost_price ?? 0), 0);
-    return { platform: p, revenue, profit: revenue - cost, orders: platSales.length, units: platSales.reduce((sum, s) => sum + s.quantity_sold, 0) };
+    return { platform: p, revenue, cost, profit: revenue - cost, orders: platSales.length, units: platSales.reduce((sum, s) => sum + s.quantity_sold, 0) };
   }), [filteredSales]);
 
-  // Monthly trend
+  // Trend data using dispatch_date
   const trendData = useMemo(() => {
-    const dataMap: Record<string, { label: string; revenue: number; cost: number; profit: number; units: number; orders: number }> = {};
+    const dataMap: Record<string, { label: string; revenue: number; investment: number; profit: number; units: number; orders: number }> = {};
     filteredSales.forEach(s => {
-      const key = period === 'week' || period === 'month'
-        ? new Date(s.created_at).toISOString().slice(0, 10)
-        : (s.dispatch_date?.slice(0, 7) ?? new Date(s.created_at).toISOString().slice(0, 7));
-      if (!dataMap[key]) dataMap[key] = { label: key, revenue: 0, cost: 0, profit: 0, units: 0, orders: 0 };
-      dataMap[key].revenue += s.quantity_sold * s.average_selling_price;
-      dataMap[key].cost += s.quantity_sold * ((s.inventory as any)?.average_cost_price ?? 0);
+      let key: string;
+      if (period === 'day') {
+        key = `${new Date(s.dispatch_date).getHours().toString().padStart(2, '0')}:00`;
+      } else if (period === 'week' || period === 'month') {
+        key = s.dispatch_date;
+      } else {
+        key = s.dispatch_date?.slice(0, 7) ?? new Date(s.created_at).toISOString().slice(0, 7);
+      }
+      if (!dataMap[key]) dataMap[key] = { label: key, revenue: 0, investment: 0, profit: 0, units: 0, orders: 0 };
+      const rev = s.quantity_sold * s.average_selling_price;
+      const cost = s.quantity_sold * ((s.inventory as any)?.average_cost_price ?? 0);
+      const delFee = (s.inventory as any)?.delivery_fee ?? 0;
+      dataMap[key].revenue += rev;
+      dataMap[key].investment += cost + delFee;
       dataMap[key].units += s.quantity_sold;
       dataMap[key].orders += 1;
     });
     const arr = Object.values(dataMap).sort((a, b) => a.label.localeCompare(b.label));
-    arr.forEach(m => { m.profit = m.revenue - m.cost; });
+    arr.forEach(m => { m.profit = m.revenue - m.investment; });
     return arr;
   }, [filteredSales, period]);
 
@@ -103,10 +123,9 @@ export default function Forecast() {
     });
   }
 
-  // Combined trend for chart
   const combinedTrend = [
     ...trendData.map(m => ({ ...m, forecastRevenue: undefined as number | undefined })),
-    ...forecastMonths.map(m => ({ ...m, forecastRevenue: m.revenue, revenue: undefined as number | undefined, profit: undefined, cost: 0, orders: 0 })),
+    ...forecastMonths.map(m => ({ ...m, forecastRevenue: m.revenue, revenue: undefined as number | undefined, profit: undefined, investment: 0, orders: 0 })),
   ];
 
   // Top products
@@ -122,12 +141,12 @@ export default function Forecast() {
     return Object.values(map).sort((a, b) => b.revenue - a.revenue).slice(0, 5);
   }, [filteredSales]);
 
-  // Return pie
-  const customerReturnQty = filteredReturns.filter(r => r.return_type === 'Customer Return').reduce((sum, r) => sum + r.quantity_returned, 0);
-  const rtoReturnQty = filteredReturns.filter(r => r.return_type === 'RTO').reduce((sum, r) => sum + r.quantity_returned, 0);
+  // Return pie with penalty
+  const customerReturns = filteredReturns.filter(r => r.return_type === 'Customer Return');
+  const rtoReturns = filteredReturns.filter(r => r.return_type === 'RTO');
   const returnPieData = [
-    { name: 'Customer Returns', value: customerReturnQty },
-    { name: 'RTO', value: rtoReturnQty },
+    { name: 'Customer Return', value: customerReturns.reduce((s, r) => s + r.quantity_returned, 0), penalty: customerReturns.reduce((s, r) => s + r.penalty_amount, 0) },
+    { name: 'RTO', value: rtoReturns.reduce((s, r) => s + r.quantity_returned, 0), penalty: rtoReturns.reduce((s, r) => s + r.penalty_amount, 0) },
   ].filter(d => d.value > 0);
 
   const CustomTooltip = ({ active, payload, label }: any) => {
@@ -146,6 +165,19 @@ export default function Forecast() {
     );
   };
 
+  const ReturnTooltip = ({ active, payload }: any) => {
+    if (!active || !payload?.length) return null;
+    const d = payload[0]?.payload;
+    if (!d) return null;
+    return (
+      <div className="rounded-lg border bg-card p-3 shadow-lg text-sm">
+        <p className="font-medium text-foreground mb-1">{d.name}</p>
+        <p className="text-muted-foreground">Quantity: <span className="font-medium text-foreground">{d.value} units</span></p>
+        <p className="text-muted-foreground">Penalty: <span className="font-medium text-foreground">{fmt(d.penalty)}</span></p>
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
@@ -156,7 +188,6 @@ export default function Forecast() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
       <div className="bg-gradient-to-br from-primary/10 via-background to-primary/5 border-b">
         <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between mb-4">
@@ -172,13 +203,12 @@ export default function Forecast() {
           </div>
           <p className="text-lg text-muted-foreground">Sales Forecast & Business Intelligence</p>
 
-          {/* KPI Cards */}
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mt-6">
             {[
               { title: 'Total Revenue', value: fmt(totalRevenue), icon: DollarSign, color: 'text-primary' },
+              { title: 'Investment', value: fmt(totalCost + totalDeliveryFees), icon: Package, color: 'text-amber-500' },
               { title: 'Net Profit', value: fmt(netProfit), icon: ArrowUpRight, color: 'text-emerald-500' },
-              { title: 'Orders / Units', value: `${totalOrders} / ${totalUnits.toLocaleString()}`, icon: ShoppingCart, color: 'text-amber-500' },
-              { title: 'Return Rate', value: `${returnRate}%`, icon: AlertTriangle, color: 'text-destructive' },
+              { title: 'Orders / Units', value: `${totalOrders} / ${totalUnits.toLocaleString()}`, icon: ShoppingCart, color: 'text-primary' },
             ].map(kpi => (
               <Card key={kpi.title} className="border-none shadow-md">
                 <CardContent className="flex items-center gap-4 p-5">
@@ -195,19 +225,16 @@ export default function Forecast() {
       </div>
 
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 space-y-6">
-        {/* Period selector */}
-        <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1 w-fit">
-          {PERIOD_OPTIONS.map(p => (
-            <Button key={p.value} variant={period === p.value ? 'default' : 'ghost'} size="sm" className="text-xs h-7 px-3"
-              onClick={() => setPeriod(p.value)}>{p.label}</Button>
-          ))}
-        </div>
-
         {/* Revenue Trend & Forecast */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">Revenue & Profit Trend <Badge variant="secondary">AI Forecast</Badge></CardTitle>
-            <CardDescription>Historical performance with 3-month projection</CardDescription>
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div>
+                <CardTitle className="text-base flex items-center gap-2">Revenue & Profit Trend <Badge variant="secondary">AI Forecast</Badge></CardTitle>
+                <CardDescription>Investment, revenue, profit & orders with 3-month projection</CardDescription>
+              </div>
+              <PeriodSelector value={period} onChange={setPeriod} />
+            </div>
           </CardHeader>
           <CardContent className="h-80">
             {combinedTrend.length > 0 ? (
@@ -215,17 +242,20 @@ export default function Forecast() {
                 <ComposedChart data={combinedTrend}>
                   <defs>
                     <linearGradient id="fRevGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="hsl(224, 76%, 48%)" stopOpacity={0.15} />
+                      <stop offset="0%" stopColor="hsl(224, 76%, 48%)" stopOpacity={0.2} />
                       <stop offset="100%" stopColor="hsl(224, 76%, 48%)" stopOpacity={0} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis dataKey="label" fontSize={11} tick={{ fill: 'hsl(var(--muted-foreground))' }} />
-                  <YAxis fontSize={11} tickFormatter={(v) => `₹${v >= 1000 ? (v / 1000).toFixed(0) + 'k' : v}`} tick={{ fill: 'hsl(var(--muted-foreground))' }} />
+                  <XAxis dataKey="label" fontSize={10} tick={{ fill: 'hsl(var(--muted-foreground))' }} />
+                  <YAxis yAxisId="money" fontSize={10} tickFormatter={(v) => `₹${v >= 1000 ? (v / 1000).toFixed(0) + 'k' : v}`} tick={{ fill: 'hsl(var(--muted-foreground))' }} />
+                  <YAxis yAxisId="count" orientation="right" fontSize={10} tick={{ fill: 'hsl(var(--muted-foreground))' }} />
                   <Tooltip content={<CustomTooltip />} />
-                  <Area type="monotone" dataKey="revenue" stroke="hsl(224, 76%, 48%)" strokeWidth={2.5} fill="url(#fRevGrad)" name="Revenue" />
-                  <Line type="monotone" dataKey="profit" stroke="hsl(142, 76%, 36%)" strokeWidth={2} name="Profit" dot={false} />
-                  <Line type="monotone" dataKey="forecastRevenue" stroke="hsl(224, 76%, 48%)" strokeWidth={2} strokeDasharray="8 4" name="Forecast" dot={{ r: 4, fill: 'hsl(224, 76%, 48%)' }} />
+                  <Area yAxisId="money" type="monotone" dataKey="revenue" stroke="hsl(224, 76%, 48%)" strokeWidth={2.5} fill="url(#fRevGrad)" name="Revenue" />
+                  <Line yAxisId="money" type="monotone" dataKey="investment" stroke="hsl(38, 92%, 50%)" strokeWidth={2} name="Investment" dot={false} />
+                  <Line yAxisId="money" type="monotone" dataKey="profit" stroke="hsl(142, 76%, 36%)" strokeWidth={2} name="Profit" dot={false} />
+                  <Line yAxisId="money" type="monotone" dataKey="forecastRevenue" stroke="hsl(224, 76%, 48%)" strokeWidth={2} strokeDasharray="8 4" name="Forecast" dot={{ r: 4, fill: 'hsl(224, 76%, 48%)' }} />
+                  <Bar yAxisId="count" dataKey="orders" name="Orders" fill="hsl(280, 68%, 50%)" opacity={0.4} barSize={12} />
                   <Legend />
                 </ComposedChart>
               </ResponsiveContainer>
@@ -238,34 +268,38 @@ export default function Forecast() {
         <div className="grid gap-6 lg:grid-cols-2">
           {/* Platform Performance */}
           <Card>
-            <CardHeader><CardTitle className="text-base">Platform Performance</CardTitle><CardDescription>Revenue & profit by platform</CardDescription></CardHeader>
+            <CardHeader><CardTitle className="text-base">Platform Performance</CardTitle><CardDescription>Revenue, cost, profit & orders by platform</CardDescription></CardHeader>
             <CardContent className="h-72">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={platformData} barGap={4}>
+                <BarChart data={platformData} barGap={2}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                   <XAxis dataKey="platform" fontSize={12} tick={{ fill: 'hsl(var(--muted-foreground))' }} />
-                  <YAxis fontSize={11} tickFormatter={(v) => `₹${v >= 1000 ? (v / 1000).toFixed(0) + 'k' : v}`} tick={{ fill: 'hsl(var(--muted-foreground))' }} />
+                  <YAxis yAxisId="money" fontSize={11} tickFormatter={(v) => `₹${v >= 1000 ? (v / 1000).toFixed(0) + 'k' : v}`} tick={{ fill: 'hsl(var(--muted-foreground))' }} />
+                  <YAxis yAxisId="count" orientation="right" fontSize={11} tick={{ fill: 'hsl(var(--muted-foreground))' }} />
                   <Tooltip content={<CustomTooltip />} />
-                  <Bar dataKey="revenue" name="Revenue" fill="hsl(224, 76%, 48%)" radius={[4, 4, 0, 0]} barSize={28} />
-                  <Bar dataKey="profit" name="Profit" fill="hsl(142, 76%, 36%)" radius={[4, 4, 0, 0]} barSize={28} />
+                  <Bar yAxisId="money" dataKey="revenue" name="Revenue" fill="hsl(224, 76%, 48%)" radius={[4, 4, 0, 0]} barSize={18} />
+                  <Bar yAxisId="money" dataKey="cost" name="Cost" fill="hsl(38, 92%, 50%)" radius={[4, 4, 0, 0]} barSize={18} />
+                  <Bar yAxisId="money" dataKey="profit" name="Profit" fill="hsl(142, 76%, 36%)" radius={[4, 4, 0, 0]} barSize={18} />
+                  <Bar yAxisId="count" dataKey="orders" name="Orders" fill="hsl(280, 68%, 50%)" radius={[4, 4, 0, 0]} barSize={18} opacity={0.6} />
                   <Legend />
                 </BarChart>
               </ResponsiveContainer>
             </CardContent>
           </Card>
 
-          {/* Returns */}
+          {/* Returns with penalty */}
           <Card>
-            <CardHeader><CardTitle className="text-base">Return Breakdown</CardTitle><CardDescription>Units returned by type</CardDescription></CardHeader>
+            <CardHeader><CardTitle className="text-base">Return Breakdown</CardTitle><CardDescription>Units & penalty amount by type</CardDescription></CardHeader>
             <CardContent className="h-72">
               {returnPieData.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
-                    <Pie data={returnPieData} cx="50%" cy="50%" innerRadius={45} outerRadius={75} dataKey="value" label={({ name, value }) => `${name}: ${value}`} labelLine={false}>
+                    <Pie data={returnPieData} cx="50%" cy="50%" innerRadius={40} outerRadius={70} dataKey="value"
+                      label={(props: any) => `${props.name}: ${props.value} (${fmt(props.payload?.penalty ?? 0)})`} labelLine={false}>
                       <Cell fill="hsl(38, 92%, 50%)" />
                       <Cell fill="hsl(0, 84%, 60%)" />
                     </Pie>
-                    <Tooltip />
+                    <Tooltip content={<ReturnTooltip />} />
                     <Legend />
                   </PieChart>
                 </ResponsiveContainer>

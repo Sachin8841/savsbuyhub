@@ -66,10 +66,6 @@ export default function Dashboard() {
     return d;
   };
 
-  const filterByPeriod = (items: any[], period: string, dateField: string) => {
-    const fd = getFilterDate(period);
-    return fd ? items.filter(s => new Date(s[dateField]) >= fd) : items;
-  };
 
   // Main KPI filtering uses dispatch_date for sales
   const filterDate = getFilterDate(trendPeriod);

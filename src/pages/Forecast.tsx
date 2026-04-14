@@ -295,7 +295,7 @@ export default function Forecast() {
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie data={returnPieData} cx="50%" cy="50%" innerRadius={40} outerRadius={70} dataKey="value"
-                      label={({ name, value, penalty }) => `${name}: ${value} (${fmt(penalty)})`} labelLine={false}>
+                      label={(props: any) => `${props.name}: ${props.value} (${fmt(props.payload?.penalty ?? 0)})`} labelLine={false}>
                       <Cell fill="hsl(38, 92%, 50%)" />
                       <Cell fill="hsl(0, 84%, 60%)" />
                     </Pie>

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSales, useInventory } from '@/hooks/useData';
 import { useAuthStore } from '@/stores/authStore';
 import { supabase } from '@/integrations/supabase/client';
@@ -56,11 +56,13 @@ export default function Sales() {
 
   // Auto-fill selling price from inventory
   const selectedInv = inventory.find(i => i.id === selectedInvId);
-  const autoFillPrice = () => {
-    if (selectedInv && selectedInv.average_selling_price > 0) {
+  
+  // Auto-fill selling price when product is selected
+  useEffect(() => {
+    if (selectedInv && selectedInv.average_selling_price > 0 && !editId) {
       form.setValue('average_selling_price', selectedInv.average_selling_price);
     }
-  };
+  }, [selectedInvId]);
 
   const filtered = sales.filter(s => {
     const inv = s.inventory as any;
@@ -220,7 +222,7 @@ export default function Sales() {
                   <div>
                     <Label>Product (SKU)</Label>
                     <Controller name="inventory_id" control={form.control} render={({ field }) => (
-                      <Select value={field.value} onValueChange={(v) => { field.onChange(v); setTimeout(autoFillPrice, 0); }}>
+                      <Select value={field.value} onValueChange={(v) => { field.onChange(v); }}>
                         <SelectTrigger><SelectValue placeholder="Select product" /></SelectTrigger>
                         <SelectContent>
                           {inventory.map(i => <SelectItem key={i.id} value={i.id}>{i.sku} - {i.product_name}</SelectItem>)}

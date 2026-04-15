@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { DollarSign, Clock, AlertTriangle, Package, ShoppingCart, ArrowUpRight, ArrowDownRight, Megaphone, Warehouse, Download, TrendingUp } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Line, PieChart, Pie, Cell, Legend, ComposedChart, Area } from 'recharts';
 import { exportDashboardReport } from '@/lib/xlsx-export';
+import { AlertNotifications } from '@/components/AlertNotifications';
 
 
 const PERIOD_OPTIONS = [
@@ -278,6 +279,7 @@ export default function Dashboard() {
         </div>
       </div>
 
+      <AlertNotifications />
       {/* KPIs */}
       <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
         {kpis.map(kpi => (
@@ -302,7 +304,7 @@ export default function Dashboard() {
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div>
               <CardTitle className="text-base">Revenue & Profit Trend</CardTitle>
-              <CardDescription>Investment, revenue, profit/loss & order count by dispatch date</CardDescription>
+              <CardDescription>Investment, revenue, profit/loss & unit count by dispatch date</CardDescription>
             </div>
             <PeriodSelector value={trendPeriod} onChange={setTrendPeriod} />
           </div>
@@ -320,12 +322,12 @@ export default function Dashboard() {
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis dataKey="label" fontSize={10} tick={{ fill: 'hsl(var(--muted-foreground))' }} />
                 <YAxis yAxisId="money" fontSize={10} tickFormatter={(v) => `₹${v >= 1000 ? (v / 1000).toFixed(0) + 'k' : v}`} tick={{ fill: 'hsl(var(--muted-foreground))' }} />
-                <YAxis yAxisId="count" orientation="right" fontSize={10} tick={{ fill: 'hsl(var(--muted-foreground))' }} label={{ value: 'Orders', angle: 90, position: 'insideRight', fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
+                <YAxis yAxisId="count" orientation="right" fontSize={10} tick={{ fill: 'hsl(var(--muted-foreground))' }} label={{ value: 'Units', angle: 90, position: 'insideRight', fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
                 <Tooltip content={<CustomTooltip />} />
                 <Area yAxisId="money" type="monotone" dataKey="revenue" stroke="hsl(224, 76%, 48%)" strokeWidth={2.5} fill="url(#revGrad)" name="Revenue" />
                 <Line yAxisId="money" type="monotone" dataKey="investment" stroke="hsl(38, 92%, 50%)" strokeWidth={2} name="Investment" dot={false} />
                 <Line yAxisId="money" type="monotone" dataKey="profit" stroke="hsl(142, 76%, 36%)" strokeWidth={2} name="Profit" dot={{ r: 3, fill: 'hsl(142, 76%, 36%)' }} />
-                <Bar yAxisId="count" dataKey="orders" name="Orders" fill="hsl(280, 68%, 50%)" opacity={0.4} barSize={trendData.length > 20 ? 6 : 16} />
+                <Bar yAxisId="count" dataKey="units" name="Units" fill="hsl(280, 68%, 50%)" opacity={0.4} barSize={trendData.length > 20 ? 6 : 16} />
                 <Legend />
               </ComposedChart>
             </ResponsiveContainer>

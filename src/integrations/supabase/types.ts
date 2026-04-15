@@ -50,6 +50,7 @@ export type Database = {
           id: string
           product_name: string
           sku: string
+          stock_added_date: string | null
           total_bulk_stock_in: number
           updated_at: string
         }
@@ -61,6 +62,7 @@ export type Database = {
           id?: string
           product_name: string
           sku: string
+          stock_added_date?: string | null
           total_bulk_stock_in?: number
           updated_at?: string
         }
@@ -72,8 +74,39 @@ export type Database = {
           id?: string
           product_name?: string
           sku?: string
+          stock_added_date?: string | null
           total_bulk_stock_in?: number
           updated_at?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          email: string | null
+          full_name: string | null
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          email?: string | null
+          full_name?: string | null
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          email?: string | null
+          full_name?: string | null
+          id?: string
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }

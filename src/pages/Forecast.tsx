@@ -231,7 +231,7 @@ export default function Forecast() {
             <div className="flex items-center justify-between flex-wrap gap-2">
               <div>
                 <CardTitle className="text-base flex items-center gap-2">Revenue & Profit Trend <Badge variant="secondary">AI Forecast</Badge></CardTitle>
-                <CardDescription>Investment, revenue, profit & orders with 3-month projection</CardDescription>
+                <CardDescription>Investment, revenue, profit & units with 3-month projection</CardDescription>
               </div>
               <PeriodSelector value={period} onChange={setPeriod} />
             </div>
@@ -255,7 +255,7 @@ export default function Forecast() {
                   <Line yAxisId="money" type="monotone" dataKey="investment" stroke="hsl(38, 92%, 50%)" strokeWidth={2} name="Investment" dot={false} />
                   <Line yAxisId="money" type="monotone" dataKey="profit" stroke="hsl(142, 76%, 36%)" strokeWidth={2} name="Profit" dot={false} />
                   <Line yAxisId="money" type="monotone" dataKey="forecastRevenue" stroke="hsl(224, 76%, 48%)" strokeWidth={2} strokeDasharray="8 4" name="Forecast" dot={{ r: 4, fill: 'hsl(224, 76%, 48%)' }} />
-                  <Bar yAxisId="count" dataKey="orders" name="Orders" fill="hsl(280, 68%, 50%)" opacity={0.4} barSize={12} />
+                  <Bar yAxisId="count" dataKey="units" name="Units" fill="hsl(280, 68%, 50%)" opacity={0.4} barSize={12} />
                   <Legend />
                 </ComposedChart>
               </ResponsiveContainer>

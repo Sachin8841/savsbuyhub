@@ -24,7 +24,7 @@ interface UserWithProfile {
 }
 
 export default function SettingsPage() {
-  const { isAdmin, user } = useAuthStore();
+  const { isAdmin } = useAuthStore();
   const [users, setUsers] = useState<UserWithProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [disclosureOpen, setDisclosureOpen] = useState(false);

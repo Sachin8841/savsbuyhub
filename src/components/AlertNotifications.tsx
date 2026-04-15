@@ -3,7 +3,7 @@ import { useInventory, useSales } from '@/hooks/useData';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuthStore } from '@/stores/authStore';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { AlertTriangle, Package, Clock, X } from 'lucide-react';
+import { Package, Clock, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface AlertItem {

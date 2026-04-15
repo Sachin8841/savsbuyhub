@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useReturns, useSales } from '@/hooks/useData';
+import { useReturns, useSales, useInventory } from '@/hooks/useData';
 import { useAuthStore } from '@/stores/authStore';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
@@ -20,7 +20,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 
 const schema = z.object({
-  sales_id: z.string().min(1, 'Select a sale'),
+  inventory_id: z.string().min(1, 'Select a product'),
   return_type: z.enum(['Customer Return', 'RTO']),
   quantity_returned: z.number().int().min(1),
   return_date: z.string().min(1, 'Return date required'),
@@ -30,31 +30,33 @@ type FormData = z.infer<typeof schema>;
 export default function Returns() {
   const { data: returns = [] } = useReturns();
   const { data: sales = [] } = useSales();
+  const { data: inventory = [] } = useInventory();
   const { isAdmin } = useAuthStore();
   const admin = isAdmin();
   const [search, setSearch] = useState('');
+  const [typeFilter, setTypeFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
   const [dialogOpen, setDialogOpen] = useState(false);
   const qc = useQueryClient();
   const { toast } = useToast();
 
   const form = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: { sales_id: '', return_type: 'Customer Return', quantity_returned: 1, return_date: new Date().toISOString().slice(0, 10) },
+    defaultValues: { inventory_id: '', return_type: 'Customer Return', quantity_returned: 1, return_date: new Date().toISOString().slice(0, 10) },
   });
-
-  const returnedSaleIds = new Set(returns.map(r => r.sales_id));
-  const availableSales = sales.filter(s => !returnedSaleIds.has(s.id));
 
   const filtered = returns.filter(r => {
     const sale = r.sales as any;
     const inv = sale?.inventory;
-    return search === '' ||
+    const matchSearch = search === '' ||
       inv?.sku?.toLowerCase().includes(search.toLowerCase()) ||
       inv?.product_name?.toLowerCase().includes(search.toLowerCase()) ||
       r.return_type.toLowerCase().includes(search.toLowerCase());
+    const matchType = typeFilter === 'all' || r.return_type === typeFilter;
+    const matchStatus = statusFilter === 'all' || r.delivery_status === statusFilter;
+    return matchSearch && matchType && matchStatus;
   });
 
-  // Summary stats
   const totalReturns = returns.reduce((sum, r) => sum + r.quantity_returned, 0);
   const totalPenalty = returns.reduce((sum, r) => sum + r.penalty_amount, 0);
   const inTransit = returns.filter(r => r.delivery_status === 'In Transit').length;
@@ -63,9 +65,19 @@ export default function Returns() {
 
   const onSubmit = async (values: FormData) => {
     try {
+      // Find a sale for this product that hasn't been returned yet
+      const productSales = sales.filter(s => s.inventory_id === values.inventory_id);
+      const returnedSaleIds = new Set(returns.map(r => r.sales_id));
+      const availableSale = productSales.find(s => !returnedSaleIds.has(s.id));
+      
+      if (!availableSale) {
+        toast({ title: 'No matching sale found', description: 'There are no unreturned sales for this product.', variant: 'destructive' });
+        return;
+      }
+
       const penalty_amount = values.return_type === 'Customer Return' ? 160 : 0;
       const { error } = await supabase.from('returns').insert({
-        sales_id: values.sales_id,
+        sales_id: availableSale.id,
         return_type: values.return_type,
         quantity_returned: values.quantity_returned,
         return_date: values.return_date,
@@ -92,7 +104,6 @@ export default function Returns() {
     toast({ title: 'Return deleted' });
   };
 
-  // Toggle delivery status
   const toggleDeliveryStatus = async (ret: any) => {
     const newStatus = ret.delivery_status === 'In Transit' ? 'Received' : 'In Transit';
     const delivered_date = newStatus === 'Received' ? new Date().toISOString().slice(0, 10) : null;
@@ -115,6 +126,7 @@ export default function Returns() {
           'Return Date': r.return_date ?? '',
           SKU: inv?.sku ?? '',
           'Product Name': inv?.product_name ?? '',
+          Platform: sale?.platform ?? '',
           'Return Type': r.return_type,
           'Qty Returned': r.quantity_returned,
           'Delivery Status': r.delivery_status,
@@ -129,19 +141,25 @@ export default function Returns() {
     let success = 0;
     const errors: string[] = [];
     for (const row of rows) {
-      const sales_id = row.sales_id || row['Sale ID'] || '';
+      const sku = row.sku || row.SKU || '';
+      const inv = inventory.find(i => i.sku.toLowerCase() === sku.toLowerCase());
+      if (!inv) { errors.push(`SKU not found: ${sku}`); continue; }
+      const productSales = sales.filter(s => s.inventory_id === inv.id);
+      const returnedSaleIds = new Set(returns.map(r => r.sales_id));
+      const availableSale = productSales.find(s => !returnedSaleIds.has(s.id));
+      if (!availableSale) { errors.push(`No unreturned sale for: ${sku}`); continue; }
       const return_type = row.return_type || row['Return Type'] || '';
       const quantity_returned = parseInt(row.quantity_returned || row['Qty Returned'] || '0', 10);
       const return_date = row.return_date || row['Return Date'] || new Date().toISOString().slice(0, 10);
-      if (!sales_id || !return_type || !quantity_returned) { errors.push(`Missing data for sale: ${sales_id}`); continue; }
+      if (!return_type || !quantity_returned) { errors.push(`Missing data for: ${sku}`); continue; }
       const validTypes = ['Customer Return', 'RTO'];
       if (!validTypes.includes(return_type)) { errors.push(`Invalid return type: ${return_type}`); continue; }
       const penalty_amount = return_type === 'Customer Return' ? 160 : 0;
       const { error } = await supabase.from('returns').insert({
-        sales_id, return_type: return_type as any, quantity_returned, penalty_amount, return_date,
+        sales_id: availableSale.id, return_type: return_type as any, quantity_returned, penalty_amount, return_date,
         delivery_status: 'In Transit' as const,
       });
-      if (error) errors.push(`${sales_id}: ${error.message}`);
+      if (error) errors.push(`${sku}: ${error.message}`);
       else success++;
     }
     qc.invalidateQueries({ queryKey: ['returns'] });
@@ -155,7 +173,7 @@ export default function Returns() {
         <h2 className="text-2xl font-bold">Returns</h2>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={handleExport}><Download className="mr-1 h-4 w-4" />Export Excel</Button>
-          {admin && <CsvImportButton onImport={handleImport} expectedColumns={['sales_id', 'return_type', 'quantity_returned', 'return_date']} label="Import CSV" />}
+          {admin && <CsvImportButton onImport={handleImport} expectedColumns={['sku', 'return_type', 'quantity_returned', 'return_date']} label="Import CSV" />}
           {admin && (
             <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) form.reset(); }}>
               <DialogTrigger asChild><Button size="sm"><Plus className="mr-1 h-4 w-4" />Log Return</Button></DialogTrigger>
@@ -167,19 +185,16 @@ export default function Returns() {
                     <Input type="date" {...form.register('return_date')} />
                   </div>
                   <div>
-                    <Label>Sales Order</Label>
-                    <Controller name="sales_id" control={form.control} render={({ field }) => (
+                    <Label>Product</Label>
+                    <Controller name="inventory_id" control={form.control} render={({ field }) => (
                       <Select value={field.value} onValueChange={field.onChange}>
-                        <SelectTrigger><SelectValue placeholder="Select sale" /></SelectTrigger>
+                        <SelectTrigger><SelectValue placeholder="Select product" /></SelectTrigger>
                         <SelectContent>
-                          {availableSales.map(s => {
-                            const inv = s.inventory as any;
-                            return <SelectItem key={s.id} value={s.id}>{s.id.slice(0, 8)} — {inv?.sku} ({s.platform})</SelectItem>;
-                          })}
+                          {inventory.map(i => <SelectItem key={i.id} value={i.id}>{i.sku} - {i.product_name}</SelectItem>)}
                         </SelectContent>
                       </Select>
                     )} />
-                    {form.formState.errors.sales_id && <p className="text-sm text-destructive">{form.formState.errors.sales_id.message}</p>}
+                    {form.formState.errors.inventory_id && <p className="text-sm text-destructive">{form.formState.errors.inventory_id.message}</p>}
                   </div>
                   <div>
                     <Label>Return Type</Label>
@@ -202,7 +217,6 @@ export default function Returns() {
         </div>
       </div>
 
-      {/* Summary Cards */}
       <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
         <Card><CardContent className="p-3 flex items-center gap-2"><Package className="h-4 w-4 text-primary" /><div><p className="text-xs text-muted-foreground">Total Returns</p><p className="font-bold text-sm">{totalReturns} units</p></div></CardContent></Card>
         <Card><CardContent className="p-3 flex items-center gap-2"><AlertTriangle className="h-4 w-4 text-destructive" /><div><p className="text-xs text-muted-foreground">Total Penalty</p><p className="font-bold text-sm">{fmt(totalPenalty)}</p></div></CardContent></Card>
@@ -210,9 +224,27 @@ export default function Returns() {
         <Card><CardContent className="p-3 flex items-center gap-2"><Package className="h-4 w-4 text-emerald-500" /><div><p className="text-xs text-muted-foreground">Received</p><p className="font-bold text-sm">{received}</p></div></CardContent></Card>
       </div>
 
-      <div className="relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input placeholder="Search returns..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
+      <div className="flex flex-wrap gap-3">
+        <div className="relative max-w-sm flex-1">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input placeholder="Search returns..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
+        </div>
+        <Select value={typeFilter} onValueChange={setTypeFilter}>
+          <SelectTrigger className="w-40"><SelectValue placeholder="Type" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Types</SelectItem>
+            <SelectItem value="Customer Return">Customer Return</SelectItem>
+            <SelectItem value="RTO">RTO</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="w-40"><SelectValue placeholder="Status" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Statuses</SelectItem>
+            <SelectItem value="In Transit">In Transit</SelectItem>
+            <SelectItem value="Received">Received</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="overflow-x-auto rounded-lg border">
@@ -222,6 +254,7 @@ export default function Returns() {
               <TableHead>Return Date</TableHead>
               <TableHead>SKU</TableHead>
               <TableHead>Product</TableHead>
+              <TableHead>Platform</TableHead>
               <TableHead>Type</TableHead>
               <TableHead className="text-right">Qty</TableHead>
               <TableHead>Status</TableHead>
@@ -239,6 +272,7 @@ export default function Returns() {
                   <TableCell>{r.return_date ?? '—'}</TableCell>
                   <TableCell className="font-mono text-sm">{inv?.sku}</TableCell>
                   <TableCell>{inv?.product_name}</TableCell>
+                  <TableCell><Badge variant="secondary">{sale?.platform ?? '—'}</Badge></TableCell>
                   <TableCell><Badge variant={r.return_type === 'RTO' ? 'outline' : 'secondary'}>{r.return_type}</Badge></TableCell>
                   <TableCell className="text-right">{r.quantity_returned}</TableCell>
                   <TableCell>
@@ -266,7 +300,7 @@ export default function Returns() {
               );
             })}
             {filtered.length === 0 && (
-              <TableRow><TableCell colSpan={admin ? 9 : 8} className="text-center text-muted-foreground py-8">No returns found</TableCell></TableRow>
+              <TableRow><TableCell colSpan={admin ? 10 : 9} className="text-center text-muted-foreground py-8">No returns found</TableCell></TableRow>
             )}
           </TableBody>
         </Table>

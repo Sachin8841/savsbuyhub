@@ -23,6 +23,7 @@ const schema = z.object({
   average_selling_price: z.number().min(0),
   total_bulk_stock_in: z.number().int().min(0),
   delivery_fee: z.number().min(0),
+  stock_added_date: z.string().optional(),
 });
 type FormData = z.infer<typeof schema>;
 
@@ -37,7 +38,7 @@ export default function Inventory() {
   const { toast } = useToast();
   const admin = isAdmin();
 
-  const form = useForm<FormData>({ resolver: zodResolver(schema), defaultValues: { sku: '', product_name: '', average_cost_price: 0, average_selling_price: 0, total_bulk_stock_in: 0, delivery_fee: 0 } });
+  const form = useForm<FormData>({ resolver: zodResolver(schema), defaultValues: { sku: '', product_name: '', average_cost_price: 0, average_selling_price: 0, total_bulk_stock_in: 0, delivery_fee: 0, stock_added_date: new Date().toISOString().slice(0, 10) } });
 
   useEffect(() => {
     inventory.forEach(async (item) => {
@@ -59,12 +60,21 @@ export default function Inventory() {
 
   const onSubmit = async (values: FormData) => {
     try {
+      const payload = {
+        sku: values.sku,
+        product_name: values.product_name,
+        average_cost_price: values.average_cost_price,
+        average_selling_price: values.average_selling_price,
+        total_bulk_stock_in: values.total_bulk_stock_in,
+        delivery_fee: values.delivery_fee,
+        stock_added_date: values.stock_added_date || new Date().toISOString().slice(0, 10),
+      };
       if (editId) {
-        const { error } = await supabase.from('inventory').update(values).eq('id', editId);
+        const { error } = await supabase.from('inventory').update(payload).eq('id', editId);
         if (error) throw error;
         toast({ title: 'Item updated' });
       } else {
-        const { error } = await supabase.from('inventory').insert(values);
+        const { error } = await supabase.from('inventory').insert(payload);
         if (error) throw error;
         toast({ title: 'Item added' });
       }
@@ -79,7 +89,7 @@ export default function Inventory() {
 
   const handleEdit = (item: any) => {
     setEditId(item.id);
-    form.reset({ sku: item.sku, product_name: item.product_name, average_cost_price: item.average_cost_price, average_selling_price: item.average_selling_price ?? 0, total_bulk_stock_in: item.total_bulk_stock_in, delivery_fee: item.delivery_fee ?? 0 });
+    form.reset({ sku: item.sku, product_name: item.product_name, average_cost_price: item.average_cost_price, average_selling_price: item.average_selling_price ?? 0, total_bulk_stock_in: item.total_bulk_stock_in, delivery_fee: item.delivery_fee ?? 0, stock_added_date: (item as any).stock_added_date ?? new Date().toISOString().slice(0, 10) });
     setDialogOpen(true);
   };
 
@@ -157,6 +167,7 @@ export default function Inventory() {
                     <div><Label>Bulk Stock In</Label><Input type="number" {...form.register('total_bulk_stock_in', { valueAsNumber: true })} /></div>
                     <div><Label>Delivery Fee (₹)</Label><Input type="number" step="0.01" {...form.register('delivery_fee', { valueAsNumber: true })} /></div>
                   </div>
+                  <div><Label>Stock Added Date</Label><Input type="date" {...form.register('stock_added_date')} /></div>
                   <Button type="submit" className="w-full">{editId ? 'Update' : 'Add'}</Button>
                 </form>
               </DialogContent>
@@ -180,6 +191,7 @@ export default function Inventory() {
               <TableHead className="text-right">Selling Price</TableHead>
               <TableHead className="text-right">Current Stock</TableHead>
               <TableHead className="text-right">Delivery Fee</TableHead>
+              <TableHead>Stock Added</TableHead>
               {admin && <TableHead className="text-right">Actions</TableHead>}
             </TableRow>
           </TableHeader>
@@ -192,6 +204,7 @@ export default function Inventory() {
                 <TableCell className="text-right">{fmt(item.average_selling_price ?? 0)}</TableCell>
                 <TableCell className="text-right font-semibold">{currentStocks[item.id] ?? '—'}</TableCell>
                 <TableCell className="text-right">{fmt(item.delivery_fee ?? 0)}</TableCell>
+                <TableCell>{(item as any).stock_added_date ?? '—'}</TableCell>
                 {admin && (
                   <TableCell className="text-right">
                     <Button variant="ghost" size="icon" onClick={() => handleEdit(item)}><Pencil className="h-4 w-4" /></Button>
@@ -201,7 +214,7 @@ export default function Inventory() {
               </TableRow>
             ))}
             {filtered.length === 0 && (
-              <TableRow><TableCell colSpan={admin ? 7 : 6} className="text-center text-muted-foreground py-8">No inventory items found</TableCell></TableRow>
+              <TableRow><TableCell colSpan={admin ? 9 : 8} className="text-center text-muted-foreground py-8">No inventory items found</TableCell></TableRow>
             )}
           </TableBody>
         </Table>

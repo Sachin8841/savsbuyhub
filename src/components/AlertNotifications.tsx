@@ -1,25 +1,17 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useInventory, useSales } from '@/hooks/useData';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuthStore } from '@/stores/authStore';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Package, Clock, X } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-
-interface AlertItem {
-  id: string;
-  type: 'warning' | 'info' | 'danger';
-  title: string;
-  description: string;
-  icon: any;
-}
+import { useToast } from '@/hooks/use-toast';
+import { Package, Clock } from 'lucide-react';
 
 export function AlertNotifications() {
   const { data: inventory = [] } = useInventory();
   const { data: sales = [] } = useSales();
   const { isAdmin } = useAuthStore();
+  const { toast } = useToast();
+  const shownRef = useRef(false);
   const [currentStocks, setCurrentStocks] = useState<Record<string, number>>({});
-  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     inventory.forEach(async (item) => {
@@ -28,57 +20,35 @@ export function AlertNotifications() {
     });
   }, [inventory]);
 
-  if (!isAdmin()) return null;
+  useEffect(() => {
+    if (!isAdmin() || shownRef.current || Object.keys(currentStocks).length === 0) return;
+    shownRef.current = true;
 
-  const alerts: AlertItem[] = [];
+    // Low stock alerts
+    const lowStockItems = inventory.filter(item => {
+      const stock = currentStocks[item.id];
+      return stock !== undefined && stock <= 2 && stock >= 0;
+    });
 
-  // Low stock alerts
-  inventory.forEach(item => {
-    const stock = currentStocks[item.id];
-    if (stock !== undefined && stock <= 2 && stock >= 0) {
-      alerts.push({
-        id: `low-${item.id}`,
-        type: stock === 0 ? 'danger' : 'warning',
-        title: stock === 0 ? 'Out of Stock' : 'Low Stock',
-        description: `${item.product_name} (${item.sku}) — ${stock} units remaining`,
-        icon: Package,
+    if (lowStockItems.length > 0) {
+      const names = lowStockItems.map(i => `${i.product_name} (${currentStocks[i.id]} left)`).join(', ');
+      toast({
+        title: `⚠️ Low Stock Alert (${lowStockItems.length})`,
+        description: names,
+        variant: 'destructive',
       });
     }
-  });
 
-  // Pending payments
-  const pendingCount = sales.filter(s => s.payment_status === 'Pending').length;
-  const pendingAmount = sales.filter(s => s.payment_status === 'Pending').reduce((sum, s) => sum + s.quantity_sold * s.average_selling_price, 0);
-  if (pendingCount > 0) {
-    alerts.push({
-      id: 'pending-payments',
-      type: 'info',
-      title: 'Pending Payments',
-      description: `${pendingCount} orders with ₹${pendingAmount.toLocaleString('en-IN')} pending settlement`,
-      icon: Clock,
-    });
-  }
+    // Pending payments
+    const pendingCount = sales.filter(s => s.payment_status === 'Pending').length;
+    const pendingAmount = sales.filter(s => s.payment_status === 'Pending').reduce((sum, s) => sum + s.quantity_sold * s.average_selling_price, 0);
+    if (pendingCount > 0) {
+      toast({
+        title: `🕐 ${pendingCount} Pending Payments`,
+        description: `₹${pendingAmount.toLocaleString('en-IN')} awaiting settlement`,
+      });
+    }
+  }, [currentStocks, inventory, sales]);
 
-  const visibleAlerts = alerts.filter(a => !dismissed.has(a.id));
-  if (visibleAlerts.length === 0) return null;
-
-  return (
-    <div className="space-y-2 mb-4">
-      {visibleAlerts.slice(0, 5).map(alert => (
-        <Alert key={alert.id} variant={alert.type === 'danger' ? 'destructive' : 'default'} className="relative pr-10">
-          <alert.icon className="h-4 w-4" />
-          <AlertTitle className="text-sm">{alert.title}</AlertTitle>
-          <AlertDescription className="text-xs">{alert.description}</AlertDescription>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="absolute top-2 right-2 h-6 w-6"
-            onClick={() => setDismissed(prev => new Set(prev).add(alert.id))}
-          >
-            <X className="h-3 w-3" />
-          </Button>
-        </Alert>
-      ))}
-    </div>
-  );
+  return null;
 }

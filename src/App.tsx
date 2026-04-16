@@ -15,6 +15,7 @@ import Sales from "./pages/Sales";
 import Returns from "./pages/Returns";
 import Settings from "./pages/Settings";
 import Forecast from "./pages/Forecast";
+import PnL from "./pages/PnL";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -36,6 +37,7 @@ const App = () => (
                 <Route path="/inventory" element={<Inventory />} />
                 <Route path="/sales" element={<Sales />} />
                 <Route path="/returns" element={<Returns />} />
+                <Route path="/pnl" element={<PnL />} />
                 <Route path="/settings" element={<Settings />} />
               </Route>
               <Route path="*" element={<NotFound />} />

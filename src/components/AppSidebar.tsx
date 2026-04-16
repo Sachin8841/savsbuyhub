@@ -1,4 +1,4 @@
-import { LayoutDashboard, Package, Receipt, RotateCcw, Settings, LogOut, BarChart3 } from 'lucide-react';
+import { LayoutDashboard, Package, Receipt, RotateCcw, Settings, LogOut, BarChart3, FileText } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useAuthStore } from '@/stores/authStore';
 import {
@@ -20,6 +20,7 @@ const navItems = [
   { title: 'Inventory', url: '/inventory', icon: Package },
   { title: 'Sales Ledger', url: '/sales', icon: Receipt },
   { title: 'Returns', url: '/returns', icon: RotateCcw },
+  { title: 'P&L Statement', url: '/pnl', icon: FileText },
 ];
 
 const adminItems = [

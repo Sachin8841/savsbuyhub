@@ -11,10 +11,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { Shield, Users, AlertTriangle, FileDown, RotateCcw } from 'lucide-react';
+import { Shield, Users, AlertTriangle, FileDown, RotateCcw, Database, Bell, Palette } from 'lucide-react';
 import { Navigate } from 'react-router-dom';
 import { exportDashboardReport } from '@/lib/xlsx-export';
 import { useSales, useInventory, useReturns, useAdExpenses } from '@/hooks/useData';
+import { Switch } from '@/components/ui/switch';
 
 interface UserWithProfile {
   user_id: string;
@@ -47,12 +48,7 @@ export default function SettingsPage() {
       const profileMap = new Map((profiles ?? []).map(p => [p.user_id, p]));
       setUsers((roles ?? []).map(r => {
         const prof = profileMap.get(r.user_id);
-        return {
-          user_id: r.user_id,
-          role: r.role,
-          email: prof?.email ?? 'Unknown',
-          full_name: prof?.full_name ?? '—',
-        };
+        return { user_id: r.user_id, role: r.role, email: prof?.email ?? 'Unknown', full_name: prof?.full_name ?? '—' };
       }));
       setLoading(false);
     };
@@ -73,7 +69,6 @@ export default function SettingsPage() {
       toast({ title: 'Type CONFIRM to proceed', variant: 'destructive' });
       return;
     }
-    // Zero out: delete all sales, returns, ad_expenses for the current month
     const { error: e1 } = await supabase.from('returns').delete().gte('created_at', '2000-01-01');
     const { error: e2 } = await supabase.from('sales').delete().gte('created_at', '2000-01-01');
     const { error: e3 } = await supabase.from('ad_expenses').delete().gte('created_at', '2000-01-01');
@@ -90,15 +85,29 @@ export default function SettingsPage() {
     setDisclosureConfirm('');
   };
 
-  const handleFullExport = () => {
-    exportDashboardReport(sales, inventory, returns, adExpenses, {});
-  };
+  const handleFullExport = () => exportDashboardReport(sales, inventory, returns, adExpenses, {});
+
+  // Stats
+  const totalSales = sales.length;
+  const totalReturns = returns.length;
+  const totalProducts = inventory.length;
+  const adminCount = users.filter(u => u.role === 'admin').length;
+  const userCount = users.filter(u => u.role === 'user').length;
 
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
         <Shield className="h-6 w-6 text-primary" />
-        <h2 className="text-2xl font-bold">Settings</h2>
+        <h2 className="text-2xl font-bold">Settings & Administration</h2>
+      </div>
+
+      {/* System Overview */}
+      <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
+        <Card><CardContent className="p-4 text-center"><p className="text-xs text-muted-foreground">Products</p><p className="text-xl font-bold text-primary">{totalProducts}</p></CardContent></Card>
+        <Card><CardContent className="p-4 text-center"><p className="text-xs text-muted-foreground">Total Sales</p><p className="text-xl font-bold text-primary">{totalSales}</p></CardContent></Card>
+        <Card><CardContent className="p-4 text-center"><p className="text-xs text-muted-foreground">Returns</p><p className="text-xl font-bold text-destructive">{totalReturns}</p></CardContent></Card>
+        <Card><CardContent className="p-4 text-center"><p className="text-xs text-muted-foreground">Admins</p><p className="text-xl font-bold text-primary">{adminCount}</p></CardContent></Card>
+        <Card><CardContent className="p-4 text-center"><p className="text-xs text-muted-foreground">Users</p><p className="text-xl font-bold text-muted-foreground">{userCount}</p></CardContent></Card>
       </div>
 
       {/* Quick Actions */}
@@ -116,10 +125,10 @@ export default function SettingsPage() {
 
         <Card>
           <CardContent className="p-4 flex items-center gap-3">
-            <Users className="h-5 w-5 text-primary" />
+            <Database className="h-5 w-5 text-primary" />
             <div className="flex-1">
-              <p className="font-medium text-sm">Total Users</p>
-              <p className="text-xs text-muted-foreground">{users.length} registered users</p>
+              <p className="font-medium text-sm">Data Summary</p>
+              <p className="text-xs text-muted-foreground">{totalSales} sales · {totalProducts} products · {totalReturns} returns</p>
             </div>
           </CardContent>
         </Card>
@@ -140,8 +149,7 @@ export default function SettingsPage() {
                   <DialogTitle className="text-destructive">⚠️ Monthly Disclosure — Zero Accounts</DialogTitle>
                 </DialogHeader>
                 <p className="text-sm text-muted-foreground">
-                  This will permanently delete <strong>ALL sales, returns, and ad expenses</strong>. 
-                  Inventory will remain but stock counts will reset. This action is irreversible.
+                  This will permanently delete <strong>ALL sales, returns, and ad expenses</strong>. Inventory will remain but stock counts will reset. This action is irreversible.
                 </p>
                 <p className="text-sm font-medium mt-2">Download a backup report before proceeding!</p>
                 <Button variant="outline" size="sm" className="w-fit" onClick={handleFullExport}>
@@ -153,9 +161,7 @@ export default function SettingsPage() {
                 </div>
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setDisclosureOpen(false)}>Cancel</Button>
-                  <Button variant="destructive" onClick={handleMonthlyDisclosure} disabled={disclosureConfirm !== 'CONFIRM'}>
-                    Zero All Accounts
-                  </Button>
+                  <Button variant="destructive" onClick={handleMonthlyDisclosure} disabled={disclosureConfirm !== 'CONFIRM'}>Zero All Accounts</Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
@@ -167,7 +173,7 @@ export default function SettingsPage() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2"><Users className="h-4 w-4" />User Management</CardTitle>
-          <CardDescription>Manage user roles. Promote users to Admin for full CRUD access.</CardDescription>
+          <CardDescription>Manage user roles and permissions. {users.length} total users.</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto rounded-lg border">

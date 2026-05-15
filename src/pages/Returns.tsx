@@ -133,27 +133,30 @@ export default function Returns() {
   const handleImport = async (rows: Record<string, string>[]) => {
     let success = 0;
     const errors: string[] = [];
+    const inserts: any[] = [];
     for (const row of rows) {
       const sku = row.sku || row.SKU || '';
       const inv = inventory.find(i => i.sku.toLowerCase() === sku.toLowerCase());
       if (!inv) { errors.push(`SKU not found: ${sku}`); continue; }
-      const productSales = sales.filter(s => s.inventory_id === inv.id);
-      const returnedSaleIds = new Set(returns.map(r => r.sales_id));
-      const availableSale = productSales.find(s => !returnedSaleIds.has(s.id));
-      if (!availableSale) { errors.push(`No unreturned sale for: ${sku}`); continue; }
       const return_type = row.return_type || row['Return Type'] || '';
       const quantity_returned = parseInt(row.quantity_returned || row['Qty Returned'] || '0', 10);
       const return_date = row.return_date || row['Return Date'] || new Date().toISOString().slice(0, 10);
       if (!return_type || !quantity_returned) { errors.push(`Missing data for: ${sku}`); continue; }
       const validTypes = ['Customer Return', 'RTO'];
       if (!validTypes.includes(return_type)) { errors.push(`Invalid return type: ${return_type}`); continue; }
-      const penalty_amount = return_type === 'Customer Return' ? 160 : 0;
-      const { error } = await supabase.from('returns').insert({
-        sales_id: availableSale.id, return_type: return_type as any, quantity_returned, penalty_amount, return_date,
-        delivery_status: 'In Transit' as const,
-      });
-      if (error) errors.push(`${sku}: ${error.message}`);
-      else success++;
+      const penalty_per_unit = return_type === 'Customer Return' ? 160 : 0;
+      for (let i = 0; i < quantity_returned; i++) {
+        inserts.push({
+          sales_id: null, inventory_id: inv.id,
+          return_type: return_type as any, quantity_returned: 1, penalty_amount: penalty_per_unit,
+          return_date, delivery_status: 'In Transit' as const,
+        });
+      }
+      success += quantity_returned;
+    }
+    if (inserts.length) {
+      const { error } = await supabase.from('returns').insert(inserts);
+      if (error) errors.push(error.message);
     }
     qc.invalidateQueries({ queryKey: ['returns'] });
     qc.invalidateQueries({ queryKey: ['inventory'] });

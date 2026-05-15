@@ -92,7 +92,7 @@ export default function Inventory() {
 
   const handleEdit = (item: any) => {
     setEditId(item.id);
-    form.reset({ sku: item.sku, product_name: item.product_name, average_cost_price: item.average_cost_price, average_selling_price: item.average_selling_price ?? 0, total_bulk_stock_in: item.total_bulk_stock_in, delivery_fee: item.delivery_fee ?? 0, stock_added_date: (item as any).stock_added_date ?? new Date().toISOString().slice(0, 10) });
+    form.reset({ sku: item.sku, product_name: item.product_name, aliases: (item.aliases ?? []).join(', '), average_cost_price: item.average_cost_price, average_selling_price: item.average_selling_price ?? 0, total_bulk_stock_in: item.total_bulk_stock_in, delivery_fee: item.delivery_fee ?? 0, stock_added_date: (item as any).stock_added_date ?? new Date().toISOString().slice(0, 10) });
     setDialogOpen(true);
   };
 

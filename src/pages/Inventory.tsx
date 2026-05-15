@@ -61,9 +61,11 @@ export default function Inventory() {
 
   const onSubmit = async (values: FormData) => {
     try {
+      const aliases = (values.aliases ?? '').split(',').map(s => s.trim()).filter(Boolean);
       const payload = {
         sku: values.sku,
         product_name: values.product_name,
+        aliases,
         average_cost_price: values.average_cost_price,
         average_selling_price: values.average_selling_price,
         total_bulk_stock_in: values.total_bulk_stock_in,

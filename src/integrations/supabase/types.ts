@@ -17,6 +17,7 @@ export type Database = {
       ad_expenses: {
         Row: {
           amount: number
+          category: string
           created_at: string
           description: string | null
           expense_date: string
@@ -25,6 +26,7 @@ export type Database = {
         }
         Insert: {
           amount?: number
+          category?: string
           created_at?: string
           description?: string | null
           expense_date?: string
@@ -33,6 +35,7 @@ export type Database = {
         }
         Update: {
           amount?: number
+          category?: string
           created_at?: string
           description?: string | null
           expense_date?: string
@@ -43,6 +46,7 @@ export type Database = {
       }
       inventory: {
         Row: {
+          aliases: string[]
           average_cost_price: number
           average_selling_price: number
           created_at: string
@@ -55,6 +59,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          aliases?: string[]
           average_cost_price?: number
           average_selling_price?: number
           created_at?: string
@@ -67,6 +72,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          aliases?: string[]
           average_cost_price?: number
           average_selling_price?: number
           created_at?: string
@@ -116,33 +122,36 @@ export type Database = {
           delivered_date: string | null
           delivery_status: Database["public"]["Enums"]["delivery_status_type"]
           id: string
+          inventory_id: string | null
           penalty_amount: number
           quantity_returned: number
           return_date: string
           return_type: Database["public"]["Enums"]["return_type"]
-          sales_id: string
+          sales_id: string | null
         }
         Insert: {
           created_at?: string
           delivered_date?: string | null
           delivery_status?: Database["public"]["Enums"]["delivery_status_type"]
           id?: string
+          inventory_id?: string | null
           penalty_amount?: number
           quantity_returned: number
           return_date?: string
           return_type: Database["public"]["Enums"]["return_type"]
-          sales_id: string
+          sales_id?: string | null
         }
         Update: {
           created_at?: string
           delivered_date?: string | null
           delivery_status?: Database["public"]["Enums"]["delivery_status_type"]
           id?: string
+          inventory_id?: string | null
           penalty_amount?: number
           quantity_returned?: number
           return_date?: string
           return_type?: Database["public"]["Enums"]["return_type"]
-          sales_id?: string
+          sales_id?: string | null
         }
         Relationships: [
           {
@@ -162,6 +171,8 @@ export type Database = {
           dispatch_date: string
           id: string
           inventory_id: string
+          order_number: string | null
+          payment_method: string | null
           payment_status: Database["public"]["Enums"]["payment_status_type"]
           platform: Database["public"]["Enums"]["platform_type"]
           quantity_sold: number
@@ -174,6 +185,8 @@ export type Database = {
           dispatch_date: string
           id?: string
           inventory_id: string
+          order_number?: string | null
+          payment_method?: string | null
           payment_status?: Database["public"]["Enums"]["payment_status_type"]
           platform: Database["public"]["Enums"]["platform_type"]
           quantity_sold: number
@@ -186,6 +199,8 @@ export type Database = {
           dispatch_date?: string
           id?: string
           inventory_id?: string
+          order_number?: string | null
+          payment_method?: string | null
           payment_status?: Database["public"]["Enums"]["payment_status_type"]
           platform?: Database["public"]["Enums"]["platform_type"]
           quantity_sold?: number

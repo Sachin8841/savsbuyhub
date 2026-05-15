@@ -19,6 +19,7 @@ import { z } from 'zod';
 const schema = z.object({
   sku: z.string().min(1, 'SKU required').max(50),
   product_name: z.string().min(1, 'Product name required').max(255),
+  aliases: z.string().optional(), // comma-separated
   average_cost_price: z.number().min(0),
   average_selling_price: z.number().min(0),
   total_bulk_stock_in: z.number().int().min(0),
@@ -38,7 +39,7 @@ export default function Inventory() {
   const { toast } = useToast();
   const admin = isAdmin();
 
-  const form = useForm<FormData>({ resolver: zodResolver(schema), defaultValues: { sku: '', product_name: '', average_cost_price: 0, average_selling_price: 0, total_bulk_stock_in: 0, delivery_fee: 0, stock_added_date: new Date().toISOString().slice(0, 10) } });
+  const form = useForm<FormData>({ resolver: zodResolver(schema), defaultValues: { sku: '', product_name: '', aliases: '', average_cost_price: 0, average_selling_price: 0, total_bulk_stock_in: 0, delivery_fee: 0, stock_added_date: new Date().toISOString().slice(0, 10) } });
 
   useEffect(() => {
     inventory.forEach(async (item) => {
@@ -60,9 +61,11 @@ export default function Inventory() {
 
   const onSubmit = async (values: FormData) => {
     try {
+      const aliases = (values.aliases ?? '').split(',').map(s => s.trim()).filter(Boolean);
       const payload = {
         sku: values.sku,
         product_name: values.product_name,
+        aliases,
         average_cost_price: values.average_cost_price,
         average_selling_price: values.average_selling_price,
         total_bulk_stock_in: values.total_bulk_stock_in,
@@ -89,7 +92,7 @@ export default function Inventory() {
 
   const handleEdit = (item: any) => {
     setEditId(item.id);
-    form.reset({ sku: item.sku, product_name: item.product_name, average_cost_price: item.average_cost_price, average_selling_price: item.average_selling_price ?? 0, total_bulk_stock_in: item.total_bulk_stock_in, delivery_fee: item.delivery_fee ?? 0, stock_added_date: (item as any).stock_added_date ?? new Date().toISOString().slice(0, 10) });
+    form.reset({ sku: item.sku, product_name: item.product_name, aliases: (item.aliases ?? []).join(', '), average_cost_price: item.average_cost_price, average_selling_price: item.average_selling_price ?? 0, total_bulk_stock_in: item.total_bulk_stock_in, delivery_fee: item.delivery_fee ?? 0, stock_added_date: (item as any).stock_added_date ?? new Date().toISOString().slice(0, 10) });
     setDialogOpen(true);
   };
 
@@ -159,6 +162,7 @@ export default function Inventory() {
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                   <div><Label>SKU</Label><Input {...form.register('sku')} />{form.formState.errors.sku && <p className="text-sm text-destructive">{form.formState.errors.sku.message}</p>}</div>
                   <div><Label>Product Name</Label><Input {...form.register('product_name')} />{form.formState.errors.product_name && <p className="text-sm text-destructive">{form.formState.errors.product_name.message}</p>}</div>
+                  <div><Label>Aliases (comma-separated, used to match product names from bills)</Label><Input placeholder="e.g. Blue Tee, Cotton T-shirt Blue" {...form.register('aliases')} /></div>
                   <div className="grid grid-cols-2 gap-3">
                     <div><Label>Cost Price (₹)</Label><Input type="number" step="0.01" {...form.register('average_cost_price', { valueAsNumber: true })} /></div>
                     <div><Label>Selling Price (₹)</Label><Input type="number" step="0.01" {...form.register('average_selling_price', { valueAsNumber: true })} /></div>

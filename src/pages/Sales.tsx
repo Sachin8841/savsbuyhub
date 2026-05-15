@@ -13,7 +13,8 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { exportToXlsx } from '@/lib/xlsx-export';
-import { Plus, Download, Pencil, Trash2, Search, DollarSign, Clock } from 'lucide-react';
+import { Plus, Download, Pencil, Trash2, Search, DollarSign, Clock, FileUp, Loader2, SplitSquareHorizontal } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
 import { CsvImportButton } from '@/components/CsvImportButton';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -29,7 +30,10 @@ const schema = z.object({
   average_selling_price: z.number().min(0),
   courier_partner: z.string().optional(),
   payment_status: z.enum(['Pending', 'Settled']),
+  payment_method: z.enum(['Prepaid', 'COD']).optional(),
+  order_number: z.string().optional(),
   settlement_date: z.string().optional(),
+  split_orders: z.boolean().optional(), // if true, qty>1 -> one row per unit
 });
 type FormData = z.infer<typeof schema>;
 
@@ -43,12 +47,15 @@ export default function Sales() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
+  const [billUploading, setBillUploading] = useState(false);
+  const [billPreview, setBillPreview] = useState<any[] | null>(null);
+  const [billPreviewOpen, setBillPreviewOpen] = useState(false);
   const qc = useQueryClient();
   const { toast } = useToast();
 
   const form = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: { dispatch_date: new Date().toISOString().slice(0, 10), platform: 'Meesho', inventory_id: '', quantity_sold: 1, average_selling_price: 0, courier_partner: '', payment_status: 'Pending', settlement_date: '' },
+    defaultValues: { dispatch_date: new Date().toISOString().slice(0, 10), platform: 'Meesho', inventory_id: '', quantity_sold: 1, average_selling_price: 0, courier_partner: '', payment_status: 'Pending', payment_method: 'Prepaid', order_number: '', settlement_date: '', split_orders: true },
   });
 
   const paymentStatus = form.watch('payment_status');
@@ -56,8 +63,7 @@ export default function Sales() {
 
   // Auto-fill selling price from inventory
   const selectedInv = inventory.find(i => i.id === selectedInvId);
-  
-  // Auto-fill selling price when product is selected
+
   useEffect(() => {
     if (selectedInv && selectedInv.average_selling_price > 0 && !editId) {
       form.setValue('average_selling_price', selectedInv.average_selling_price);
@@ -66,13 +72,12 @@ export default function Sales() {
 
   const filtered = sales.filter(s => {
     const inv = s.inventory as any;
-    const matchSearch = search === '' || inv?.sku?.toLowerCase().includes(search.toLowerCase()) || inv?.product_name?.toLowerCase().includes(search.toLowerCase()) || (s.courier_partner ?? '').toLowerCase().includes(search.toLowerCase());
+    const matchSearch = search === '' || inv?.sku?.toLowerCase().includes(search.toLowerCase()) || inv?.product_name?.toLowerCase().includes(search.toLowerCase()) || (s.courier_partner ?? '').toLowerCase().includes(search.toLowerCase()) || ((s as any).order_number ?? '').toLowerCase().includes(search.toLowerCase());
     const matchPlatform = platformFilter === 'all' || s.platform === platformFilter;
     const matchStatus = statusFilter === 'all' || s.payment_status === statusFilter;
     return matchSearch && matchPlatform && matchStatus;
   });
 
-  // Summary stats
   const totalRevenue = filtered.reduce((sum, s) => sum + s.quantity_sold * s.average_selling_price, 0);
   const pendingAmount = filtered.filter(s => s.payment_status === 'Pending').reduce((sum, s) => sum + s.quantity_sold * s.average_selling_price, 0);
   const settledAmount = filtered.filter(s => s.payment_status === 'Settled').reduce((sum, s) => sum + s.quantity_sold * s.average_selling_price, 0);
@@ -87,17 +92,29 @@ export default function Sales() {
           return;
         }
       }
-      const payload = {
-        ...values,
+      const baseRow = {
+        dispatch_date: values.dispatch_date,
+        platform: values.platform,
+        inventory_id: values.inventory_id,
+        average_selling_price: values.average_selling_price,
         courier_partner: values.courier_partner || null,
+        payment_status: values.payment_status,
+        payment_method: values.payment_method ?? null,
+        order_number: values.order_number || null,
         settlement_date: values.payment_status === 'Settled' && values.settlement_date ? values.settlement_date : null,
       };
       if (editId) {
-        const { error } = await supabase.from('sales').update(payload).eq('id', editId);
+        const { error } = await supabase.from('sales').update({ ...baseRow, quantity_sold: values.quantity_sold }).eq('id', editId);
         if (error) throw error;
         toast({ title: 'Sale updated' });
+      } else if (values.split_orders && values.quantity_sold > 1) {
+        // Each unit is a separate order
+        const rows = Array.from({ length: values.quantity_sold }, () => ({ ...baseRow, quantity_sold: 1 }));
+        const { error } = await supabase.from('sales').insert(rows as any);
+        if (error) throw error;
+        toast({ title: `Logged ${rows.length} separate orders` });
       } else {
-        const { error } = await supabase.from('sales').insert(payload);
+        const { error } = await supabase.from('sales').insert({ ...baseRow, quantity_sold: values.quantity_sold } as any);
         if (error) throw error;
         toast({ title: 'Sale recorded' });
       }
@@ -117,7 +134,10 @@ export default function Sales() {
       dispatch_date: s.dispatch_date, platform: s.platform, inventory_id: s.inventory_id,
       quantity_sold: s.quantity_sold, average_selling_price: s.average_selling_price,
       courier_partner: s.courier_partner ?? '', payment_status: s.payment_status,
+      payment_method: s.payment_method ?? 'Prepaid',
+      order_number: s.order_number ?? '',
       settlement_date: s.settlement_date ?? '',
+      split_orders: false,
     });
     setDialogOpen(true);
   };
@@ -128,6 +148,73 @@ export default function Sales() {
     if (error) { toast({ title: 'Error', description: error.message, variant: 'destructive' }); return; }
     qc.invalidateQueries({ queryKey: ['sales'] });
     toast({ title: 'Sale deleted' });
+  };
+
+  // Bill upload: send PDF to edge function, parse to line items, preview, then confirm
+  const handleBillUpload = async (file: File) => {
+    try {
+      setBillUploading(true);
+      const reader = new FileReader();
+      const base64: string = await new Promise((res, rej) => {
+        reader.onload = () => res((reader.result as string).split(',')[1]);
+        reader.onerror = rej;
+        reader.readAsDataURL(file);
+      });
+      const invSlim = inventory.map((i: any) => ({ id: i.id, sku: i.sku, product_name: i.product_name, aliases: i.aliases ?? [] }));
+      const { data, error } = await supabase.functions.invoke('parse-bill', {
+        body: { pdfBase64: base64, mimeType: file.type || 'application/pdf', inventory: invSlim },
+      });
+      if (error) throw error;
+      const items: any[] = (data?.items ?? []).map((it: any) => {
+        const inv = inventory.find((i: any) =>
+          (it.sku && i.sku.toLowerCase() === String(it.sku).toLowerCase()) ||
+          (it.product_name && i.product_name.toLowerCase() === String(it.product_name).toLowerCase()) ||
+          (it.product_name && (i.aliases ?? []).some((a: string) => a.toLowerCase() === String(it.product_name).toLowerCase()))
+        );
+        return { ...it, matched_inventory_id: inv?.id ?? '', matched_sku: inv?.sku ?? '', matched_name: inv?.product_name ?? it.product_name };
+      });
+      if (!items.length) { toast({ title: 'No orders detected in document', variant: 'destructive' }); return; }
+      setBillPreview(items);
+      setBillPreviewOpen(true);
+    } catch (err: any) {
+      toast({ title: 'Bill parsing failed', description: err.message, variant: 'destructive' });
+    } finally {
+      setBillUploading(false);
+    }
+  };
+
+  const confirmBillImport = async () => {
+    if (!billPreview) return;
+    const today = new Date().toISOString().slice(0, 10);
+    const rows: any[] = [];
+    const skipped: string[] = [];
+    for (const it of billPreview) {
+      if (!it.matched_inventory_id) { skipped.push(it.product_name || it.sku || 'unknown'); continue; }
+      const inv = inventory.find(i => i.id === it.matched_inventory_id) as any;
+      const qty = Math.max(1, parseInt(it.quantity ?? 1, 10));
+      const unit_price = it.total_amount && qty ? Number(it.total_amount) / qty : (inv?.average_selling_price ?? 0);
+      // Each order on the bill = one row, with its quantity (1x/2x/...)
+      rows.push({
+        dispatch_date: today,
+        platform: ['Meesho', 'Flipkart', 'Amazon', 'Offline'].includes(it.platform) ? it.platform : 'Meesho',
+        inventory_id: it.matched_inventory_id,
+        quantity_sold: qty,
+        average_selling_price: unit_price,
+        courier_partner: it.courier_partner || null,
+        payment_status: 'Pending',
+        payment_method: it.payment_method ?? null,
+        order_number: it.order_number ?? null,
+      });
+    }
+    if (rows.length) {
+      const { error } = await supabase.from('sales').insert(rows);
+      if (error) { toast({ title: 'Insert failed', description: error.message, variant: 'destructive' }); return; }
+    }
+    qc.invalidateQueries({ queryKey: ['sales'] });
+    qc.invalidateQueries({ queryKey: ['inventory'] });
+    toast({ title: `Imported ${rows.length} order${rows.length !== 1 ? 's' : ''}`, description: skipped.length ? `Skipped (no SKU match): ${skipped.join(', ')}` : undefined });
+    setBillPreviewOpen(false);
+    setBillPreview(null);
   };
 
   // Quick payment status toggle
@@ -198,9 +285,17 @@ export default function Sales() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <h2 className="text-2xl font-bold">Sales Ledger</h2>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <Button variant="outline" size="sm" onClick={handleExport}><Download className="mr-1 h-4 w-4" />Export Excel</Button>
           {admin && <CsvImportButton onImport={handleImport} expectedColumns={['sku', 'dispatch_date', 'platform', 'quantity_sold', 'average_selling_price']} label="Import CSV" />}
+          {admin && (
+            <label>
+              <input type="file" accept="application/pdf,image/*" className="hidden" disabled={billUploading} onChange={(e) => { const f = e.target.files?.[0]; if (f) { handleBillUpload(f); e.target.value = ''; } }} />
+              <Button asChild variant="outline" size="sm" disabled={billUploading}>
+                <span className="cursor-pointer">{billUploading ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <FileUp className="mr-1 h-4 w-4" />}Upload Bill</span>
+              </Button>
+            </label>
+          )}
           {admin && (
             <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) { setEditId(null); form.reset(); } }}>
               <DialogTrigger asChild><Button size="sm"><Plus className="mr-1 h-4 w-4" />Log Sale</Button></DialogTrigger>
@@ -247,6 +342,21 @@ export default function Sales() {
                       </Select>
                     )} />
                   </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><Label>Order Number (Optional)</Label><Input placeholder="e.g. AWB / Order ID" {...form.register('order_number')} /></div>
+                    <div>
+                      <Label>Payment Method</Label>
+                      <Controller name="payment_method" control={form.control} render={({ field }) => (
+                        <Select value={field.value ?? 'Prepaid'} onValueChange={field.onChange}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Prepaid">Prepaid</SelectItem>
+                            <SelectItem value="COD">COD</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      )} />
+                    </div>
+                  </div>
                   <div>
                     <Label>Payment Status</Label>
                     <Controller name="payment_status" control={form.control} render={({ field }) => (
@@ -261,6 +371,17 @@ export default function Sales() {
                   </div>
                   {paymentStatus === 'Settled' && (
                     <div><Label>Settlement Date</Label><Input type="date" {...form.register('settlement_date')} /></div>
+                  )}
+                  {!editId && (
+                    <div className="flex items-start gap-2 rounded-md border bg-muted/40 p-3">
+                      <Controller name="split_orders" control={form.control} render={({ field }) => (
+                        <Checkbox id="split_orders" checked={field.value ?? false} onCheckedChange={field.onChange} />
+                      )} />
+                      <label htmlFor="split_orders" className="text-sm leading-tight cursor-pointer">
+                        <span className="flex items-center gap-1 font-medium"><SplitSquareHorizontal className="h-3.5 w-3.5" />Treat each unit as a separate order</span>
+                        <span className="text-xs text-muted-foreground">Recommended for bulk-entered units that are actually individual orders. Creates one row per unit.</span>
+                      </label>
+                    </div>
                   )}
                   <Button type="submit" className="w-full">{editId ? 'Update' : 'Log Sale'}</Button>
                 </form>
@@ -344,6 +465,18 @@ export default function Sales() {
                   </TableCell>
                   {admin && (
                     <TableCell className="text-right">
+                      {s.quantity_sold > 1 && (
+                        <Button variant="ghost" size="icon" title="Split into individual orders" onClick={async () => {
+                          if (!confirm(`Split this row of ${s.quantity_sold} units into ${s.quantity_sold} separate orders of qty 1?`)) return;
+                          const base = { dispatch_date: s.dispatch_date, platform: s.platform, inventory_id: s.inventory_id, average_selling_price: s.average_selling_price, courier_partner: s.courier_partner, payment_status: s.payment_status, payment_method: (s as any).payment_method ?? null, order_number: (s as any).order_number ?? null, settlement_date: s.settlement_date };
+                          const rows = Array.from({ length: s.quantity_sold }, () => ({ ...base, quantity_sold: 1 }));
+                          const { error: e1 } = await supabase.from('sales').insert(rows as any);
+                          if (e1) { toast({ title: 'Split failed', description: e1.message, variant: 'destructive' }); return; }
+                          await supabase.from('sales').delete().eq('id', s.id);
+                          qc.invalidateQueries({ queryKey: ['sales'] });
+                          toast({ title: `Split into ${rows.length} orders` });
+                        }}><SplitSquareHorizontal className="h-4 w-4" /></Button>
+                      )}
                       <Button variant="ghost" size="icon" onClick={() => handleEdit(s)}><Pencil className="h-4 w-4" /></Button>
                       <Button variant="ghost" size="icon" onClick={() => handleDelete(s.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
                     </TableCell>
@@ -357,6 +490,36 @@ export default function Sales() {
           </TableBody>
         </Table>
       </div>
+
+      <Dialog open={billPreviewOpen} onOpenChange={(o) => { setBillPreviewOpen(o); if (!o) setBillPreview(null); }}>
+        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Review Parsed Orders ({billPreview?.length ?? 0})</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">Date will be today ({new Date().toISOString().slice(0,10)}). Rows without an SKU match are skipped.</p>
+          <div className="overflow-x-auto rounded border max-h-[400px] overflow-y-auto">
+            <Table>
+              <TableHeader><TableRow><TableHead>SKU</TableHead><TableHead>Product</TableHead><TableHead>Qty</TableHead><TableHead>Order #</TableHead><TableHead>Total</TableHead><TableHead>Pay</TableHead><TableHead>Courier</TableHead><TableHead>Platform</TableHead></TableRow></TableHeader>
+              <TableBody>
+                {billPreview?.map((it, i) => (
+                  <TableRow key={i} className={!it.matched_inventory_id ? 'opacity-50' : ''}>
+                    <TableCell className="font-mono text-xs">{it.matched_sku || it.sku || '—'}</TableCell>
+                    <TableCell className="text-sm">{it.matched_name || it.product_name || '—'}</TableCell>
+                    <TableCell>{it.quantity}</TableCell>
+                    <TableCell className="text-xs">{it.order_number || '—'}</TableCell>
+                    <TableCell>{it.total_amount ? `₹${it.total_amount}` : '—'}</TableCell>
+                    <TableCell>{it.payment_method || '—'}</TableCell>
+                    <TableCell className="text-xs">{it.courier_partner || '—'}</TableCell>
+                    <TableCell className="text-xs">{it.platform || '—'}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+          <div className="flex justify-end gap-2 mt-3">
+            <Button variant="outline" onClick={() => setBillPreviewOpen(false)}>Cancel</Button>
+            <Button onClick={confirmBillImport}>Import {billPreview?.filter(i => i.matched_inventory_id).length ?? 0} orders</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

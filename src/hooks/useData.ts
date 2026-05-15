@@ -41,7 +41,7 @@ export function useReturns() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('returns')
-        .select('*, sales(id, platform, inventory_id, quantity_sold, average_selling_price, dispatch_date, inventory(sku, product_name))')
+        .select('*, inventory(sku, product_name), sales(id, platform, inventory_id, quantity_sold, average_selling_price, dispatch_date, inventory(sku, product_name))')
         .order('created_at', { ascending: false });
       if (error) throw error;
       return data;

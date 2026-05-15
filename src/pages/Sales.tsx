@@ -285,9 +285,17 @@ export default function Sales() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <h2 className="text-2xl font-bold">Sales Ledger</h2>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <Button variant="outline" size="sm" onClick={handleExport}><Download className="mr-1 h-4 w-4" />Export Excel</Button>
           {admin && <CsvImportButton onImport={handleImport} expectedColumns={['sku', 'dispatch_date', 'platform', 'quantity_sold', 'average_selling_price']} label="Import CSV" />}
+          {admin && (
+            <label>
+              <input type="file" accept="application/pdf,image/*" className="hidden" disabled={billUploading} onChange={(e) => { const f = e.target.files?.[0]; if (f) { handleBillUpload(f); e.target.value = ''; } }} />
+              <Button asChild variant="outline" size="sm" disabled={billUploading}>
+                <span className="cursor-pointer">{billUploading ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <FileUp className="mr-1 h-4 w-4" />}Upload Bill</span>
+              </Button>
+            </label>
+          )}
           {admin && (
             <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) { setEditId(null); form.reset(); } }}>
               <DialogTrigger asChild><Button size="sm"><Plus className="mr-1 h-4 w-4" />Log Sale</Button></DialogTrigger>

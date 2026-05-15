@@ -65,27 +65,20 @@ export default function Returns() {
 
   const onSubmit = async (values: FormData) => {
     try {
-      // Find a sale for this product that hasn't been returned yet
-      const productSales = sales.filter(s => s.inventory_id === values.inventory_id);
-      const returnedSaleIds = new Set(returns.map(r => r.sales_id));
-      const availableSale = productSales.find(s => !returnedSaleIds.has(s.id));
-      
-      if (!availableSale) {
-        toast({ title: 'No matching sale found', description: 'There are no unreturned sales for this product.', variant: 'destructive' });
-        return;
-      }
-
-      const penalty_amount = values.return_type === 'Customer Return' ? 160 : 0;
-      const { error } = await supabase.from('returns').insert({
-        sales_id: availableSale.id,
+      const penalty_per_unit = values.return_type === 'Customer Return' ? 160 : 0;
+      // One row per returned unit (quantity-based logging)
+      const rows = Array.from({ length: values.quantity_returned }, () => ({
+        sales_id: null,
+        inventory_id: values.inventory_id,
         return_type: values.return_type,
-        quantity_returned: values.quantity_returned,
+        quantity_returned: 1,
         return_date: values.return_date,
-        penalty_amount,
+        penalty_amount: penalty_per_unit,
         delivery_status: 'In Transit' as const,
-      });
+      }));
+      const { error } = await supabase.from('returns').insert(rows as any);
       if (error) throw error;
-      toast({ title: 'Return recorded' });
+      toast({ title: `Logged ${rows.length} return${rows.length > 1 ? 's' : ''}` });
       qc.invalidateQueries({ queryKey: ['returns'] });
       qc.invalidateQueries({ queryKey: ['inventory'] });
       setDialogOpen(false);

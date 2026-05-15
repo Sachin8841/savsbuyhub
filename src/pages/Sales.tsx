@@ -131,7 +131,10 @@ export default function Sales() {
       dispatch_date: s.dispatch_date, platform: s.platform, inventory_id: s.inventory_id,
       quantity_sold: s.quantity_sold, average_selling_price: s.average_selling_price,
       courier_partner: s.courier_partner ?? '', payment_status: s.payment_status,
+      payment_method: s.payment_method ?? 'Prepaid',
+      order_number: s.order_number ?? '',
       settlement_date: s.settlement_date ?? '',
+      split_orders: false,
     });
     setDialogOpen(true);
   };

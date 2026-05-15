@@ -47,7 +47,7 @@ export default function Returns() {
 
   const filtered = returns.filter(r => {
     const sale = r.sales as any;
-    const inv = sale?.inventory;
+    const inv = (r as any).inventory ?? sale?.inventory;
     const matchSearch = search === '' ||
       inv?.sku?.toLowerCase().includes(search.toLowerCase()) ||
       inv?.product_name?.toLowerCase().includes(search.toLowerCase()) ||

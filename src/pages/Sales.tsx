@@ -342,6 +342,21 @@ export default function Sales() {
                       </Select>
                     )} />
                   </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><Label>Order Number (Optional)</Label><Input placeholder="e.g. AWB / Order ID" {...form.register('order_number')} /></div>
+                    <div>
+                      <Label>Payment Method</Label>
+                      <Controller name="payment_method" control={form.control} render={({ field }) => (
+                        <Select value={field.value ?? 'Prepaid'} onValueChange={field.onChange}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Prepaid">Prepaid</SelectItem>
+                            <SelectItem value="COD">COD</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      )} />
+                    </div>
+                  </div>
                   <div>
                     <Label>Payment Status</Label>
                     <Controller name="payment_status" control={form.control} render={({ field }) => (
@@ -356,6 +371,17 @@ export default function Sales() {
                   </div>
                   {paymentStatus === 'Settled' && (
                     <div><Label>Settlement Date</Label><Input type="date" {...form.register('settlement_date')} /></div>
+                  )}
+                  {!editId && (
+                    <div className="flex items-start gap-2 rounded-md border bg-muted/40 p-3">
+                      <Controller name="split_orders" control={form.control} render={({ field }) => (
+                        <Checkbox id="split_orders" checked={field.value ?? false} onCheckedChange={field.onChange} />
+                      )} />
+                      <label htmlFor="split_orders" className="text-sm leading-tight cursor-pointer">
+                        <span className="flex items-center gap-1 font-medium"><SplitSquareHorizontal className="h-3.5 w-3.5" />Treat each unit as a separate order</span>
+                        <span className="text-xs text-muted-foreground">Recommended for bulk-entered units that are actually individual orders. Creates one row per unit.</span>
+                      </label>
+                    </div>
                   )}
                   <Button type="submit" className="w-full">{editId ? 'Update' : 'Log Sale'}</Button>
                 </form>

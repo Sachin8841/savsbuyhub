@@ -114,7 +114,7 @@ export default function Returns() {
       title: 'SAVS BuyHub - Returns Report',
       rows: filtered.map(r => {
         const sale = r.sales as any;
-        const inv = sale?.inventory;
+        const inv = (r as any).inventory ?? sale?.inventory;
         return {
           'Return Date': r.return_date ?? '',
           SKU: inv?.sku ?? '',

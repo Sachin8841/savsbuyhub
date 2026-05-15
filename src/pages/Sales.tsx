@@ -47,6 +47,9 @@ export default function Sales() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
+  const [billUploading, setBillUploading] = useState(false);
+  const [billPreview, setBillPreview] = useState<any[] | null>(null);
+  const [billPreviewOpen, setBillPreviewOpen] = useState(false);
   const qc = useQueryClient();
   const { toast } = useToast();
 

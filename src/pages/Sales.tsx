@@ -465,6 +465,18 @@ export default function Sales() {
                   </TableCell>
                   {admin && (
                     <TableCell className="text-right">
+                      {s.quantity_sold > 1 && (
+                        <Button variant="ghost" size="icon" title="Split into individual orders" onClick={async () => {
+                          if (!confirm(`Split this row of ${s.quantity_sold} units into ${s.quantity_sold} separate orders of qty 1?`)) return;
+                          const base = { dispatch_date: s.dispatch_date, platform: s.platform, inventory_id: s.inventory_id, average_selling_price: s.average_selling_price, courier_partner: s.courier_partner, payment_status: s.payment_status, payment_method: (s as any).payment_method ?? null, order_number: (s as any).order_number ?? null, settlement_date: s.settlement_date };
+                          const rows = Array.from({ length: s.quantity_sold }, () => ({ ...base, quantity_sold: 1 }));
+                          const { error: e1 } = await supabase.from('sales').insert(rows as any);
+                          if (e1) { toast({ title: 'Split failed', description: e1.message, variant: 'destructive' }); return; }
+                          await supabase.from('sales').delete().eq('id', s.id);
+                          qc.invalidateQueries({ queryKey: ['sales'] });
+                          toast({ title: `Split into ${rows.length} orders` });
+                        }}><SplitSquareHorizontal className="h-4 w-4" /></Button>
+                      )}
                       <Button variant="ghost" size="icon" onClick={() => handleEdit(s)}><Pencil className="h-4 w-4" /></Button>
                       <Button variant="ghost" size="icon" onClick={() => handleDelete(s.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
                     </TableCell>

@@ -52,7 +52,7 @@ export default function Sales() {
 
   const form = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: { dispatch_date: new Date().toISOString().slice(0, 10), platform: 'Meesho', inventory_id: '', quantity_sold: 1, average_selling_price: 0, courier_partner: '', payment_status: 'Pending', settlement_date: '' },
+    defaultValues: { dispatch_date: new Date().toISOString().slice(0, 10), platform: 'Meesho', inventory_id: '', quantity_sold: 1, average_selling_price: 0, courier_partner: '', payment_status: 'Pending', payment_method: 'Prepaid', order_number: '', settlement_date: '', split_orders: true },
   });
 
   const paymentStatus = form.watch('payment_status');
@@ -60,8 +60,7 @@ export default function Sales() {
 
   // Auto-fill selling price from inventory
   const selectedInv = inventory.find(i => i.id === selectedInvId);
-  
-  // Auto-fill selling price when product is selected
+
   useEffect(() => {
     if (selectedInv && selectedInv.average_selling_price > 0 && !editId) {
       form.setValue('average_selling_price', selectedInv.average_selling_price);
@@ -70,13 +69,12 @@ export default function Sales() {
 
   const filtered = sales.filter(s => {
     const inv = s.inventory as any;
-    const matchSearch = search === '' || inv?.sku?.toLowerCase().includes(search.toLowerCase()) || inv?.product_name?.toLowerCase().includes(search.toLowerCase()) || (s.courier_partner ?? '').toLowerCase().includes(search.toLowerCase());
+    const matchSearch = search === '' || inv?.sku?.toLowerCase().includes(search.toLowerCase()) || inv?.product_name?.toLowerCase().includes(search.toLowerCase()) || (s.courier_partner ?? '').toLowerCase().includes(search.toLowerCase()) || ((s as any).order_number ?? '').toLowerCase().includes(search.toLowerCase());
     const matchPlatform = platformFilter === 'all' || s.platform === platformFilter;
     const matchStatus = statusFilter === 'all' || s.payment_status === statusFilter;
     return matchSearch && matchPlatform && matchStatus;
   });
 
-  // Summary stats
   const totalRevenue = filtered.reduce((sum, s) => sum + s.quantity_sold * s.average_selling_price, 0);
   const pendingAmount = filtered.filter(s => s.payment_status === 'Pending').reduce((sum, s) => sum + s.quantity_sold * s.average_selling_price, 0);
   const settledAmount = filtered.filter(s => s.payment_status === 'Settled').reduce((sum, s) => sum + s.quantity_sold * s.average_selling_price, 0);
@@ -91,17 +89,29 @@ export default function Sales() {
           return;
         }
       }
-      const payload = {
-        ...values,
+      const baseRow = {
+        dispatch_date: values.dispatch_date,
+        platform: values.platform,
+        inventory_id: values.inventory_id,
+        average_selling_price: values.average_selling_price,
         courier_partner: values.courier_partner || null,
+        payment_status: values.payment_status,
+        payment_method: values.payment_method ?? null,
+        order_number: values.order_number || null,
         settlement_date: values.payment_status === 'Settled' && values.settlement_date ? values.settlement_date : null,
       };
       if (editId) {
-        const { error } = await supabase.from('sales').update(payload).eq('id', editId);
+        const { error } = await supabase.from('sales').update({ ...baseRow, quantity_sold: values.quantity_sold }).eq('id', editId);
         if (error) throw error;
         toast({ title: 'Sale updated' });
+      } else if (values.split_orders && values.quantity_sold > 1) {
+        // Each unit is a separate order
+        const rows = Array.from({ length: values.quantity_sold }, () => ({ ...baseRow, quantity_sold: 1 }));
+        const { error } = await supabase.from('sales').insert(rows as any);
+        if (error) throw error;
+        toast({ title: `Logged ${rows.length} separate orders` });
       } else {
-        const { error } = await supabase.from('sales').insert(payload);
+        const { error } = await supabase.from('sales').insert({ ...baseRow, quantity_sold: values.quantity_sold } as any);
         if (error) throw error;
         toast({ title: 'Sale recorded' });
       }

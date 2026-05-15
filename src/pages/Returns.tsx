@@ -262,7 +262,7 @@ export default function Returns() {
           <TableBody>
             {filtered.map(r => {
               const sale = r.sales as any;
-              const inv = sale?.inventory;
+              const inv = (r as any).inventory ?? sale?.inventory;
               return (
                 <TableRow key={r.id}>
                   <TableCell>{r.return_date ?? '—'}</TableCell>

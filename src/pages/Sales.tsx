@@ -30,7 +30,10 @@ const schema = z.object({
   average_selling_price: z.number().min(0),
   courier_partner: z.string().optional(),
   payment_status: z.enum(['Pending', 'Settled']),
+  payment_method: z.enum(['Prepaid', 'COD']).optional(),
+  order_number: z.string().optional(),
   settlement_date: z.string().optional(),
+  split_orders: z.boolean().optional(), // if true, qty>1 -> one row per unit
 });
 type FormData = z.infer<typeof schema>;
 

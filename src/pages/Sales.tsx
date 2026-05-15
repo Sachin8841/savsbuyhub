@@ -150,6 +150,73 @@ export default function Sales() {
     toast({ title: 'Sale deleted' });
   };
 
+  // Bill upload: send PDF to edge function, parse to line items, preview, then confirm
+  const handleBillUpload = async (file: File) => {
+    try {
+      setBillUploading(true);
+      const reader = new FileReader();
+      const base64: string = await new Promise((res, rej) => {
+        reader.onload = () => res((reader.result as string).split(',')[1]);
+        reader.onerror = rej;
+        reader.readAsDataURL(file);
+      });
+      const invSlim = inventory.map((i: any) => ({ id: i.id, sku: i.sku, product_name: i.product_name, aliases: i.aliases ?? [] }));
+      const { data, error } = await supabase.functions.invoke('parse-bill', {
+        body: { pdfBase64: base64, mimeType: file.type || 'application/pdf', inventory: invSlim },
+      });
+      if (error) throw error;
+      const items: any[] = (data?.items ?? []).map((it: any) => {
+        const inv = inventory.find((i: any) =>
+          (it.sku && i.sku.toLowerCase() === String(it.sku).toLowerCase()) ||
+          (it.product_name && i.product_name.toLowerCase() === String(it.product_name).toLowerCase()) ||
+          (it.product_name && (i.aliases ?? []).some((a: string) => a.toLowerCase() === String(it.product_name).toLowerCase()))
+        );
+        return { ...it, matched_inventory_id: inv?.id ?? '', matched_sku: inv?.sku ?? '', matched_name: inv?.product_name ?? it.product_name };
+      });
+      if (!items.length) { toast({ title: 'No orders detected in document', variant: 'destructive' }); return; }
+      setBillPreview(items);
+      setBillPreviewOpen(true);
+    } catch (err: any) {
+      toast({ title: 'Bill parsing failed', description: err.message, variant: 'destructive' });
+    } finally {
+      setBillUploading(false);
+    }
+  };
+
+  const confirmBillImport = async () => {
+    if (!billPreview) return;
+    const today = new Date().toISOString().slice(0, 10);
+    const rows: any[] = [];
+    const skipped: string[] = [];
+    for (const it of billPreview) {
+      if (!it.matched_inventory_id) { skipped.push(it.product_name || it.sku || 'unknown'); continue; }
+      const inv = inventory.find(i => i.id === it.matched_inventory_id) as any;
+      const qty = Math.max(1, parseInt(it.quantity ?? 1, 10));
+      const unit_price = it.total_amount && qty ? Number(it.total_amount) / qty : (inv?.average_selling_price ?? 0);
+      // Each order on the bill = one row, with its quantity (1x/2x/...)
+      rows.push({
+        dispatch_date: today,
+        platform: ['Meesho', 'Flipkart', 'Amazon', 'Offline'].includes(it.platform) ? it.platform : 'Meesho',
+        inventory_id: it.matched_inventory_id,
+        quantity_sold: qty,
+        average_selling_price: unit_price,
+        courier_partner: it.courier_partner || null,
+        payment_status: 'Pending',
+        payment_method: it.payment_method ?? null,
+        order_number: it.order_number ?? null,
+      });
+    }
+    if (rows.length) {
+      const { error } = await supabase.from('sales').insert(rows);
+      if (error) { toast({ title: 'Insert failed', description: error.message, variant: 'destructive' }); return; }
+    }
+    qc.invalidateQueries({ queryKey: ['sales'] });
+    qc.invalidateQueries({ queryKey: ['inventory'] });
+    toast({ title: `Imported ${rows.length} order${rows.length !== 1 ? 's' : ''}`, description: skipped.length ? `Skipped (no SKU match): ${skipped.join(', ')}` : undefined });
+    setBillPreviewOpen(false);
+    setBillPreview(null);
+  };
+
   // Quick payment status toggle
   const togglePaymentStatus = async (sale: any) => {
     const newStatus = sale.payment_status === 'Pending' ? 'Settled' : 'Pending';

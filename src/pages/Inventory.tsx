@@ -162,6 +162,7 @@ export default function Inventory() {
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                   <div><Label>SKU</Label><Input {...form.register('sku')} />{form.formState.errors.sku && <p className="text-sm text-destructive">{form.formState.errors.sku.message}</p>}</div>
                   <div><Label>Product Name</Label><Input {...form.register('product_name')} />{form.formState.errors.product_name && <p className="text-sm text-destructive">{form.formState.errors.product_name.message}</p>}</div>
+                  <div><Label>Aliases (comma-separated, used to match product names from bills)</Label><Input placeholder="e.g. Blue Tee, Cotton T-shirt Blue" {...form.register('aliases')} /></div>
                   <div className="grid grid-cols-2 gap-3">
                     <div><Label>Cost Price (₹)</Label><Input type="number" step="0.01" {...form.register('average_cost_price', { valueAsNumber: true })} /></div>
                     <div><Label>Selling Price (₹)</Label><Input type="number" step="0.01" {...form.register('average_selling_price', { valueAsNumber: true })} /></div>

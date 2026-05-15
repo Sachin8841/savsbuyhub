@@ -490,6 +490,36 @@ export default function Sales() {
           </TableBody>
         </Table>
       </div>
+
+      <Dialog open={billPreviewOpen} onOpenChange={(o) => { setBillPreviewOpen(o); if (!o) setBillPreview(null); }}>
+        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Review Parsed Orders ({billPreview?.length ?? 0})</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">Date will be today ({new Date().toISOString().slice(0,10)}). Rows without an SKU match are skipped.</p>
+          <div className="overflow-x-auto rounded border max-h-[400px] overflow-y-auto">
+            <Table>
+              <TableHeader><TableRow><TableHead>SKU</TableHead><TableHead>Product</TableHead><TableHead>Qty</TableHead><TableHead>Order #</TableHead><TableHead>Total</TableHead><TableHead>Pay</TableHead><TableHead>Courier</TableHead><TableHead>Platform</TableHead></TableRow></TableHeader>
+              <TableBody>
+                {billPreview?.map((it, i) => (
+                  <TableRow key={i} className={!it.matched_inventory_id ? 'opacity-50' : ''}>
+                    <TableCell className="font-mono text-xs">{it.matched_sku || it.sku || '—'}</TableCell>
+                    <TableCell className="text-sm">{it.matched_name || it.product_name || '—'}</TableCell>
+                    <TableCell>{it.quantity}</TableCell>
+                    <TableCell className="text-xs">{it.order_number || '—'}</TableCell>
+                    <TableCell>{it.total_amount ? `₹${it.total_amount}` : '—'}</TableCell>
+                    <TableCell>{it.payment_method || '—'}</TableCell>
+                    <TableCell className="text-xs">{it.courier_partner || '—'}</TableCell>
+                    <TableCell className="text-xs">{it.platform || '—'}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+          <div className="flex justify-end gap-2 mt-3">
+            <Button variant="outline" onClick={() => setBillPreviewOpen(false)}>Cancel</Button>
+            <Button onClick={confirmBillImport}>Import {billPreview?.filter(i => i.matched_inventory_id).length ?? 0} orders</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

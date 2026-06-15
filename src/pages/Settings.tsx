@@ -13,6 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { Shield, Users, FileDown, Database, Palette, UserCircle, CheckCircle2, Settings as SettingsIcon, Trash2, ShieldCheck, ShieldAlert, Terminal, RefreshCw, Sparkles, ArrowRightLeft, TrendingUp, AlertTriangle, AlertCircle, Play, Warehouse, Sliders } from 'lucide-react';
 import { exportDashboardReport } from '@/lib/xlsx-export';
+import { PageHeader, StatCard, SectionCard, EmptyState } from '@/components/PageHeader';
 import { useSales, useInventory, useReturns, useAdExpenses } from '@/hooks/useData';
 
 interface UserWithProfile {
@@ -421,7 +422,7 @@ export default function SettingsPage() {
       // Fetch user's own requests safely
       supabase.from('investments').select('*').eq('user_id', user.id).then(res => {
         if (res.data) setInvestmentRequests(res.data);
-      }).catch(() => {});
+      });
     }
   }, [admin, user]);
 
@@ -547,21 +548,18 @@ export default function SettingsPage() {
 
   if (!admin) {
     return (
-      <div className="space-y-6 max-w-2xl mx-auto">
-        <div className="flex items-center gap-3">
-          <UserCircle className="h-6 w-6 text-primary" />
-          <h2 className="text-2xl font-bold">Account Settings</h2>
-        </div>
-        <Card className="glass-card shadow-lg border-t-4 border-t-indigo-600">
-          <CardHeader>
-            <CardTitle className="text-xl flex items-center gap-2">
-              <Shield className="h-5 w-5 text-indigo-500" />
-              KYC & Profile compliance
-            </CardTitle>
-            <CardDescription>Manage your details for secure investing and bank payouts.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            
+      <div className="space-y-6 max-w-2xl mx-auto animate-in">
+        <PageHeader
+          title="Account Settings"
+          subtitle="Manage your profile configuration and KYC compliance."
+          icon={<UserCircle className="h-5 w-5 text-indigo-500" />}
+        />
+        <SectionCard
+          title="KYC & Profile compliance"
+          description="Manage your details for secure investing and bank payouts."
+          className="mt-4"
+        >
+          <div className="space-y-6">
             {/* Identity section */}
             <div className="space-y-4 border-b pb-6">
               <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200">Identity Details</h3>
@@ -656,8 +654,8 @@ export default function SettingsPage() {
             </div>
 
             <Button className="w-full mt-6 bg-indigo-600 hover:bg-indigo-700 text-white" size="lg" onClick={handleUpdateProfile}>Save Changes</Button>
-          </CardContent>
-        </Card>
+          </div>
+        </SectionCard>
       </div>
     );
   }
@@ -670,16 +668,12 @@ export default function SettingsPage() {
   const userCount = users.filter(u => u.role === 'user').length;
 
   return (
-    <div className="space-y-6 max-w-6xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="flex items-center gap-3 border-b pb-4">
-        <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
-          <SettingsIcon className="h-5 w-5 text-primary" />
-        </div>
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight">System Settings</h2>
-          <p className="text-muted-foreground text-sm">Manage configuration, users, and exports.</p>
-        </div>
-      </div>
+    <div className="space-y-6 max-w-6xl mx-auto animate-in">
+      <PageHeader
+        title="System Settings"
+        subtitle="Manage configuration, users, and exports."
+        icon={<SettingsIcon className="h-5 w-5 text-indigo-500" />}
+      />
 
       <Tabs defaultValue="overview" className="w-full">
         <TabsList className="mb-4">
@@ -702,97 +696,115 @@ export default function SettingsPage() {
 
         <TabsContent value="overview" className="space-y-6">
           <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
-            <Card className="glass-card"><CardContent className="p-4 text-center"><p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Products</p><p className="text-3xl font-bold text-primary mt-2">{totalProducts}</p></CardContent></Card>
-            <Card className="glass-card"><CardContent className="p-4 text-center"><p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Total Sales</p><p className="text-3xl font-bold text-primary mt-2">{totalSales}</p></CardContent></Card>
-            <Card className="glass-card"><CardContent className="p-4 text-center"><p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Returns</p><p className="text-3xl font-bold text-destructive mt-2">{totalReturns}</p></CardContent></Card>
-            <Card className="glass-card"><CardContent className="p-4 text-center"><p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Admins</p><p className="text-3xl font-bold text-emerald-600 mt-2">{adminCount}</p></CardContent></Card>
-            <Card className="glass-card"><CardContent className="p-4 text-center"><p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Users</p><p className="text-3xl font-bold text-slate-600 mt-2">{userCount}</p></CardContent></Card>
+            <StatCard
+              title="Products"
+              value={totalProducts}
+              icon={<Warehouse className="h-5 w-5" />}
+              color="primary"
+            />
+            <StatCard
+              title="Total Sales"
+              value={totalSales}
+              icon={<ArrowRightLeft className="h-5 w-5" />}
+              color="primary"
+            />
+            <StatCard
+              title="Returns"
+              value={totalReturns}
+              icon={<AlertCircle className="h-5 w-5" />}
+              color="red"
+            />
+            <StatCard
+              title="Admins"
+              value={adminCount}
+              icon={<Shield className="h-5 w-5" />}
+              color="emerald"
+            />
+            <StatCard
+              title="Users"
+              value={userCount}
+              icon={<Users className="h-5 w-5" />}
+              color="slate"
+            />
           </div>
 
-          <Card className="glass-card">
-            <CardContent className="p-6 flex items-center justify-between gap-4">
+          <SectionCard>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div className="flex items-center gap-4">
-                <div className="h-12 w-12 rounded-full bg-indigo-100 flex items-center justify-center">
-                  <FileDown className="h-6 w-6 text-indigo-600" />
+                <div className="h-12 w-12 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/50 flex items-center justify-center">
+                  <FileDown className="h-6 w-6 text-indigo-600 dark:text-indigo-400" />
                 </div>
                 <div>
                   <h3 className="text-lg font-semibold">Full Data Export</h3>
                   <p className="text-sm text-muted-foreground">Download a complete Excel report of all business operations.</p>
                 </div>
               </div>
-              <Button size="lg" className="bg-indigo-600 hover:bg-indigo-700" onClick={handleFullExport}><FileDown className="mr-2 h-4 w-4" /> Generate Report</Button>
-            </CardContent>
-          </Card>
+              <Button size="lg" className="bg-indigo-600 hover:bg-indigo-700 text-white" onClick={handleFullExport}>
+                <FileDown className="mr-2 h-4 w-4" /> Generate Report
+              </Button>
+            </div>
+          </SectionCard>
 
           <div className="grid gap-6 md:grid-cols-2 mt-6">
             {/* Low stock Alerts */}
-            <Card className="glass-card border-slate-100 shadow-sm">
-              <CardHeader className="pb-3 border-b bg-slate-50/50 dark:bg-slate-900/50">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Warehouse className="h-4 w-4 text-amber-500" />
-                  Inventory Replenishment Alerts
-                </CardTitle>
-                <CardDescription>Catalog items running below Safety stock guidelines (&lt;= 10 units)</CardDescription>
-              </CardHeader>
-              <CardContent className="pt-4 max-h-[340px] overflow-y-auto space-y-3">
-                {lowStockItems.length > 0 ? (
-                  <div className="space-y-3">
-                    {lowStockItems.map(item => {
-                      const percent = Math.min(100, Math.max(0, (item.currentStock / 10) * 100));
-                      let badgeColor = "bg-rose-500";
-                      let textColor = "text-rose-600 dark:text-rose-400";
-                      let alertLevel = "Critical Reorder";
-                      
-                      if (item.currentStock > 2 && item.currentStock <= 5) {
-                        badgeColor = "bg-amber-500";
-                        textColor = "text-amber-600 dark:text-amber-400";
-                        alertLevel = "Stock Warning";
-                      } else if (item.currentStock > 5) {
-                        badgeColor = "bg-indigo-500";
-                        textColor = "text-indigo-600 dark:text-indigo-400";
-                        alertLevel = "Safety Alert";
-                      }
-                      
-                      return (
-                        <div key={item.id} className="p-3 border rounded-lg hover:bg-muted/10 transition-colors flex justify-between items-center bg-white/50 dark:bg-slate-900/50">
-                          <div className="min-w-0 flex-1 mr-4">
-                            <p className="font-semibold text-sm truncate">{item.product_name}</p>
-                            <div className="flex gap-2 items-center text-xs text-muted-foreground mt-1">
-                              <Badge variant="outline" className={`${textColor} border-current py-0 text-[10px]`}>{alertLevel}</Badge>
-                              <span>SKU: {item.sku}</span>
-                            </div>
-                            <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full mt-2.5 overflow-hidden">
-                              <div className={`h-full ${badgeColor}`} style={{ width: `${percent}%` }} />
-                            </div>
+            <SectionCard
+              title="Inventory Replenishment Alerts"
+              description="Catalog items running below Safety stock guidelines (<= 10 units)"
+              contentClassName="max-h-[340px] overflow-y-auto space-y-3"
+            >
+              {lowStockItems.length > 0 ? (
+                <div className="space-y-3">
+                  {lowStockItems.map(item => {
+                    const percent = Math.min(100, Math.max(0, (item.currentStock / 10) * 100));
+                    let badgeColor = "bg-rose-500";
+                    let textColor = "text-rose-600 dark:text-rose-400";
+                    let alertLevel = "Critical Reorder";
+                    
+                    if (item.currentStock > 2 && item.currentStock <= 5) {
+                      badgeColor = "bg-amber-500";
+                      textColor = "text-amber-600 dark:text-amber-400";
+                      alertLevel = "Stock Warning";
+                    } else if (item.currentStock > 5) {
+                      badgeColor = "bg-indigo-500";
+                      textColor = "text-indigo-600 dark:text-indigo-400";
+                      alertLevel = "Safety Alert";
+                    }
+                    
+                    return (
+                      <div key={item.id} className="p-3 border rounded-lg hover:bg-muted/10 transition-colors flex justify-between items-center bg-white/50 dark:bg-slate-900/50">
+                        <div className="min-w-0 flex-1 mr-4">
+                          <p className="font-semibold text-sm truncate">{item.product_name}</p>
+                          <div className="flex gap-2 items-center text-xs text-muted-foreground mt-1">
+                            <Badge variant="outline" className={`${textColor} border-current py-0 text-[10px]`}>{alertLevel}</Badge>
+                            <span>SKU: {item.sku}</span>
                           </div>
-                          <div className="text-right shrink-0">
-                            <span className="text-2xl font-black">{item.currentStock}</span>
-                            <span className="text-[10px] text-muted-foreground block uppercase font-bold tracking-wider">units</span>
+                          <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full mt-2.5 overflow-hidden">
+                            <div className={`h-full ${badgeColor}`} style={{ width: `${percent}%` }} />
                           </div>
                         </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center py-12 text-center">
-                    <CheckCircle2 className="h-10 w-10 text-emerald-500 mb-2 animate-bounce" />
-                    <p className="font-bold text-slate-800 dark:text-slate-200">Catalog Stocks Healthy</p>
-                    <p className="text-xs text-muted-foreground mt-1">All catalog products are holding sufficient safety stock reserves.</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                        <div className="text-right shrink-0">
+                          <span className="text-2xl font-black">{item.currentStock}</span>
+                          <span className="text-[10px] text-muted-foreground block uppercase font-bold tracking-wider">units</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <EmptyState
+                  icon={<CheckCircle2 className="h-10 w-10 text-emerald-500" />}
+                  title="Catalog Stocks Healthy"
+                  description="All catalog products are holding sufficient safety stock reserves."
+                />
+              )}
+            </SectionCard>
 
             {/* Investor Capital Health summary */}
-            <Card className="glass-card border-slate-100 shadow-sm">
-              <CardHeader className="pb-3 border-b bg-slate-50/50 dark:bg-slate-900/50">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Sparkles className="h-4 w-4 text-indigo-500" />
-                  Investor Valuation & Capital Health
-                </CardTitle>
-                <CardDescription>Allotted investor shares current value against outlay</CardDescription>
-              </CardHeader>
-              <CardContent className="pt-4 space-y-4">
+            <SectionCard
+              title="Investor Valuation & Capital Health"
+              description="Allotted investor shares current value against outlay"
+            >
+              <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-3">
                   <div className="p-3 border rounded-lg bg-slate-50/50 dark:bg-slate-900/50">
                     <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground block">Verified Capital</span>
@@ -821,252 +833,232 @@ export default function SettingsPage() {
                   </div>
                   <Badge variant="outline" className="text-indigo-600 border-indigo-200 bg-indigo-50 dark:bg-indigo-950/20">{investorCapitalStats.activeInvestorsCount} accounts</Badge>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </SectionCard>
           </div>
 
           {/* Platform Performance analysis table */}
-          <Card className="glass-card mt-6 border-slate-100 shadow-sm">
-            <CardHeader className="pb-3 border-b bg-slate-50/50 dark:bg-slate-900/50">
-              <CardTitle className="text-base flex items-center gap-2">
-                <ArrowRightLeft className="h-4 w-4 text-indigo-500" />
-                Platform channel Profitability Breakdown
-              </CardTitle>
-              <CardDescription>Comparative performance metrics per sales channel (adjusted for returns & courier penalties)</CardDescription>
-            </CardHeader>
-            <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-slate-50 dark:bg-slate-900/50">
-                      <TableHead className="font-semibold text-xs">Platform</TableHead>
-                      <TableHead className="text-right font-semibold text-xs">Net Revenue</TableHead>
-                      <TableHead className="text-right font-semibold text-xs">COGS & Outbound</TableHead>
-                      <TableHead className="text-right font-semibold text-xs">Returns Penalty</TableHead>
-                      <TableHead className="text-right font-semibold text-xs">Net Profit</TableHead>
-                      <TableHead className="text-right font-semibold text-xs">Return Rate</TableHead>
-                      <TableHead className="text-right font-semibold text-xs">Operating Margin</TableHead>
+          <SectionCard
+            title="Platform channel Profitability Breakdown"
+            description="Comparative performance metrics per sales channel (adjusted for returns & courier penalties)"
+            className="mt-6"
+            noPadding
+          >
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-slate-50 dark:bg-slate-900/50">
+                    <TableHead className="font-semibold text-xs">Platform</TableHead>
+                    <TableHead className="text-right font-semibold text-xs">Net Revenue</TableHead>
+                    <TableHead className="text-right font-semibold text-xs">COGS & Outbound</TableHead>
+                    <TableHead className="text-right font-semibold text-xs">Returns Penalty</TableHead>
+                    <TableHead className="text-right font-semibold text-xs">Net Profit</TableHead>
+                    <TableHead className="text-right font-semibold text-xs">Return Rate</TableHead>
+                    <TableHead className="text-right font-semibold text-xs">Operating Margin</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {platformData.map(p => (
+                    <TableRow key={p.platform} className="hover:bg-muted/50 transition-colors">
+                      <TableCell><Badge variant="secondary" className="font-bold">{p.platform}</Badge></TableCell>
+                      <TableCell className="text-right font-mono text-xs font-semibold">₹{p.revenue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</TableCell>
+                      <TableCell className="text-right font-mono text-xs text-muted-foreground">₹{p.cost.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</TableCell>
+                      <TableCell className="text-right font-mono text-xs text-rose-500">₹{p.penalty.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</TableCell>
+                      <TableCell className={`text-right font-mono text-xs font-bold ${p.profit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400'}`}>
+                        ₹{p.profit.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                      </TableCell>
+                      <TableCell className="text-right text-xs font-semibold text-slate-500">{p.returnRate.toFixed(1)}%</TableCell>
+                      <TableCell className="text-right">
+                        <Badge variant="outline" className={p.margin >= 20 ? 'text-emerald-600 border-emerald-200 bg-emerald-50 dark:bg-emerald-950/20' : p.margin >= 10 ? 'text-indigo-600 border-indigo-200 bg-indigo-50 dark:bg-indigo-950/20' : 'text-rose-500 border-rose-200 bg-rose-50 dark:bg-rose-950/20'}>
+                          {p.margin.toFixed(1)}%
+                        </Badge>
+                      </TableCell>
                     </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {platformData.map(p => (
-                      <TableRow key={p.platform} className="hover:bg-muted/50 transition-colors">
-                        <TableCell><Badge variant="secondary" className="font-bold">{p.platform}</Badge></TableCell>
-                        <TableCell className="text-right font-mono text-xs font-semibold">₹{p.revenue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</TableCell>
-                        <TableCell className="text-right font-mono text-xs text-muted-foreground">₹{p.cost.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</TableCell>
-                        <TableCell className="text-right font-mono text-xs text-rose-500">₹{p.penalty.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</TableCell>
-                        <TableCell className={`text-right font-mono text-xs font-bold ${p.profit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400'}`}>
-                          ₹{p.profit.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
-                        </TableCell>
-                        <TableCell className="text-right text-xs font-semibold text-slate-500">{p.returnRate.toFixed(1)}%</TableCell>
-                        <TableCell className="text-right">
-                          <Badge variant="outline" className={p.margin >= 20 ? 'text-emerald-600 border-emerald-200 bg-emerald-50 dark:bg-emerald-950/20' : p.margin >= 10 ? 'text-indigo-600 border-indigo-200 bg-indigo-50 dark:bg-indigo-950/20' : 'text-rose-500 border-rose-200 bg-rose-50 dark:bg-rose-950/20'}>
-                            {p.margin.toFixed(1)}%
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                    {platformData.length === 0 && (
-                      <TableRow>
-                        <TableCell colSpan={7} className="text-center py-6 text-muted-foreground text-xs">No active ledger transaction records found for operational channels.</TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-          </Card>
+                  ))}
+                  {platformData.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-6 text-muted-foreground text-xs">No active ledger transaction records found for operational channels.</TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </SectionCard>
         </TabsContent>
 
         <TabsContent value="users" className="space-y-6">
-          <Card className="glass-card">
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2"><Users className="h-5 w-5 text-primary" />User Directory & Permissions</CardTitle>
-              <CardDescription>Assign roles and manage access. Currently {users.length} registered users.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto rounded-lg border bg-card">
-                <Table>
-                  <TableHeader className="bg-muted/50">
-                    <TableRow>
-                      <TableHead>User Profile</TableHead>
-                      <TableHead>Email Address</TableHead>
-                      <TableHead>Current Role</TableHead>
-                      <TableHead className="text-right">Manage Access</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {users.map(u => (
-                      <TableRow key={u.user_id}>
-                        <TableCell>
-                          <div className="flex items-center gap-3">
-                            <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold text-xs">
-                              {u.full_name ? u.full_name.substring(0, 2).toUpperCase() : 'U'}
-                            </div>
-                            <span className="font-medium text-sm">{u.full_name || 'Anonymous User'}</span>
+          <SectionCard
+            title="User Directory & Permissions"
+            description={`Assign roles and manage access. Currently ${users.length} registered users.`}
+            noPadding
+          >
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader className="bg-muted/50">
+                  <TableRow>
+                    <TableHead>User Profile</TableHead>
+                    <TableHead>Email Address</TableHead>
+                    <TableHead>Current Role</TableHead>
+                    <TableHead className="text-right">Manage Access</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {users.map(u => (
+                    <TableRow key={u.user_id}>
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold text-xs">
+                            {u.full_name ? u.full_name.substring(0, 2).toUpperCase() : 'U'}
                           </div>
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">{u.email}</TableCell>
-                        <TableCell>
-                          <Badge variant={u.role === 'admin' ? 'default' : 'secondary'} className={u.role === 'admin' ? 'bg-indigo-600' : ''}>
-                            {u.role.toUpperCase()}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right flex items-center justify-end gap-2">
-                          {u.user_id !== user?.id && (
-                            <Select value={u.role} onValueChange={(v) => updateRole(u.user_id, v)}>
-                              <SelectTrigger className="w-32 h-8 text-xs"><SelectValue /></SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="admin">Admin</SelectItem>
-                                <SelectItem value="user">User</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          )}
-                          {/* User deletion disabled as requested
-                          {u.user_id !== user?.id && (
-                            <Button variant="ghost" size="icon" onClick={() => deleteUser(u.user_id)} className="h-8 w-8 text-destructive hover:bg-destructive/10">
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          )}
-                          */}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                    {users.length === 0 && !loading && (
-                      <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-8">No users found</TableCell></TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-          </Card>
+                          <span className="font-medium text-sm">{u.full_name || 'Anonymous User'}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">{u.email}</TableCell>
+                      <TableCell>
+                        <Badge variant={u.role === 'admin' ? 'default' : 'secondary'} className={u.role === 'admin' ? 'bg-indigo-600' : ''}>
+                          {u.role.toUpperCase()}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right flex items-center justify-end gap-2">
+                        {u.user_id !== user?.id && (
+                          <Select value={u.role} onValueChange={(v) => updateRole(u.user_id, v)}>
+                            <SelectTrigger className="w-32 h-8 text-xs"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="admin">Admin</SelectItem>
+                              <SelectItem value="user">User</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {users.length === 0 && !loading && (
+                    <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-8">No users found</TableCell></TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </SectionCard>
         </TabsContent>
 
         <TabsContent value="approvals" className="space-y-6">
-          <Card className="glass-card">
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2"><CheckCircle2 className="h-5 w-5 text-emerald-500" /> Investment Approvals</CardTitle>
-              <CardDescription>Review transaction IDs and allot stock to pending investors.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto rounded-lg border bg-card">
-                <Table>
-                  <TableHeader className="bg-muted/50">
-                    <TableRow>
-                      <TableHead>Investor</TableHead>
-                      <TableHead>Transaction UTR</TableHead>
-                      <TableHead>Requested Amount</TableHead>
-                      <TableHead>Locked Price</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Action</TableHead>
+          <SectionCard
+            title="Investment Approvals"
+            description="Review transaction IDs and allot stock to pending investors."
+            noPadding
+          >
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader className="bg-muted/50">
+                  <TableRow>
+                    <TableHead>Investor</TableHead>
+                    <TableHead>Transaction UTR</TableHead>
+                    <TableHead>Requested Amount</TableHead>
+                    <TableHead>Locked Price</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Action</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {investmentRequests.map(r => (
+                    <TableRow key={r.id}>
+                      <TableCell>
+                        <div className="font-medium text-sm">{r.profiles?.full_name || 'Anonymous User'}</div>
+                        <div className="text-xs text-muted-foreground">{r.profiles?.email}</div>
+                      </TableCell>
+                      <TableCell className="text-sm font-mono font-medium">{r.transaction_id || r.utr_number}</TableCell>
+                      <TableCell className="font-bold text-emerald-600">₹{r.amount}</TableCell>
+                      <TableCell className="text-sm text-slate-500">₹{r.share_price_at_buy}</TableCell>
+                      <TableCell>
+                        <Badge variant={r.status === 'Pending' ? 'secondary' : 'default'} className={r.status === 'Verified' ? 'bg-emerald-500' : ''}>
+                          {(r.status || 'Pending').toUpperCase()}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {(r.status === 'Pending' || !r.status) && (
+                          <Button size="sm" onClick={() => approveRequest(r.id, r.user_id, r.amount, r.share_price_at_buy)} className="bg-emerald-600 hover:bg-emerald-700">
+                            Approve & Allot
+                          </Button>
+                        )}
+                      </TableCell>
                     </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {investmentRequests.map(r => (
-                      <TableRow key={r.id}>
-                        <TableCell>
-                          <div className="font-medium text-sm">{r.profiles?.full_name || 'Anonymous User'}</div>
-                          <div className="text-xs text-muted-foreground">{r.profiles?.email}</div>
-                        </TableCell>
-                        <TableCell className="text-sm font-mono font-medium">{r.transaction_id || r.utr_number}</TableCell>
-                        <TableCell className="font-bold text-emerald-600">₹{r.amount}</TableCell>
-                        <TableCell className="text-sm text-slate-500">₹{r.share_price_at_buy}</TableCell>
-                        <TableCell>
-                          <Badge variant={r.status === 'Pending' ? 'secondary' : 'default'} className={r.status === 'Verified' ? 'bg-emerald-500' : ''}>
-                            {(r.status || 'Pending').toUpperCase()}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {(r.status === 'Pending' || !r.status) && (
-                            <Button size="sm" onClick={() => approveRequest(r.id, r.user_id, r.amount, r.share_price_at_buy)} className="bg-emerald-600 hover:bg-emerald-700">
-                              Approve & Allot
-                            </Button>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                    {investmentRequests.length === 0 && (
-                      <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No pending requests found.</TableCell></TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-          </Card>
+                  ))}
+                  {investmentRequests.length === 0 && (
+                    <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No pending requests found.</TableCell></TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </SectionCard>
         </TabsContent>
 
         <TabsContent value="kyc" className="space-y-6">
-          <Card className="glass-card">
-            <CardHeader className="flex flex-row justify-between items-center">
-              <div>
-                <CardTitle className="text-lg flex items-center gap-2"><Database className="h-5 w-5 text-emerald-600" />Investor KYC Master Database</CardTitle>
-                <CardDescription>Secure central repository of all collected investor identity and financial information.</CardDescription>
-              </div>
-              <Button variant="outline" className="text-emerald-600 border-emerald-200 hover:bg-emerald-50 gap-2" onClick={handleExportKyc}>
+          <SectionCard
+            title="Investor KYC Master Database"
+            description="Secure central repository of all collected investor identity and financial information."
+            action={
+              <Button variant="outline" className="text-emerald-600 border-emerald-200 hover:bg-emerald-50 gap-2 h-9" onClick={handleExportKyc}>
                 <FileDown className="h-4 w-4" /> Export KYC
               </Button>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto rounded-lg border bg-card">
-                <Table>
-                  <TableHeader className="bg-muted/50">
-                    <TableRow>
-                      <TableHead>Investor</TableHead>
-                      <TableHead>DOB / Gender</TableHead>
-                      <TableHead>Phone / Address</TableHead>
-                      <TableHead>Aadhar / PAN</TableHead>
-                      <TableHead>Bank / Account</TableHead>
-                      <TableHead>IFSC</TableHead>
+            }
+            noPadding
+          >
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader className="bg-muted/50">
+                  <TableRow>
+                    <TableHead>Investor</TableHead>
+                    <TableHead>DOB / Gender</TableHead>
+                    <TableHead>Phone / Address</TableHead>
+                    <TableHead>Aadhar / PAN</TableHead>
+                    <TableHead>Bank / Account</TableHead>
+                    <TableHead>IFSC</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {users.map(u => (
+                    <TableRow key={`kyc-${u.user_id}`}>
+                      <TableCell>
+                        <div className="font-medium text-sm">{u.full_name || 'Anonymous User'}</div>
+                        <div className="text-xs text-muted-foreground">{u.email}</div>
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        <p>{u.dob || '—'}</p>
+                        <p className="text-xs text-muted-foreground">{u.gender || '—'}</p>
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        <p>{u.phone || '—'}</p>
+                        <p className="text-xs text-muted-foreground max-w-[150px] truncate" title={u.address}>{u.address || '—'}</p>
+                      </TableCell>
+                      <TableCell className="text-sm font-mono">
+                        <p>UIDAI: {u.aadhar_number || '—'}</p>
+                        <p className="text-xs uppercase text-muted-foreground">PAN: {u.pan_number || '—'}</p>
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        <p className="font-medium">{u.bank_name || '—'}</p>
+                        <p className="text-xs font-mono text-muted-foreground">A/C: {u.account_number || '—'}</p>
+                      </TableCell>
+                      <TableCell className="text-sm font-mono">{u.ifsc_code || '—'}</TableCell>
                     </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {users.map(u => (
-                      <TableRow key={`kyc-${u.user_id}`}>
-                        <TableCell>
-                          <div className="font-medium text-sm">{u.full_name || 'Anonymous User'}</div>
-                          <div className="text-xs text-muted-foreground">{u.email}</div>
-                        </TableCell>
-                        <TableCell className="text-sm">
-                          <p>{u.dob || '—'}</p>
-                          <p className="text-xs text-muted-foreground">{u.gender || '—'}</p>
-                        </TableCell>
-                        <TableCell className="text-sm">
-                          <p>{u.phone || '—'}</p>
-                          <p className="text-xs text-muted-foreground max-w-[150px] truncate" title={u.address}>{u.address || '—'}</p>
-                        </TableCell>
-                        <TableCell className="text-sm font-mono">
-                          <p>UIDAI: {u.aadhar_number || '—'}</p>
-                          <p className="text-xs uppercase text-muted-foreground">PAN: {u.pan_number || '—'}</p>
-                        </TableCell>
-                        <TableCell className="text-sm">
-                          <p className="font-medium">{u.bank_name || '—'}</p>
-                          <p className="text-xs font-mono text-muted-foreground">A/C: {u.account_number || '—'}</p>
-                        </TableCell>
-                        <TableCell className="text-sm font-mono">{u.ifsc_code || '—'}</TableCell>
-                      </TableRow>
-                    ))}
-                    {users.length === 0 && (
-                      <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No investors found.</TableCell></TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-          </Card>
+                  ))}
+                  {users.length === 0 && (
+                    <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No investors found.</TableCell></TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </SectionCard>
         </TabsContent>
 
         <TabsContent value="diagnostics" className="space-y-6">
           <div className="grid gap-6 lg:grid-cols-3">
             {/* Health Checklist card */}
-            <Card className="lg:col-span-1 glass-card border-slate-100 shadow-sm">
-              <CardHeader className="pb-3 border-b bg-slate-50/50 dark:bg-slate-900/50">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <ShieldCheck className="h-5 w-5 text-emerald-500" />
-                  Reliability Diagnostics
-                </CardTitle>
-                <CardDescription>Live database schema & latency checks</CardDescription>
-              </CardHeader>
-              <CardContent className="pt-4 space-y-4">
+            <SectionCard
+              title="Reliability Diagnostics"
+              description="Live database schema & latency checks"
+              className="lg:col-span-1"
+            >
+              <div className="space-y-4">
                 <div className="flex flex-col items-center justify-center p-4 border rounded-xl bg-slate-50/50 dark:bg-slate-900/50 text-center">
                   <span className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground">Environment Status</span>
                   {dbStatus === 'healthy' ? (
@@ -1099,7 +1091,7 @@ export default function SettingsPage() {
                   <div className="flex justify-between items-center text-xs">
                     <span className="text-muted-foreground font-semibold">Supabase API Connection</span>
                     {diagResults.api ? (
-                      <Badge className="bg-emerald-500 text-white hover:bg-emerald-600 text-[10px] px-2">Connected</Badge>
+                      <Badge className="bg-emerald-50 text-white hover:bg-emerald-600 text-[10px] px-2">Connected</Badge>
                     ) : (
                       <Badge variant="destructive" className="text-[10px] px-2">Disconnected</Badge>
                     )}
@@ -1129,231 +1121,210 @@ export default function SettingsPage() {
                   <RefreshCw className={`mr-2 h-4 w-4 ${diagLoading ? 'animate-spin' : ''}`} />
                   {diagLoading ? 'Testing...' : 'Run Diagnostics'}
                 </Button>
-              </CardContent>
-            </Card>
+              </div>
+            </SectionCard>
 
             {/* Simulated live logs console */}
-            <Card className="lg:col-span-2 glass-card border-slate-100 shadow-sm">
-              <CardHeader className="pb-3 border-b bg-slate-50/50 dark:bg-slate-900/50 flex flex-row items-center justify-between">
-                <div>
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Terminal className="h-5 w-5 text-indigo-500" />
-                    Real-time System Telemetry Logs
-                  </CardTitle>
-                  <CardDescription>Live operations feed and event auditing console</CardDescription>
-                </div>
+            <SectionCard
+              title="Real-time System Telemetry Logs"
+              description="Live operations feed and event auditing console"
+              className="lg:col-span-2"
+              action={
                 <Badge variant="outline" className="font-mono text-[10px] uppercase text-indigo-500 border-indigo-200 bg-indigo-50 dark:bg-indigo-950/20">stdout</Badge>
-              </CardHeader>
-              <CardContent className="pt-4">
-                <div className="rounded-xl bg-slate-950 p-4 font-mono text-[11px] text-emerald-400 border border-slate-800 shadow-inner h-[280px] overflow-y-auto space-y-1.5 scrollbar-thin">
-                  {auditLogs.length > 0 ? (
-                    auditLogs.map((log, index) => {
-                      const isError = log.includes('❌') || log.includes('ERROR') || log.includes('failed');
-                      const isOk = log.includes('🟢') || log.includes('successful') || log.includes('OK');
-                      let lineClass = "text-emerald-400";
-                      if (isError) lineClass = "text-rose-400 font-bold";
-                      else if (isOk) lineClass = "text-emerald-300";
-                      
-                      return (
-                        <p key={index} className={`${lineClass} leading-normal`}>
-                          {log}
-                        </p>
-                      );
-                    })
-                  ) : (
-                    <div className="flex flex-col items-center justify-center h-full text-slate-500 italic">
-                      <Terminal className="h-8 w-8 text-slate-600 mb-2 animate-pulse" />
-                      <p>Click "Run Diagnostics" to initialize telemetry feeds.</p>
-                      <p className="text-[10px] mt-1 text-slate-600">Console stdout buffer currently empty</p>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+              }
+            >
+              <div className="rounded-xl bg-slate-950 p-4 font-mono text-[11px] text-emerald-400 border border-slate-800 shadow-inner h-[280px] overflow-y-auto space-y-1.5 scrollbar-thin">
+                {auditLogs.length > 0 ? (
+                  auditLogs.map((log, index) => {
+                    const isError = log.includes('❌') || log.includes('ERROR') || log.includes('failed');
+                    const isOk = log.includes('🟢') || log.includes('successful') || log.includes('OK');
+                    let lineClass = "text-emerald-400";
+                    if (isError) lineClass = "text-rose-400 font-bold";
+                    else if (isOk) lineClass = "text-emerald-300";
+                    
+                    return (
+                      <p key={index} className={`${lineClass} leading-normal`}>
+                        {log}
+                      </p>
+                    );
+                  })
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-full text-slate-500 italic">
+                    <Terminal className="h-8 w-8 text-slate-600 mb-2 animate-pulse" />
+                    <p>Click "Run Diagnostics" to initialize telemetry feeds.</p>
+                    <p className="text-[10px] mt-1 text-slate-600">Console stdout buffer currently empty</p>
+                  </div>
+                )}
+              </div>
+            </SectionCard>
           </div>
 
           {/* Database table record integrity checklist */}
-          <Card className="glass-card border-slate-100 shadow-sm">
-            <CardHeader className="pb-3 border-b bg-slate-50/50 dark:bg-slate-900/50">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Database className="h-4 w-4 text-indigo-500" />
-                Database Schemas & Object Verification
-              </CardTitle>
-              <CardDescription>Integrity scan of all core tables, columns, and records</CardDescription>
-            </CardHeader>
-            <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-slate-50 dark:bg-slate-900/50">
-                      <TableHead>Database Object Name</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead className="text-right">Record Count</TableHead>
-                      <TableHead className="text-right">Status</TableHead>
+          <SectionCard
+            title="Database Schemas & Object Verification"
+            description="Integrity scan of all core tables, columns, and records"
+            noPadding
+          >
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-slate-50 dark:bg-slate-900/50">
+                    <TableHead>Database Object Name</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead className="text-right">Record Count</TableHead>
+                    <TableHead className="text-right">Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {diagResults.tables.map(t => (
+                    <TableRow key={t.name} className="hover:bg-muted/50 transition-colors">
+                      <TableCell className="font-mono text-xs text-slate-700 dark:text-slate-300">public."{t.name}"</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">TABLE</TableCell>
+                      <TableCell className="text-right font-mono text-xs font-semibold">{t.count}</TableCell>
+                      <TableCell className="text-right">
+                        {t.status === 'ok' ? (
+                          <Badge className="bg-emerald-50 text-emerald-600 border-emerald-200 border hover:bg-emerald-50 text-[10px] font-bold px-2 py-0.5">Verified</Badge>
+                        ) : (
+                          <Badge variant="destructive" className="text-[10px] font-bold px-2 py-0.5">Failed</Badge>
+                        )}
+                      </TableCell>
                     </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {diagResults.tables.map(t => (
-                      <TableRow key={t.name} className="hover:bg-muted/50 transition-colors">
-                        <TableCell className="font-mono text-xs text-slate-700 dark:text-slate-300">public."{t.name}"</TableCell>
-                        <TableCell className="text-xs text-muted-foreground">TABLE</TableCell>
-                        <TableCell className="text-right font-mono text-xs font-semibold">{t.count}</TableCell>
-                        <TableCell className="text-right">
-                          {t.status === 'ok' ? (
-                            <Badge className="bg-emerald-50 text-emerald-600 border-emerald-200 border hover:bg-emerald-50 text-[10px] font-bold px-2 py-0.5">Verified</Badge>
-                          ) : (
-                            <Badge variant="destructive" className="text-[10px] font-bold px-2 py-0.5">Failed</Badge>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                    {diagResults.tables.length === 0 && (
-                      <TableRow>
-                        <TableCell colSpan={4} className="text-center py-6 text-muted-foreground text-xs">Auditing database schema catalog...</TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-          </Card>
+                  ))}
+                  {diagResults.tables.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center py-6 text-muted-foreground text-xs">Auditing database schema catalog...</TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </SectionCard>
         </TabsContent>
 
         <TabsContent value="advanced" className="space-y-6">
-          <Card className="glass-card">
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2"><Palette className="h-5 w-5 text-indigo-500" /> AI Document Parsing Integration</CardTitle>
-              <CardDescription>Configure the Gemini API key to enable automatic extraction of courier labels and invoices in the Sales Ledger.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-col gap-4 max-w-md">
-                <div className="space-y-2">
-                  <Label>Gemini API Key</Label>
-                  <Input type="password" value={geminiKey} onChange={e => setGeminiKey(e.target.value)} placeholder="AIzaSy..." className="font-mono" />
-                  <p className="text-xs text-muted-foreground">Stored securely in your local browser storage.</p>
-                </div>
-                <Button onClick={handleSaveGeminiKey} className="w-full sm:w-auto">Save Integration Key</Button>
+          <SectionCard
+            title="AI Document Parsing Integration"
+            description="Configure the Gemini API key to enable automatic extraction of courier labels and invoices in the Sales Ledger."
+          >
+            <div className="flex flex-col gap-4 max-w-md">
+              <div className="space-y-2">
+                <Label>Gemini API Key</Label>
+                <Input type="password" value={geminiKey} onChange={e => setGeminiKey(e.target.value)} placeholder="AIzaSy..." className="font-mono" />
+                <p className="text-xs text-muted-foreground">Stored securely in your local browser storage.</p>
               </div>
-            </CardContent>
-          </Card>
+              <Button onClick={handleSaveGeminiKey} className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white">Save Integration Key</Button>
+            </div>
+          </SectionCard>
 
           {/* Share Valuation Simulator Card */}
-          <Card className="glass-card border-slate-100 shadow-sm">
-            <CardHeader className="bg-slate-50/50 dark:bg-slate-900/50 border-b pb-4">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Sliders className="h-5 w-5 text-indigo-600" />
-                Dynamic Share Valuation Simulator
-              </CardTitle>
-              <CardDescription>
-                Simulate and audit the algorithmic pricing engine that calculates the dynamic SAVS share value. Adjust ledger inputs below to see changes in real-time.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="pt-6">
-              <div className="grid gap-6 lg:grid-cols-3">
-                {/* Sliders panel */}
-                <div className="lg:col-span-2 space-y-6">
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <Label className="font-semibold text-slate-700 dark:text-slate-300">Catalog Inventory Asset Value (Cost + Delivery)</Label>
-                      <span className="font-mono text-indigo-600 font-bold">₹{simStockValue.toLocaleString('en-IN')}</span>
-                    </div>
-                    <input type="range" min="0" max="1000000" step="5000" value={simStockValue} onChange={e => setSimStockValue(Number(e.target.value))} className="w-full accent-indigo-600 cursor-pointer h-2 bg-slate-100 dark:bg-slate-800 rounded-lg appearance-none" />
-                    <p className="text-[11px] text-muted-foreground">Direct book cost value of all unsold inventory in warehouse holdings.</p>
+          <SectionCard
+            title="Dynamic Share Valuation Simulator"
+            description="Simulate and audit the algorithmic pricing engine that calculates the dynamic SAVS share value. Adjust ledger inputs below to see changes in real-time."
+          >
+            <div className="grid gap-6 lg:grid-cols-3">
+              {/* Sliders panel */}
+              <div className="lg:col-span-2 space-y-6">
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <Label className="font-semibold text-slate-700 dark:text-slate-300">Catalog Inventory Asset Value (Cost + Delivery)</Label>
+                    <span className="font-mono text-indigo-600 font-bold">₹{simStockValue.toLocaleString('en-IN')}</span>
                   </div>
-
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <Label className="font-semibold text-slate-700 dark:text-slate-300">Active Ledger Net Profit / Loss</Label>
-                      <span className={`font-mono font-bold ${simActiveProfit >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
-                        ₹{simActiveProfit.toLocaleString('en-IN')}
-                      </span>
-                    </div>
-                    <input type="range" min="-200000" max="800000" step="2000" value={simActiveProfit} onChange={e => setSimActiveProfit(Number(e.target.value))} className="w-full accent-indigo-600 cursor-pointer h-2 bg-slate-100 dark:bg-slate-800 rounded-lg appearance-none" />
-                    <p className="text-[11px] text-muted-foreground">Cumulative net profits minus refunds & penalties in the active disclosure period.</p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <Label className="font-semibold text-slate-700 dark:text-slate-300">Historical Disclosed Period Earnings</Label>
-                      <span className="font-mono text-indigo-600 font-bold">₹{simHistoricalProfit.toLocaleString('en-IN')}</span>
-                    </div>
-                    <input type="range" min="0" max="1000000" step="5000" value={simHistoricalProfit} onChange={e => setSimHistoricalProfit(Number(e.target.value))} className="w-full accent-indigo-600 cursor-pointer h-2 bg-slate-100 dark:bg-slate-800 rounded-lg appearance-none" />
-                    <p className="text-[11px] text-muted-foreground">Locked earnings archived from previously closed monthly disclosure cycles.</p>
-                  </div>
-
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <Label className="font-semibold text-slate-700 dark:text-slate-300">Total Equity Shares</Label>
-                        <span className="font-mono text-indigo-600 font-bold">{simTotalShares.toLocaleString('en-IN')}</span>
-                      </div>
-                      <input type="range" min="50000" max="200000" step="5000" value={simTotalShares} onChange={e => setSimTotalShares(Number(e.target.value))} className="w-full accent-indigo-600 cursor-pointer h-2 bg-slate-100 dark:bg-slate-800 rounded-lg appearance-none" />
-                    </div>
-
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <Label className="font-semibold text-slate-700 dark:text-slate-300">Days Since Last Dispatch Sale</Label>
-                        <span className={`font-mono font-bold ${simDaysSinceSale > 5 ? 'text-amber-500' : 'text-emerald-500'}`}>
-                          {simDaysSinceSale} days
-                        </span>
-                      </div>
-                      <input type="range" min="0" max="60" step="1" value={simDaysSinceSale} onChange={e => setSimDaysSinceSale(Number(e.target.value))} className="w-full accent-indigo-600 cursor-pointer h-2 bg-slate-100 dark:bg-slate-800 rounded-lg appearance-none" />
-                    </div>
-                  </div>
+                  <input type="range" min="0" max="1000000" step="5000" value={simStockValue} onChange={e => setSimStockValue(Number(e.target.value))} className="w-full accent-indigo-600 cursor-pointer h-2 bg-slate-100 dark:bg-slate-800 rounded-lg appearance-none" />
+                  <p className="text-[11px] text-muted-foreground">Direct book cost value of all unsold inventory in warehouse holdings.</p>
                 </div>
 
-                {/* Formula display panel */}
-                <div className="lg:col-span-1 p-5 border rounded-2xl bg-indigo-50/20 dark:bg-slate-900/50 flex flex-col justify-between">
-                  <div className="space-y-4">
-                    <h4 className="text-sm font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">Valuation Formula Breakdown</h4>
-                    
-                    <div className="space-y-2.5 text-xs">
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Base Equity Value:</span>
-                        <span className="font-mono font-bold text-slate-700 dark:text-slate-300">₹{simBaseVal.toFixed(2)}</span>
-                      </div>
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <Label className="font-semibold text-slate-700 dark:text-slate-300">Active Ledger Net Profit / Loss</Label>
+                    <span className={`font-mono font-bold ${simActiveProfit >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
+                      ₹{simActiveProfit.toLocaleString('en-IN')}
+                    </span>
+                  </div>
+                  <input type="range" min="-200000" max="800000" step="2000" value={simActiveProfit} onChange={e => setSimActiveProfit(Number(e.target.value))} className="w-full accent-indigo-600 cursor-pointer h-2 bg-slate-100 dark:bg-slate-800 rounded-lg appearance-none" />
+                  <p className="text-[11px] text-muted-foreground">Cumulative net profits minus refunds & penalties in the active disclosure period.</p>
+                </div>
 
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Discounted Asset Value:</span>
-                        <span className="font-mono font-semibold text-slate-700 dark:text-slate-300" title="(Stock Value * 50% discount) / Total Shares">
-                          + ₹{simValuation.discountedBookValue.toFixed(2)}
-                        </span>
-                      </div>
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <Label className="font-semibold text-slate-700 dark:text-slate-300">Historical Disclosed Period Earnings</Label>
+                    <span className="font-mono text-indigo-600 font-bold">₹{simHistoricalProfit.toLocaleString('en-IN')}</span>
+                  </div>
+                  <input type="range" min="0" max="1000000" step="5000" value={simHistoricalProfit} onChange={e => setSimHistoricalProfit(Number(e.target.value))} className="w-full accent-indigo-600 cursor-pointer h-2 bg-slate-100 dark:bg-slate-800 rounded-lg appearance-none" />
+                  <p className="text-[11px] text-muted-foreground">Locked earnings archived from previously closed monthly disclosure cycles.</p>
+                </div>
 
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Capitalized Earnings EPS:</span>
-                        <span className="font-mono font-semibold text-slate-700 dark:text-slate-300" title="(Retained Earnings * 5x multiplier) / Total Shares">
-                          + ₹{simValuation.earningsPerShare.toFixed(2)}
-                        </span>
-                      </div>
-
-                      <div className="flex justify-between border-t pt-2 mt-2">
-                        <span className="text-slate-700 dark:text-slate-300 font-semibold">Raw Share Price:</span>
-                        <span className="font-mono font-bold text-slate-900 dark:text-slate-100">₹{simValuation.rawPrice.toFixed(2)}</span>
-                      </div>
-
-                      <div className="flex justify-between">
-                        <span className="text-slate-700 dark:text-slate-300">Inactivity Time Decay:</span>
-                        <span className="font-mono font-bold text-amber-500">
-                          x {simValuation.timeDecayMultiplier.toFixed(2)}
-                        </span>
-                      </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <Label className="font-semibold text-slate-700 dark:text-slate-300">Total Equity Shares</Label>
+                      <span className="font-mono text-indigo-600 font-bold">{simTotalShares.toLocaleString('en-IN')}</span>
                     </div>
+                    <input type="range" min="50000" max="200000" step="5000" value={simTotalShares} onChange={e => setSimTotalShares(Number(e.target.value))} className="w-full accent-indigo-600 cursor-pointer h-2 bg-slate-100 dark:bg-slate-800 rounded-lg appearance-none" />
                   </div>
 
-                  <div className="border-t pt-4 mt-6 text-center space-y-2">
-                    <span className="text-xs uppercase tracking-widest font-bold text-muted-foreground">Simulated Share Price</span>
-                    <div className="text-3xl font-black text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/20 py-3 rounded-xl border border-emerald-100 dark:border-emerald-900/30 animate-pulse font-mono shadow-sm">
-                      ₹{simValuation.finalPrice.toFixed(2)}
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <Label className="font-semibold text-slate-700 dark:text-slate-300">Days Since Last Dispatch Sale</Label>
+                      <span className={`font-mono font-bold ${simDaysSinceSale > 5 ? 'text-amber-500' : 'text-emerald-500'}`}>
+                        {simDaysSinceSale} days
+                      </span>
                     </div>
-                    <p className="text-[10px] text-muted-foreground">
-                      * Formula adheres precisely to the database calculation logic implemented in the Supabase schema.
-                    </p>
+                    <input type="range" min="0" max="60" step="1" value={simDaysSinceSale} onChange={e => setSimDaysSinceSale(Number(e.target.value))} className="w-full accent-indigo-600 cursor-pointer h-2 bg-slate-100 dark:bg-slate-800 rounded-lg appearance-none" />
                   </div>
                 </div>
               </div>
-            </CardContent>
-          </Card>
+
+              {/* Formula display panel */}
+              <div className="lg:col-span-1 p-5 border rounded-2xl bg-indigo-50/20 dark:bg-slate-900/50 flex flex-col justify-between">
+                <div className="space-y-4">
+                  <h4 className="text-sm font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">Valuation Formula Breakdown</h4>
+                  
+                  <div className="space-y-2.5 text-xs">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Base Equity Value:</span>
+                      <span className="font-mono font-bold text-slate-700 dark:text-slate-300">₹{simBaseVal.toFixed(2)}</span>
+                    </div>
+
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Discounted Asset Value:</span>
+                      <span className="font-mono font-semibold text-slate-700 dark:text-slate-300" title="(Stock Value * 50% discount) / Total Shares">
+                        + ₹{simValuation.discountedBookValue.toFixed(2)}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Capitalized Earnings EPS:</span>
+                      <span className="font-mono font-semibold text-slate-700 dark:text-slate-300" title="(Retained Earnings * 5x multiplier) / Total Shares">
+                        + ₹{simValuation.earningsPerShare.toFixed(2)}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between border-t pt-2 mt-2">
+                      <span className="text-slate-700 dark:text-slate-300 font-semibold">Raw Share Price:</span>
+                      <span className="font-mono font-bold text-slate-900 dark:text-slate-100">₹{simValuation.rawPrice.toFixed(2)}</span>
+                    </div>
+
+                    <div className="flex justify-between">
+                      <span className="text-slate-700 dark:text-slate-300">Inactivity Time Decay:</span>
+                      <span className="font-mono font-bold text-amber-500">
+                        x {simValuation.timeDecayMultiplier.toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="border-t pt-4 mt-6 text-center space-y-2">
+                  <span className="text-xs uppercase tracking-widest font-bold text-muted-foreground">Simulated Share Price</span>
+                  <div className="text-3xl font-black text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/20 py-3 rounded-xl border border-emerald-100 dark:border-emerald-900/30 animate-pulse font-mono shadow-sm">
+                    ₹{simValuation.finalPrice.toFixed(2)}
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">
+                    * Formula adheres precisely to the database calculation logic implemented in the Supabase schema.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </SectionCard>
         </TabsContent>
       </Tabs>
     </div>

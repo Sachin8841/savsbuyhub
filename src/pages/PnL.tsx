@@ -10,6 +10,7 @@ import { exportToXlsx } from '@/lib/xlsx-export';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { PageHeader, StatCard, SectionCard } from '@/components/PageHeader';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -225,17 +226,13 @@ export default function PnL() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div className="flex items-center gap-3">
-          <FileText className="h-6 w-6 text-primary" />
-          <div>
-            <h2 className="text-2xl font-bold tracking-tight">Profit & Loss Statement</h2>
-            <p className="text-muted-foreground">SAVS BuyHub — Financial Overview</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="mr-2">
+    <div className="space-y-5 animate-in">
+      <PageHeader
+        title="Profit & Loss Statement"
+        subtitle="SAVS BuyHub — Corporate Financial Overview"
+        icon={<FileText className="h-5 w-5 text-indigo-500" />}
+        actions={<>
+          <div className="mr-1">
             <select 
               className="flex h-9 w-40 items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
               value={selectedDisclosedPeriod}
@@ -249,7 +246,7 @@ export default function PnL() {
           </div>
           <Dialog open={disclosureOpen} onOpenChange={setDisclosureOpen}>
             <DialogTrigger asChild>
-              <Button variant="destructive" size="sm" className="gap-1"><AlertTriangle className="h-4 w-4" />Monthly Disclosure</Button>
+              <Button variant="destructive" size="sm" className="gap-1 h-9"><AlertTriangle className="h-4 w-4" />Monthly Disclosure</Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
@@ -279,48 +276,22 @@ export default function PnL() {
             </DialogContent>
           </Dialog>
           <PeriodSelector value={period} onChange={setPeriod} dateRange={dateRange} onDateRangeChange={setDateRange} />
-          <Button variant="outline" size="sm" onClick={handleExport}><Download className="mr-1 h-4 w-4" />Export Statement</Button>
-        </div>
-      </div>
+          <Button variant="outline" size="sm" onClick={handleExport} className="h-9"><Download className="mr-1 h-4 w-4" />Export Statement</Button>
+        </>}
+      />
 
       {/* Summary Cards */}
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
-        <Card className="glass-card bg-gradient-to-br from-indigo-50/50 to-white dark:from-indigo-950/20 dark:to-slate-900 border-indigo-100 dark:border-indigo-900/50">
-          <CardContent className="p-5 flex flex-col gap-1 text-center">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Gross Revenue</p>
-            <p className="text-3xl font-bold text-indigo-600 dark:text-indigo-400 mt-1">{fmt(pnl.revenue)}</p>
-          </CardContent>
-        </Card>
-        <Card className="glass-card">
-          <CardContent className="p-5 flex flex-col gap-1 text-center">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Gross Profit</p>
-            <p className="text-3xl font-bold text-amber-500 mt-1">{fmt(pnl.grossProfit)}</p>
-          </CardContent>
-        </Card>
-        <Card className={`glass-card ${pnl.netProfit >= 0 ? 'bg-gradient-to-br from-emerald-50/50 to-white dark:from-emerald-950/20 dark:to-slate-900 border-emerald-100 dark:border-emerald-900/50' : 'bg-gradient-to-br from-red-50/50 to-white dark:from-red-950/20 dark:to-slate-900 border-red-100 dark:border-red-900/50'}`}>
-          <CardContent className="p-5 flex flex-col gap-1 text-center">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Net Profit / (Loss)</p>
-            <div className="flex items-center justify-center gap-2 mt-1">
-              {pnl.netProfit >= 0 ? <TrendingUp className="h-5 w-5 text-emerald-500" /> : <TrendingDown className="h-5 w-5 text-destructive" />}
-              <p className={`text-3xl font-bold ${pnl.netProfit >= 0 ? 'text-emerald-500' : 'text-destructive'}`}>{fmt(pnl.netProfit)}</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="glass-card">
-          <CardContent className="p-5 flex flex-col gap-1 text-center">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Profit Per Unit</p>
-            <p className={`text-3xl font-bold mt-1 ${pnl.profitPerUnit >= 0 ? 'text-emerald-500' : 'text-destructive'}`}>{fmt(Math.round(pnl.profitPerUnit))}</p>
-          </CardContent>
-        </Card>
+      <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
+        <StatCard title="Gross Revenue" value={fmt(pnl.revenue)} icon={<DollarSign />} color="primary" />
+        <StatCard title="Gross Profit" value={fmt(pnl.grossProfit)} icon={<TrendingUp />} color="amber" />
+        <StatCard title="Net Profit / (Loss)" value={fmt(pnl.netProfit)} icon={pnl.netProfit >= 0 ? <TrendingUp /> : <TrendingDown />} color={pnl.netProfit >= 0 ? 'emerald' : 'red'} />
+        <StatCard title="Profit Per Unit" value={fmt(Math.round(pnl.profitPerUnit))} icon={<DollarSign />} color={pnl.profitPerUnit >= 0 ? 'emerald' : 'red'} />
       </div>
 
       {/* Visualizations */}
       <div className="grid gap-6 lg:grid-cols-2">
-        <Card className="glass-card">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2"><DollarSign className="h-4 w-4" /> Revenue vs Total Costs</CardTitle>
-          </CardHeader>
-          <CardContent className="h-64">
+        <SectionCard title="Revenue vs Total Costs" description="Outlay vs Net Earnings">
+          <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={[{ name: 'Financials', Revenue: pnl.revenue, Costs: pnl.cogs + pnl.totalExpenses, Profit: pnl.netProfit }]} layout="vertical" margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="hsl(var(--border))" />
@@ -333,14 +304,11 @@ export default function PnL() {
                 <Bar dataKey="Profit" fill={pnl.netProfit >= 0 ? "hsl(142, 76%, 36%)" : "hsl(0, 84%, 60%)"} radius={[0, 4, 4, 0]} barSize={30} />
               </BarChart>
             </ResponsiveContainer>
-          </CardContent>
-        </Card>
+          </div>
+        </SectionCard>
 
-        <Card className="glass-card">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Operating Expenses Breakdown</CardTitle>
-          </CardHeader>
-          <CardContent className="h-64">
+        <SectionCard title="Operating Expenses Breakdown" description="Distribution of non-COGS overheads">
+          <div className="h-64">
             {pnl.totalExpenses > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
@@ -369,76 +337,70 @@ export default function PnL() {
             ) : (
               <div className="flex h-full items-center justify-center text-muted-foreground">No expenses recorded</div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </SectionCard>
       </div>
 
       {/* P&L Table */}
-      <Card className="glass-card shadow-lg border-t-4 border-t-indigo-600">
-        <CardHeader className="bg-muted/10 border-b pb-4"><CardTitle className="text-xl font-bold text-slate-800 dark:text-slate-100">Corporate Income Statement</CardTitle><CardDescription>Comprehensive breakdown of revenues, direct costs, and operational expenses.</CardDescription></CardHeader>
-        <CardContent className="p-0">
+      <SectionCard title="Corporate Income Statement" description="Comprehensive breakdown of revenues, direct costs, and operational expenses." noPadding>
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-slate-50 dark:bg-slate-900/50">
+                <TableHead className="w-3/4 font-semibold text-slate-600 dark:text-slate-300">Financial Line Item</TableHead>
+                <TableHead className="text-right font-semibold text-slate-600 dark:text-slate-300">Amount (INR)</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {lineItems.map((item, i) => (
+                <TableRow key={i} className={`${item.type === 'total' ? 'bg-indigo-50/50 dark:bg-indigo-900/20 border-t-2 border-indigo-200 dark:border-indigo-800' : item.type === 'subtotal' ? 'bg-slate-50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-800' : 'border-b-0'} hover:bg-muted/50 transition-colors`}>
+                  <TableCell className={`${item.bold ? 'font-bold text-slate-900 dark:text-slate-100' : 'text-slate-600 dark:text-slate-400'} ${item.isMeta ? 'text-xs italic' : 'pl-6'}`}>
+                    {item.label}
+                  </TableCell>
+                  <TableCell className={`text-right font-mono ${item.bold ? 'font-bold text-slate-900 dark:text-slate-100' : ''} ${item.isMeta ? 'text-muted-foreground text-xs' : ''} ${item.type === 'total' ? (item.value >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400') : ''}`}>
+                    {item.isMeta ? item.value.toLocaleString() : fmt(Math.round(Math.abs(item.value)))}
+                    {!item.isMeta && item.value < 0 && <span className="text-red-500 ml-2 inline-block w-3">▼</span>}
+                    {!item.isMeta && item.value > 0 && item.type !== 'expense' && <span className="text-emerald-500 ml-2 inline-block w-3">▲</span>}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </SectionCard>
+
+      {/* Platform P&L */}
+      {pnl.platforms.length > 0 && (
+        <SectionCard title="Platform-wise Performance" description="Revenues, costs, margins, and return rates per sales channel." noPadding>
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
-                <TableRow className="bg-slate-50 dark:bg-slate-900/50">
-                  <TableHead className="w-3/4 font-semibold text-slate-600 dark:text-slate-300">Financial Line Item</TableHead>
-                  <TableHead className="text-right font-semibold text-slate-600 dark:text-slate-300">Amount (INR)</TableHead>
+                <TableRow className="bg-muted/30">
+                  <TableHead className="font-semibold text-xs">Platform</TableHead>
+                  <TableHead className="text-right font-semibold text-xs">Revenue</TableHead>
+                  <TableHead className="text-right font-semibold text-xs">COGS</TableHead>
+                  <TableHead className="text-right font-semibold text-xs">Profit</TableHead>
+                  <TableHead className="text-right font-semibold text-xs">Units</TableHead>
+                  <TableHead className="text-right font-semibold text-xs">Profit/Unit</TableHead>
+                  <TableHead className="text-right font-semibold text-xs">Margin</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {lineItems.map((item, i) => (
-                  <TableRow key={i} className={`${item.type === 'total' ? 'bg-indigo-50/50 dark:bg-indigo-900/20 border-t-2 border-indigo-200 dark:border-indigo-800' : item.type === 'subtotal' ? 'bg-slate-50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-800' : 'border-b-0'} hover:bg-muted/50 transition-colors`}>
-                    <TableCell className={`${item.bold ? 'font-bold text-slate-900 dark:text-slate-100' : 'text-slate-600 dark:text-slate-400'} ${item.isMeta ? 'text-xs italic' : 'pl-6'}`}>
-                      {item.label}
-                    </TableCell>
-                    <TableCell className={`text-right font-mono ${item.bold ? 'font-bold text-slate-900 dark:text-slate-100' : ''} ${item.isMeta ? 'text-muted-foreground text-xs' : ''} ${item.type === 'total' ? (item.value >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400') : ''}`}>
-                      {item.isMeta ? item.value.toLocaleString() : fmt(Math.round(Math.abs(item.value)))}
-                      {!item.isMeta && item.value < 0 && <span className="text-red-500 ml-2 inline-block w-3">▼</span>}
-                      {!item.isMeta && item.value > 0 && item.type !== 'expense' && <span className="text-emerald-500 ml-2 inline-block w-3">▲</span>}
-                    </TableCell>
+                {pnl.platforms.map(p => (
+                  <TableRow key={p.platform} className="hover:bg-primary/5 transition-colors">
+                    <TableCell><Badge variant="outline" className="px-1.5 py-0 text-[10px] uppercase font-bold tracking-wider">{p.platform}</Badge></TableCell>
+                    <TableCell className="text-right tabular-nums">{fmt(p.revenue)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{fmt(p.cost)}</TableCell>
+                    <TableCell className={`text-right font-semibold tabular-nums ${p.profit >= 0 ? 'text-emerald-600' : 'text-destructive'}`}>{fmt(p.profit)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{p.units}</TableCell>
+                    <TableCell className="text-right tabular-nums">{p.units > 0 ? fmt(Math.round(p.profit / p.units)) : '—'}</TableCell>
+                    <TableCell className="text-right tabular-nums font-medium">{p.revenue > 0 ? ((p.profit / p.revenue) * 100).toFixed(1) + '%' : '—'}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
           </div>
-        </CardContent>
-      </Card>
-
-      {/* Platform P&L */}
-      {pnl.platforms.length > 0 && (
-        <Card>
-          <CardHeader><CardTitle className="text-base">Platform-wise P&L</CardTitle></CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto rounded-lg border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Platform</TableHead>
-                    <TableHead className="text-right">Revenue</TableHead>
-                    <TableHead className="text-right">COGS</TableHead>
-                    <TableHead className="text-right">Profit</TableHead>
-                    <TableHead className="text-right">Units</TableHead>
-                    <TableHead className="text-right">Profit/Unit</TableHead>
-                    <TableHead className="text-right">Margin</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {pnl.platforms.map(p => (
-                    <TableRow key={p.platform}>
-                      <TableCell><Badge variant="secondary">{p.platform}</Badge></TableCell>
-                      <TableCell className="text-right">{fmt(p.revenue)}</TableCell>
-                      <TableCell className="text-right">{fmt(p.cost)}</TableCell>
-                      <TableCell className={`text-right font-medium ${p.profit >= 0 ? 'text-emerald-600' : 'text-destructive'}`}>{fmt(p.profit)}</TableCell>
-                      <TableCell className="text-right">{p.units}</TableCell>
-                      <TableCell className="text-right">{p.units > 0 ? fmt(Math.round(p.profit / p.units)) : '—'}</TableCell>
-                      <TableCell className="text-right">{p.revenue > 0 ? ((p.profit / p.revenue) * 100).toFixed(1) + '%' : '—'}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
-        </Card>
+        </SectionCard>
       )}
     </div>
   );

@@ -83,6 +83,7 @@ export type Database = {
           id: string
           sku: string
           product_name: string
+          aliases: string[] | null
           category: string | null
           total_bulk_stock_in: number
           average_cost_price: number
@@ -96,6 +97,7 @@ export type Database = {
           id?: string
           sku: string
           product_name: string
+          aliases?: string[] | null
           category?: string | null
           total_bulk_stock_in: number
           average_cost_price: number
@@ -109,6 +111,7 @@ export type Database = {
           id?: string
           sku?: string
           product_name?: string
+          aliases?: string[] | null
           category?: string | null
           total_bulk_stock_in?: number
           average_cost_price?: number
@@ -277,6 +280,7 @@ export type Database = {
           reason: string | null
           notes: string | null
           return_type: string | null
+          delivered_date: string | null
           created_at: string
           updated_at: string | null
         }
@@ -291,6 +295,7 @@ export type Database = {
           reason?: string | null
           notes?: string | null
           return_type?: string | null
+          delivered_date?: string | null
           created_at?: string
           updated_at?: string | null
         }
@@ -305,6 +310,7 @@ export type Database = {
           reason?: string | null
           notes?: string | null
           return_type?: string | null
+          delivered_date?: string | null
           created_at?: string
           updated_at?: string | null
         }

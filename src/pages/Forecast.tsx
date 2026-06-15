@@ -1,10 +1,11 @@
 import { useEffect, useState, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { PageHeader, StatCard, SectionCard } from '@/components/PageHeader';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { TrendingUp, Package, BarChart3, ShoppingCart, LogIn, DollarSign, ArrowUpRight, LineChart } from 'lucide-react';
-import { CartesianGrid, Tooltip, ResponsiveContainer, Line, Legend, ComposedChart, Area, AreaChart, XAxis, YAxis } from 'recharts';
+import { CartesianGrid, Tooltip, ResponsiveContainer, Line, Legend, ComposedChart, Area, AreaChart, XAxis, YAxis, Bar } from 'recharts';
 import { useNavigate } from 'react-router-dom';
 import { PeriodSelector, getFilterDate } from '@/components/DateRangePicker';
 import { useAuthStore } from '@/stores/authStore';
@@ -37,7 +38,7 @@ export default function Forecast() {
         }
         setSharePrice(priceRes.data ?? 100);
         setPriceHistory(historyRes.data ?? []);
-        setForecastData(forecastRes.data ?? []);
+        setForecastData((forecastRes.data as any) ?? []);
       } catch (err: any) {
         console.error(err);
         setErrorMsg('Please run the phase5_fixes.sql database migration script in your Supabase SQL Editor. The public forecast page requires secure RPC functions to operate.');
@@ -209,48 +210,32 @@ export default function Forecast() {
             </CardContent>
           </Card>
           
-          <Card className="lg:col-span-2 border shadow-lg">
-            <CardHeader className="pb-2 border-b">
-              <div className="flex justify-between items-center">
-                <div>
-                  <CardTitle className="text-lg flex items-center gap-2"><LineChart className="h-5 w-5 text-emerald-500"/> Price History</CardTitle>
-                  <CardDescription>Historical valuation based on daily performance</CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="h-72 pt-4">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={priceHistory}>
-                  <defs>
-                    <linearGradient id="colorPrice" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-                  <XAxis dataKey="time" fontSize={12} tickLine={false} axisLine={false} tick={{ fill: 'hsl(var(--muted-foreground))' }} minTickGap={30} />
-                  <YAxis domain={['auto', 'auto']} tickFormatter={(v) => `₹${v}`} fontSize={12} tickLine={false} axisLine={false} tick={{ fill: 'hsl(var(--muted-foreground))' }} />
-                  <Tooltip 
-                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)' }}
-                    itemStyle={{ color: '#10b981', fontWeight: 'bold' }}
-                  />
-                  <Area type="monotone" dataKey="price" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorPrice)" />
-                </AreaChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
+        <SectionCard title="Price History" description="Historical valuation based on daily performance" className="lg:col-span-2">
+          <div className="h-72">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={priceHistory}>
+                <defs>
+                  <linearGradient id="colorPrice" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
+                <XAxis dataKey="time" fontSize={12} tickLine={false} axisLine={false} tick={{ fill: 'hsl(var(--muted-foreground))' }} minTickGap={30} />
+                <YAxis domain={['auto', 'auto']} tickFormatter={(v) => `₹${v}`} fontSize={12} tickLine={false} axisLine={false} tick={{ fill: 'hsl(var(--muted-foreground))' }} />
+                <Tooltip 
+                  contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)' }}
+                  itemStyle={{ color: '#10b981', fontWeight: 'bold' }}
+                />
+                <Area type="monotone" dataKey="price" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorPrice)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </SectionCard>
         </div>
 
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <div>
-                <CardTitle className="text-base flex items-center gap-2">Revenue & Profit Trend <Badge variant="secondary">AI Forecast</Badge></CardTitle>
-                <CardDescription>Investment, revenue, profit & units with 3-month projection</CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="h-80">
+        <SectionCard title="Revenue & Profit Trend" description="Investment, revenue, profit & units with 3-month projection" action={<Badge variant="secondary" className="bg-indigo-500/20 text-indigo-400">AI Forecast</Badge>}>
+          <div className="h-80">
             {combinedTrend.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={combinedTrend}>
@@ -276,8 +261,8 @@ export default function Forecast() {
             ) : (
               <div className="flex h-full items-center justify-center text-muted-foreground">No data yet</div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </SectionCard>
 
         {/* 3-Month Forecast Cards */}
         {forecastMonths.length > 0 && (

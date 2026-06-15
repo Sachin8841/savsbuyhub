@@ -211,7 +211,7 @@ export default function Inventory() {
       const total_bulk_stock_in = parseInt(row.total_bulk_stock_in || row.bulk_stock_in || row['Bulk Stock In'] || '0', 10);
       const delivery_fee = parseFloat(row.delivery_fee || row['Delivery Fee'] || '0');
       if (!sku || !product_name) { errors.push(`Missing SKU/name: ${sku}`); continue; }
-      const { error } = await supabase.from('inventory').insert({ sku, product_name, average_cost_price, average_selling_price, total_bulk_stock_in, delivery_fee });
+      const { error } = await supabase.from('inventory').insert({ sku, product_name, average_cost_price, average_selling_price, total_bulk_stock_in, delivery_fee, stock_added_date: new Date().toISOString().slice(0, 10) });
       if (error) errors.push(`${sku}: ${error.message}`);
       else success++;
     }
@@ -318,8 +318,8 @@ export default function Inventory() {
               </DialogContent>
             </Dialog>
           )}
-        </div>
-      </div>
+        </>}
+      />
 
       {/* KPI Row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">

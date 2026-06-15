@@ -16,6 +16,7 @@ import { exportToXlsx } from '@/lib/xlsx-export';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Plus, Download, Pencil, Trash2, Search, DollarSign, Clock, FileUp, Loader2, SplitSquareHorizontal, TrendingUp } from 'lucide-react';
 import { CsvImportButton } from '@/components/CsvImportButton';
+import { PageHeader, StatCard, SectionCard, EmptyState } from '@/components/PageHeader';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -434,10 +435,12 @@ ${JSON.stringify(invSlim).slice(0, 4000)}`;
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <h2 className="text-2xl font-bold">Sales Ledger</h2>
-        <div className="flex gap-2 flex-wrap">
+    <div className="space-y-5 animate-in">
+      <PageHeader
+        title="Sales Ledger"
+        subtitle={`${filtered.length} total orders · Estimated Profit: ${fmt(totalProfit)}`}
+        icon={<DollarSign className="h-5 w-5 text-indigo-500" />}
+        actions={<>
           <Button variant="outline" size="sm" onClick={handleExport}><Download className="mr-1 h-4 w-4" />Export Excel</Button>
           {admin && <CsvImportButton onImport={handleImport} expectedColumns={['sku', 'dispatch_date', 'platform', 'quantity_sold', 'average_selling_price']} label="Import CSV" />}
           {admin && (
@@ -546,34 +549,19 @@ ${JSON.stringify(invSlim).slice(0, 4000)}`;
               </DialogContent>
             </Dialog>
           )}
-        </div>
-      </div>
+        </>}
+      />
 
       {/* Summary Cards */}
-      <div className="grid gap-4 grid-cols-1 md:grid-cols-4">
-        <Card className="bg-gradient-to-br from-slate-50 to-white dark:from-slate-900 dark:to-slate-950 border-indigo-100 dark:border-indigo-900 shadow-sm"><CardContent className="p-4 flex items-center gap-3"><div className="h-10 w-10 rounded-full bg-indigo-100 flex items-center justify-center"><DollarSign className="h-5 w-5 text-indigo-600" /></div><div><p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Total Revenue</p><p className="font-bold text-2xl text-indigo-600 tracking-tight">{fmt(totalRevenue)}</p></div></CardContent></Card>
-        <Card className="bg-gradient-to-br from-slate-50 to-white dark:from-slate-900 dark:to-slate-950 shadow-sm"><CardContent className="p-4 flex items-center gap-3"><div className="h-10 w-10 rounded-full bg-amber-100 flex items-center justify-center"><Clock className="h-5 w-5 text-amber-600" /></div><div><p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Pending Settlement</p><p className="font-bold text-2xl text-slate-800 dark:text-slate-200 tracking-tight">{fmt(pendingAmount)}</p></div></CardContent></Card>
-        <Card className="bg-gradient-to-br from-slate-50 to-white dark:from-slate-900 dark:to-slate-950 shadow-sm"><CardContent className="p-4 flex items-center gap-3"><div className="h-10 w-10 rounded-full bg-emerald-100 flex items-center justify-center"><DollarSign className="h-5 w-5 text-emerald-600" /></div><div><p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Settled & Realized</p><p className="font-bold text-2xl text-slate-800 dark:text-slate-200 tracking-tight">{fmt(settledAmount)}</p></div></CardContent></Card>
-        <Card className={`bg-gradient-to-br ${totalProfit >= 0 ? 'from-emerald-50 to-white dark:from-emerald-950/20 dark:to-slate-900' : 'from-rose-50 to-white dark:from-rose-950/20 dark:to-slate-900'} shadow-sm`}>
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className={`h-10 w-10 rounded-full ${totalProfit >= 0 ? 'bg-emerald-100' : 'bg-rose-100'} flex items-center justify-center`}>
-              <TrendingUp className={`h-5 w-5 ${totalProfit >= 0 ? 'text-emerald-600' : 'text-rose-600'}`} />
-            </div>
-            <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Estimated Profit</p>
-              <p className={`font-bold text-2xl tracking-tight ${totalProfit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
-                {fmt(totalProfit)}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
+        <StatCard title="Total Revenue" value={fmt(totalRevenue)} icon={<DollarSign />} color="primary" />
+        <StatCard title="Pending Settlement" value={fmt(pendingAmount)} icon={<Clock />} color="amber" />
+        <StatCard title="Settled & Realized" value={fmt(settledAmount)} icon={<DollarSign />} color="emerald" />
+        <StatCard title="Estimated Profit" value={fmt(totalProfit)} icon={<TrendingUp />} color={totalProfit >= 0 ? 'emerald' : 'red'} />
       </div>
 
-      <Card className="shadow-sm">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-semibold flex items-center gap-2 text-muted-foreground"><TrendingUp className="h-4 w-4" /> Sales Velocity (Last 14 Active Days)</CardTitle>
-        </CardHeader>
-        <CardContent className="h-48 pt-0">
+      <SectionCard title="Sales Velocity" description="Last 14 Active Days">
+        <div className="h-48">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={velocityData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
               <defs>
@@ -589,137 +577,145 @@ ${JSON.stringify(invSlim).slice(0, 4000)}`;
               <Area type="monotone" dataKey="revenue" stroke="#4f46e5" strokeWidth={2} fillOpacity={1} fill="url(#colorRevenue)" />
             </AreaChart>
           </ResponsiveContainer>
-        </CardContent>
-      </Card>
-
-      <div className="flex flex-wrap gap-3">
-        <div className="relative max-w-sm flex-1">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input placeholder="Search sales..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
         </div>
-        <Select value={platformFilter} onValueChange={setPlatformFilter}>
-          <SelectTrigger className="w-36"><SelectValue placeholder="Platform" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Platforms</SelectItem>
-            {['Meesho', 'Flipkart', 'Amazon', 'Offline'].map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-36"><SelectValue placeholder="Status" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Statuses</SelectItem>
-            <SelectItem value="Pending">Pending</SelectItem>
-            <SelectItem value="Packed">Packed</SelectItem>
-            <SelectItem value="Dispatched">Dispatched</SelectItem>
-            <SelectItem value="In Transit">In Transit</SelectItem>
-            <SelectItem value="Settled">Settled</SelectItem>
-            <SelectItem value="Cancelled">Cancelled</SelectItem>
-            <SelectItem value="Order RTO">Order RTO</SelectItem>
-            <SelectItem value="Return">Return</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+      </SectionCard>
 
-      <div className="overflow-x-auto rounded-lg border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Date</TableHead>
-              <TableHead>Platform</TableHead>
-              <TableHead>SKU</TableHead>
-              <TableHead>Product</TableHead>
-              <TableHead className="text-right">Qty</TableHead>
-              <TableHead className="text-right">CP</TableHead>
-              <TableHead className="text-right">SP</TableHead>
-              <TableHead className="text-right">P/L</TableHead>
-              <TableHead>Courier</TableHead>
-              <TableHead>Status</TableHead>
-              {admin && <TableHead className="text-right">Actions</TableHead>}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filtered.map(s => {
-              const inv = s.inventory as any;
-              const cp = s.cost_price ?? inv?.average_cost_price ?? 0;
-              const sp = s.average_selling_price;
-              const qty = s.quantity_sold;
-              const rowProfit = (sp - cp) * qty;
-              return (
-                <TableRow key={s.id}>
-                  <TableCell>{s.dispatch_date}</TableCell>
-                  <TableCell><Badge variant="secondary">{s.platform}</Badge></TableCell>
-                  <TableCell className="font-mono text-sm">{inv?.sku}</TableCell>
-                  <TableCell>{inv?.product_name}</TableCell>
-                  <TableCell className="text-right">{qty}</TableCell>
-                  <TableCell className="text-right font-mono text-xs">₹{cp.toFixed(2)}</TableCell>
-                  <TableCell className="text-right font-mono text-xs">₹{sp.toFixed(2)}</TableCell>
-                  <TableCell className={`text-right font-mono text-xs font-semibold ${rowProfit > 0 ? 'text-emerald-600 dark:text-emerald-400' : rowProfit < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-500'}`}>
-                    ₹{rowProfit.toFixed(2)}
-                  </TableCell>
-                  <TableCell>{s.courier_partner ?? '—'}</TableCell>
-                  <TableCell>
-                    {admin ? (
-                      <Select value={s.payment_status} onValueChange={(v) => handleStatusChange(s, v)}>
-                        <SelectTrigger className="h-7 text-xs border-0 bg-transparent px-2 w-[120px] focus:ring-0">
-                          <Badge variant={['Settled', 'Packed', 'Dispatched', 'In Transit'].includes(s.payment_status) ? 'default' : s.payment_status === 'Cancelled' ? 'destructive' : 'outline'}>
-                            {s.payment_status}
-                          </Badge>
-                        </SelectTrigger>
-                        <SelectContent>
-                          {['Pending', 'Packed', 'Dispatched', 'In Transit', 'Settled', 'Cancelled', 'Order RTO', 'Return'].map(opt => (
-                            <SelectItem key={opt} value={opt}>{opt}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <Badge variant={['Settled', 'Packed', 'Dispatched', 'In Transit'].includes(s.payment_status) ? 'default' : s.payment_status === 'Cancelled' ? 'destructive' : 'outline'}>
-                        {s.payment_status}
-                      </Badge>
-                    )}
-                  </TableCell>
-                  {admin && (
-                    <TableCell className="text-right">
-                      {s.quantity_sold > 1 && (
-                        <Button variant="ghost" size="icon" title="Split into individual orders" onClick={async () => {
-                          if (!confirm(`Split this row of ${s.quantity_sold} units into ${s.quantity_sold} separate orders of qty 1?`)) return;
-                          const base = { 
-                            dispatch_date: s.dispatch_date, 
-                            platform: s.platform, 
-                            inventory_id: s.inventory_id, 
-                            average_selling_price: s.average_selling_price, 
-                            cost_price: (s as any).cost_price,
-                            courier_partner: s.courier_partner, 
-                            payment_status: s.payment_status, 
-                            payment_method: (s as any).payment_method ?? null, 
-                            order_number: (s as any).order_number ?? null, 
-                            settlement_date: s.settlement_date 
-                          };
-                          const rows = Array.from({ length: s.quantity_sold }, () => ({ ...base, quantity_sold: 1 }));
-                          let { error: e1 } = await supabase.from('sales').insert(rows as any);
-                          if (e1 && (e1.message?.includes('cost_price') || e1.details?.includes('cost_price'))) {
-                            const fallbackRows = rows.map(({ cost_price, ...rest }) => rest);
-                            const retryResult = await supabase.from('sales').insert(fallbackRows as any);
-                            e1 = retryResult.error;
-                          }
-                          if (e1) { toast({ title: 'Split failed', description: e1.message, variant: 'destructive' }); return; }
-                          await supabase.from('sales').delete().eq('id', s.id);
-                          qc.invalidateQueries({ queryKey: ['sales'] });
-                          toast({ title: `Split into ${rows.length} orders` });
-                        }}><SplitSquareHorizontal className="h-4 w-4" /></Button>
-                      )}
-                      <Button variant="ghost" size="icon" onClick={() => handleEdit(s)}><Pencil className="h-4 w-4" /></Button>
-                      <Button variant="ghost" size="icon" onClick={() => handleDelete(s.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+      <SectionCard title="Sales Ledger" description="Record and track order dispatches and settlement statuses." noPadding>
+        <div className="p-4 border-b border-border/50 flex flex-wrap gap-3">
+          <div className="relative max-w-sm flex-1">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input placeholder="Search sales..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9 h-9 text-sm" />
+          </div>
+          <Select value={platformFilter} onValueChange={setPlatformFilter}>
+            <SelectTrigger className="w-36 h-9"><SelectValue placeholder="Platform" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Platforms</SelectItem>
+              {['Meesho', 'Flipkart', 'Amazon', 'Offline'].map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-36 h-9"><SelectValue placeholder="Status" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Statuses</SelectItem>
+              <SelectItem value="Pending">Pending</SelectItem>
+              <SelectItem value="Packed">Packed</SelectItem>
+              <SelectItem value="Dispatched">Dispatched</SelectItem>
+              <SelectItem value="In Transit">In Transit</SelectItem>
+              <SelectItem value="Settled">Settled</SelectItem>
+              <SelectItem value="Cancelled">Cancelled</SelectItem>
+              <SelectItem value="Order RTO">Order RTO</SelectItem>
+              <SelectItem value="Return">Return</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/30">
+                <TableHead className="font-semibold text-xs">Date</TableHead>
+                <TableHead className="font-semibold text-xs">Platform</TableHead>
+                <TableHead className="font-semibold text-xs">SKU</TableHead>
+                <TableHead className="font-semibold text-xs">Product</TableHead>
+                <TableHead className="text-right font-semibold text-xs">Qty</TableHead>
+                <TableHead className="text-right font-semibold text-xs">CP</TableHead>
+                <TableHead className="text-right font-semibold text-xs">SP</TableHead>
+                <TableHead className="text-right font-semibold text-xs">P/L</TableHead>
+                <TableHead className="font-semibold text-xs">Courier</TableHead>
+                <TableHead className="font-semibold text-xs">Status</TableHead>
+                {admin && <TableHead className="text-right font-semibold text-xs">Actions</TableHead>}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filtered.map(s => {
+                const inv = s.inventory as any;
+                const cp = s.cost_price ?? inv?.average_cost_price ?? 0;
+                const sp = s.average_selling_price;
+                const qty = s.quantity_sold;
+                const rowProfit = (sp - cp) * qty;
+                return (
+                  <TableRow key={s.id} className="hover:bg-primary/5 transition-colors group">
+                    <TableCell className="text-sm font-medium text-muted-foreground">{s.dispatch_date}</TableCell>
+                    <TableCell><Badge variant="outline" className="px-1.5 py-0 text-[10px] uppercase font-bold tracking-wider">{s.platform}</Badge></TableCell>
+                    <TableCell className="font-mono text-xs text-primary font-medium">{inv?.sku}</TableCell>
+                    <TableCell className="max-w-[200px] truncate font-medium">{inv?.product_name}</TableCell>
+                    <TableCell className="text-right tabular-nums font-semibold">{qty}</TableCell>
+                    <TableCell className="text-right font-mono text-xs text-muted-foreground">{fmt(cp)}</TableCell>
+                    <TableCell className="text-right font-mono text-xs text-muted-foreground">{fmt(sp)}</TableCell>
+                    <TableCell className={`text-right font-mono text-xs font-bold ${rowProfit > 0 ? 'text-emerald-600 dark:text-emerald-400' : rowProfit < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-500'}`}>
+                      {rowProfit >= 0 ? '+' : ''}{fmt(rowProfit)}
                     </TableCell>
-                  )}
+                    <TableCell className="text-sm text-muted-foreground">{s.courier_partner ?? '—'}</TableCell>
+                    <TableCell>
+                      {admin ? (
+                        <Select value={s.payment_status} onValueChange={(v) => handleStatusChange(s, v)}>
+                          <SelectTrigger className="h-7 text-xs border-0 bg-transparent px-2 w-[120px] focus:ring-0">
+                            <Badge variant={['Settled', 'Packed', 'Dispatched', 'In Transit'].includes(s.payment_status) ? 'default' : s.payment_status === 'Cancelled' ? 'destructive' : 'outline'}>
+                              {s.payment_status}
+                            </Badge>
+                          </SelectTrigger>
+                          <SelectContent>
+                            {['Pending', 'Packed', 'Dispatched', 'In Transit', 'Settled', 'Cancelled', 'Order RTO', 'Return'].map(opt => (
+                              <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Badge variant={['Settled', 'Packed', 'Dispatched', 'In Transit'].includes(s.payment_status) ? 'default' : s.payment_status === 'Cancelled' ? 'destructive' : 'outline'}>
+                          {s.payment_status}
+                        </Badge>
+                      )}
+                    </TableCell>
+                    {admin && (
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                          {s.quantity_sold > 1 && (
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-indigo-500 hover:text-indigo-700 hover:bg-indigo-50" title="Split into individual orders" onClick={async () => {
+                              if (!confirm(`Split this row of ${s.quantity_sold} units into ${s.quantity_sold} separate orders of qty 1?`)) return;
+                              const base = { 
+                                dispatch_date: s.dispatch_date, 
+                                platform: s.platform, 
+                                inventory_id: s.inventory_id, 
+                                average_selling_price: s.average_selling_price, 
+                                cost_price: (s as any).cost_price,
+                                courier_partner: s.courier_partner, 
+                                payment_status: s.payment_status, 
+                                payment_method: (s as any).payment_method ?? null, 
+                                order_number: (s as any).order_number ?? null, 
+                                settlement_date: s.settlement_date 
+                              };
+                              const rows = Array.from({ length: s.quantity_sold }, () => ({ ...base, quantity_sold: 1 }));
+                              let { error: e1 } = await supabase.from('sales').insert(rows as any);
+                              if (e1 && (e1.message?.includes('cost_price') || e1.details?.includes('cost_price'))) {
+                                const fallbackRows = rows.map(({ cost_price, ...rest }) => rest);
+                                const retryResult = await supabase.from('sales').insert(fallbackRows as any);
+                                e1 = retryResult.error;
+                              }
+                              if (e1) { toast({ title: 'Split failed', description: e1.message, variant: 'destructive' }); return; }
+                              await supabase.from('sales').delete().eq('id', s.id);
+                              qc.invalidateQueries({ queryKey: ['sales'] });
+                              toast({ title: `Split into ${rows.length} orders` });
+                            }}><SplitSquareHorizontal className="h-4 w-4" /></Button>
+                          )}
+                          <Button variant="ghost" size="icon" className="h-8 w-8" title="Edit" onClick={() => handleEdit(s)}><Pencil className="h-3.5 w-3.5" /></Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10" title="Delete" onClick={() => handleDelete(s.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
+                        </div>
+                      </TableCell>
+                    )}
+                  </TableRow>
+                );
+              })}
+              {filtered.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={admin ? 11 : 10} className="py-16">
+                    <EmptyState icon={<DollarSign className="h-8 w-8" />} title="No sales found" description="Adjust your filters or record a new sale." />
+                  </TableCell>
                 </TableRow>
-              );
-            })}
-            {filtered.length === 0 && (
-              <TableRow><TableCell colSpan={admin ? 9 : 8} className="text-center text-muted-foreground py-8">No sales found</TableCell></TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      </SectionCard>
 
       <Dialog open={billPreviewOpen} onOpenChange={(o) => { setBillPreviewOpen(o); if (!o) setBillPreview(null); }}>
         <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">

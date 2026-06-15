@@ -11,6 +11,7 @@ import { useToast } from '@/hooks/use-toast';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { AlertTriangle, TrendingUp, Lock, RefreshCw, UserCircle, CalendarClock, ShieldCheck, AlertCircle, Building2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { PageHeader, StatCard, SectionCard, EmptyState } from '@/components/PageHeader';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Switch } from '@/components/ui/switch';
@@ -472,102 +473,97 @@ export default function Invest() {
         </Alert>
       )}
 
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div className="w-full">
-          <h2 className="text-3xl font-bold tracking-tight text-foreground flex items-center gap-2">
-            <TrendingUp className="h-8 w-8 text-indigo-500" />
-            Investor Portal
-          </h2>
-          <p className="text-muted-foreground mt-1">Trade SAVS Buyhub equity with real-time business valuation.</p>
-          
-
-
-          <TabsList className="mt-6">
-            <TabsTrigger value="portfolio">Portfolio & Trading</TabsTrigger>
-            <TabsTrigger value="disclosures">Company Disclosures</TabsTrigger>
-          </TabsList>
-        </div>
-        {!admin && (
-          <div className="flex gap-2">
-
-            <Button size="lg" variant="outline" className="font-bold border-indigo-200 text-indigo-600 hover:bg-indigo-50" onClick={() => setSipDialogOpen(true)}>
-              <CalendarClock className="h-4 w-4 mr-2" /> Start SIP
-            </Button>
-            <Dialog open={sipDialogOpen} onOpenChange={setSipDialogOpen}>
-              <DialogContent className="sm:max-w-md">
-                <DialogHeader><DialogTitle>Create SIP Scheme</DialogTitle></DialogHeader>
-                <div className="space-y-4 pt-4">
-                  <div>
-                    <Label>SIP Amount (₹)</Label>
-                    <Input type="number" placeholder="Min ₹500" value={sipAmount} onChange={e => setSipAmount(e.target.value)} />
-                    <p className="text-xs text-muted-foreground mt-1 text-right">Estimated shares per term: <strong>{sipAmount ? (parseFloat(sipAmount) / currentPrice).toFixed(4) : 0} shares</strong></p>
-                  </div>
-                  <div>
-                    <Label>Frequency</Label>
-                    <Select value={sipFrequency} onValueChange={setSipFrequency}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Weekly">Weekly (Every 7 Days)</SelectItem>
-                        <SelectItem value="Monthly">Monthly (Every 30 Days)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="bg-slate-50 dark:bg-slate-900 border p-3 rounded-lg text-sm">
-                    <p className="font-semibold mb-1 text-indigo-600">Scheme: SAVS BuyHub Equity SIP</p>
-                    <ul className="list-disc pl-4 text-xs text-muted-foreground space-y-1">
-                      <li><strong>Target CAGR:</strong> ~15-20% (Based on historical)</li>
-                      <li><strong>Entry Load:</strong> 0% (No fees to start)</li>
-                      <li><strong>Exit Load:</strong> 2% if withdrawn before 1 year</li>
-                    </ul>
-                  </div>
-                  <div className="flex items-center justify-between border rounded-md p-3">
-                    <div className="space-y-0.5">
-                      <Label>Enable AutoPay</Label>
-                      <p className="text-xs text-muted-foreground">Automatically deduct from registered bank</p>
+      <PageHeader
+        title="Investor Portal"
+        subtitle="Trade SAVS Buyhub equity with real-time business valuation."
+        icon={<TrendingUp className="h-5 w-5 text-indigo-500" />}
+        actions={
+          !admin && (
+            <div className="flex gap-2">
+              <Button size="lg" variant="outline" className="font-bold border-indigo-200 text-indigo-600 hover:bg-indigo-50 animate-in" onClick={() => setSipDialogOpen(true)}>
+                <CalendarClock className="h-4 w-4 mr-2" /> Start SIP
+              </Button>
+              <Dialog open={sipDialogOpen} onOpenChange={setSipDialogOpen}>
+                <DialogContent className="sm:max-w-md">
+                  <DialogHeader><DialogTitle>Create SIP Scheme</DialogTitle></DialogHeader>
+                  <div className="space-y-4 pt-4">
+                    <div>
+                      <Label>SIP Amount (₹)</Label>
+                      <Input type="number" placeholder="Min ₹500" value={sipAmount} onChange={e => setSipAmount(e.target.value)} />
+                      <p className="text-xs text-muted-foreground mt-1 text-right">Estimated shares per term: <strong>{sipAmount ? (parseFloat(sipAmount) / currentPrice).toFixed(4) : 0} shares</strong></p>
                     </div>
-                    <Switch checked={sipAutopay} onCheckedChange={setSipAutopay} />
-                  </div>
-                  <Button className="w-full bg-indigo-600 hover:bg-indigo-700" onClick={handleCreateSip}>Register SIP</Button>
-                </div>
-              </DialogContent>
-            </Dialog>
-
-            <Button size="lg" className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold" onClick={() => setBuyDialogOpen(true)}>
-              Buy Shares (Lumpsum)
-            </Button>
-            <Dialog open={buyDialogOpen} onOpenChange={setBuyDialogOpen}>
-              <DialogContent className="sm:max-w-md">
-                <DialogHeader><DialogTitle>Invest in SAVS BuyHub</DialogTitle></DialogHeader>
-                <div className="space-y-4 pt-4">
-                  <div className="flex justify-between items-center bg-slate-100 dark:bg-slate-900 p-3 rounded-lg border">
-                    <span className="text-sm font-medium">Current Share Price</span>
-                    <span className="text-lg font-bold text-emerald-500">₹{currentPrice}</span>
-                  </div>
-                  <div className="flex flex-col items-center justify-center p-4 bg-white border rounded-lg">
-                    <img src="/assets/upi-qr.png" alt="UPI QR Code" className="w-48 h-48 object-contain mb-2" onError={(e) => {
-                      (e.target as HTMLImageElement).src = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNTAiIGhlaWdodD0iMTUwIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjNmNGY2Ii8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJzYW5zLXNlcmlmIiBmb250LXNpemU9IjE0IiBmaWxsPSIjOWNhM2FmIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBkeT0iLjMiPlFSIENvZGUgUGxhY2Vob2xkZXI8L3RleHQ+PC9zdmc+';
-                    }}/>
-                    <p className="text-sm font-medium text-slate-600">Scan & Pay via any UPI App</p>
-                  </div>
-                  <div>
-                    <Label>Investment Amount (₹)</Label>
-                    <Input type="number" placeholder="Min ₹100" value={buyAmount} onChange={e => setBuyAmount(e.target.value)} />
-                    {buyAmount && parseFloat(buyAmount) >= 100 && (
-                      <div className="text-xs text-muted-foreground mt-2 space-y-1 p-2 bg-slate-50 dark:bg-slate-900 border rounded">
-                        <p className="flex justify-between"><span>Estimated Shares:</span> <strong>{(parseFloat(buyAmount) / currentPrice).toFixed(4)} shares</strong></p>
-                        <p className="flex justify-between"><span>Entry Load:</span> <strong className="text-emerald-500">0% (₹0.00)</strong></p>
-                        <p className="flex justify-between"><span>Lock-in Period:</span> <strong>None (2% Exit Load &lt; 1 yr)</strong></p>
+                    <div>
+                      <Label>Frequency</Label>
+                      <Select value={sipFrequency} onValueChange={setSipFrequency}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Weekly">Weekly (Every 7 Days)</SelectItem>
+                          <SelectItem value="Monthly">Monthly (Every 30 Days)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="bg-slate-50 dark:bg-slate-900 border p-3 rounded-lg text-sm">
+                      <p className="font-semibold mb-1 text-indigo-600">Scheme: SAVS BuyHub Equity SIP</p>
+                      <ul className="list-disc pl-4 text-xs text-muted-foreground space-y-1">
+                        <li><strong>Target CAGR:</strong> ~15-20% (Based on historical)</li>
+                        <li><strong>Entry Load:</strong> 0% (No fees to start)</li>
+                        <li><strong>Exit Load:</strong> 2% if withdrawn before 1 year</li>
+                      </ul>
+                    </div>
+                    <div className="flex items-center justify-between border rounded-md p-3">
+                      <div className="space-y-0.5">
+                        <Label>Enable AutoPay</Label>
+                        <p className="text-xs text-muted-foreground">Automatically deduct from registered bank</p>
                       </div>
-                    )}
+                      <Switch checked={sipAutopay} onCheckedChange={setSipAutopay} />
+                    </div>
+                    <Button className="w-full bg-indigo-600 hover:bg-indigo-700" onClick={handleCreateSip}>Register SIP</Button>
                   </div>
-                  <div><Label>UPI Transaction ID (UTR)</Label><Input placeholder="12-digit UTR number" value={utr} onChange={e => setUtr(e.target.value)} /></div>
-                  <Button className="w-full bg-emerald-500 hover:bg-emerald-600" onClick={handleBuy}>Submit Investment</Button>
-                </div>
-              </DialogContent>
-            </Dialog>
-          </div>
-        )}
-      </div>
+                </DialogContent>
+              </Dialog>
+
+              <Button size="lg" className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold animate-in" onClick={() => setBuyDialogOpen(true)}>
+                Buy Shares (Lumpsum)
+              </Button>
+              <Dialog open={buyDialogOpen} onOpenChange={setBuyDialogOpen}>
+                <DialogContent className="sm:max-w-md">
+                  <DialogHeader><DialogTitle>Invest in SAVS BuyHub</DialogTitle></DialogHeader>
+                  <div className="space-y-4 pt-4">
+                    <div className="flex justify-between items-center bg-slate-100 dark:bg-slate-900 p-3 rounded-lg border">
+                      <span className="text-sm font-medium">Current Share Price</span>
+                      <span className="text-lg font-bold text-emerald-500">₹{currentPrice}</span>
+                    </div>
+                    <div className="flex flex-col items-center justify-center p-4 bg-white border rounded-lg">
+                      <img src="/assets/upi-qr.png" alt="UPI QR Code" className="w-48 h-48 object-contain mb-2" onError={(e) => {
+                        (e.target as HTMLImageElement).src = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNTAiIGhlaWdodD0iMTUwIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjNmNGY2Ii8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJzYW5zLXNlcmlmIiBmb250LXNpemU9IjE0IiBmaWxsPSIjOWNhM2FmIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBkeT0iLjMiPlFSIENvZGUgUGxhY2Vob2xkZXI8L3RleHQ+PC9zdmc+';
+                      }}/>
+                      <p className="text-sm font-medium text-slate-600">Scan & Pay via any UPI App</p>
+                    </div>
+                    <div>
+                      <Label>Investment Amount (₹)</Label>
+                      <Input type="number" placeholder="Min ₹100" value={buyAmount} onChange={e => setBuyAmount(e.target.value)} />
+                      {buyAmount && parseFloat(buyAmount) >= 100 && (
+                        <div className="text-xs text-muted-foreground mt-2 space-y-1 p-2 bg-slate-50 dark:bg-slate-900 border rounded">
+                          <p className="flex justify-between"><span>Estimated Shares:</span> <strong>{(parseFloat(buyAmount) / currentPrice).toFixed(4)} shares</strong></p>
+                          <p className="flex justify-between"><span>Entry Load:</span> <strong className="text-emerald-500">0% (₹0.00)</strong></p>
+                          <p className="flex justify-between"><span>Lock-in Period:</span> <strong>None (2% Exit Load &lt; 1 yr)</strong></p>
+                        </div>
+                      )}
+                    </div>
+                    <div><Label>UPI Transaction ID (UTR)</Label><Input placeholder="12-digit UTR number" value={utr} onChange={e => setUtr(e.target.value)} /></div>
+                    <Button className="w-full bg-emerald-500 hover:bg-emerald-600" onClick={handleBuy}>Submit Investment</Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </div>
+          )
+        }
+      />
+
+      <TabsList className="mt-4 bg-muted/65 p-1 border">
+        <TabsTrigger value="portfolio" className="data-[state=active]:bg-background data-[state=active]:shadow-sm">Portfolio & Trading</TabsTrigger>
+        <TabsTrigger value="disclosures" className="data-[state=active]:bg-background data-[state=active]:shadow-sm">Company Disclosures</TabsTrigger>
+      </TabsList>
 
       <TabsContent value="portfolio" className="space-y-6">
       <div className="grid gap-6 md:grid-cols-3">
@@ -597,136 +593,110 @@ export default function Invest() {
           </CardContent>
         </Card>
 
-        <Card className="col-span-1 md:col-span-2 shadow-lg">
-          <CardHeader className="pb-2">
-            <div className="flex justify-between items-center flex-wrap gap-2">
-              <CardTitle className="text-base flex items-center gap-2">Stock Price History</CardTitle>
-              <div className="flex gap-1 bg-muted p-1 rounded-md">
-                {['1W', '1M', '6M', '1Y', '3Y', '5Y', 'MAX'].map(p => (
-                  <button key={p} onClick={() => setGraphPeriod(p)} className={`px-2 py-1 text-xs font-medium rounded ${graphPeriod === p ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>
-                    {p}
-                  </button>
-                ))}
-              </div>
+        <SectionCard
+          title="Stock Price History"
+          className="col-span-1 md:col-span-2 shadow-sm border-0"
+          action={
+            <div className="flex gap-1 bg-muted p-1 rounded-md">
+              {['1W', '1M', '6M', '1Y', '3Y', '5Y', 'MAX'].map(p => (
+                <button key={p} onClick={() => setGraphPeriod(p)} className={`px-2 py-1 text-xs font-medium rounded ${graphPeriod === p ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>
+                  {p}
+                </button>
+              ))}
             </div>
-          </CardHeader>
-          <CardContent className="pt-2">
-            <div className="h-56">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={filteredTradingData}>
-                  <defs>
-                    <linearGradient id="colorP" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="#4f46e5" stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-                  <XAxis dataKey="time" fontSize={12} tickLine={false} axisLine={false} tick={{ fill: 'hsl(var(--muted-foreground))' }} />
-                  <YAxis domain={['auto', 'auto']} tickFormatter={(v) => `₹${v}`} fontSize={12} tickLine={false} axisLine={false} tick={{ fill: 'hsl(var(--muted-foreground))' }} />
-                  <RechartsTooltip 
-                    contentStyle={{ borderRadius: '8px', border: '1px solid hsl(var(--border))' }}
-                    labelFormatter={(label) => new Date(label).toLocaleDateString(undefined, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}
-                    formatter={(value: number) => [`₹${value.toFixed(2)}`, 'Share Price']}
-                  />
-                  <Area type="monotone" dataKey="price" stroke="#4f46e5" strokeWidth={3} fillOpacity={1} fill="url(#colorP)" />
-                </AreaChart>
-              </ResponsiveContainer>
+          }
+        >
+          <div className="h-56">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={filteredTradingData}>
+                <defs>
+                  <linearGradient id="colorP" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#4f46e5" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
+                <XAxis dataKey="time" fontSize={12} tickLine={false} axisLine={false} tick={{ fill: 'hsl(var(--muted-foreground))' }} />
+                <YAxis domain={['auto', 'auto']} tickFormatter={(v) => `₹${v}`} fontSize={12} tickLine={false} axisLine={false} tick={{ fill: 'hsl(var(--muted-foreground))' }} />
+                <RechartsTooltip 
+                  contentStyle={{ borderRadius: '8px', border: '1px solid hsl(var(--border))' }}
+                  labelFormatter={(label) => new Date(label).toLocaleDateString(undefined, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}
+                  formatter={(value: number) => [`₹${value.toFixed(2)}`, 'Share Price']}
+                />
+                <Area type="monotone" dataKey="price" stroke="#4f46e5" strokeWidth={3} fillOpacity={1} fill="url(#colorP)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+          
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 mt-2 border-t text-sm">
+            <div>
+              <p className="text-muted-foreground text-xs">Start Price</p>
+              <p className="font-semibold">₹{returnAnalysis.startPrice.toFixed(2)}</p>
             </div>
-            
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 mt-2 border-t text-sm">
-              <div>
-                <p className="text-muted-foreground text-xs">Start Price</p>
-                <p className="font-semibold">₹{returnAnalysis.startPrice.toFixed(2)}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground text-xs">Current Price</p>
-                <p className="font-semibold text-indigo-600">₹{returnAnalysis.endPrice.toFixed(2)}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground text-xs">Absolute Return</p>
-                <p className={`font-semibold ${returnAnalysis.absolute >= 0 ? 'text-emerald-500' : 'text-destructive'}`}>
-                  {returnAnalysis.absolute >= 0 ? '+' : ''}{returnAnalysis.absolute.toFixed(2)}%
-                </p>
-              </div>
-              <div>
-                <p className="text-muted-foreground text-xs">CAGR</p>
-                <p className={`font-semibold ${returnAnalysis.cagr >= 0 ? 'text-emerald-500' : 'text-destructive'}`}>
-                  {returnAnalysis.cagr >= 0 ? '+' : ''}{returnAnalysis.cagr.toFixed(2)}%
-                </p>
-              </div>
+            <div>
+              <p className="text-muted-foreground text-xs">Current Price</p>
+              <p className="font-semibold text-indigo-600">₹{returnAnalysis.endPrice.toFixed(2)}</p>
             </div>
-          </CardContent>
-        </Card>
+            <div>
+              <p className="text-muted-foreground text-xs">Absolute Return</p>
+              <p className={`font-semibold ${returnAnalysis.absolute >= 0 ? 'text-emerald-500' : 'text-destructive'}`}>
+                {returnAnalysis.absolute >= 0 ? '+' : ''}{returnAnalysis.absolute.toFixed(2)}%
+              </p>
+            </div>
+            <div>
+              <p className="text-muted-foreground text-xs">CAGR</p>
+              <p className={`font-semibold ${returnAnalysis.cagr >= 0 ? 'text-emerald-500' : 'text-destructive'}`}>
+                {returnAnalysis.cagr >= 0 ? '+' : ''}{returnAnalysis.cagr.toFixed(2)}%
+              </p>
+            </div>
+          </div>
+        </SectionCard>
       </div>
 
       {admin ? (
         <div className="space-y-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Card>
-              <CardContent className="p-4 flex flex-col items-center justify-center text-center">
-                <p className="text-sm text-muted-foreground">Total Capital Raised</p>
-                <p className="text-2xl font-bold text-emerald-600">₹{totalCapitalRaised.toLocaleString()}</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4 flex flex-col items-center justify-center text-center">
-                <p className="text-sm text-muted-foreground">Total Equity Issued</p>
-                <p className="text-2xl font-bold">{totalSharesIssued.toFixed(4)}</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4 flex flex-col items-center justify-center text-center">
-                <p className="text-sm text-muted-foreground">Total Investors</p>
-                <p className="text-2xl font-bold">{uniqueInvestors}</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4 flex flex-col items-center justify-center text-center">
-                <p className="text-sm text-muted-foreground">Pending Requests</p>
-                <p className="text-2xl font-bold text-amber-500">{pendingCount}</p>
-              </CardContent>
-            </Card>
+            <StatCard title="Total Capital Raised" value={`₹${totalCapitalRaised.toLocaleString()}`} color="emerald" icon={<TrendingUp />} />
+            <StatCard title="Total Equity Issued" value={totalSharesIssued.toFixed(4)} color="primary" icon={<ShieldCheck />} />
+            <StatCard title="Total Investors" value={uniqueInvestors} color="slate" icon={<Users />} />
+            <StatCard title="Pending Requests" value={pendingCount} color="amber" icon={<AlertCircle />} />
           </div>
 
-          <Card>
-            <CardHeader>
-              <div className="flex justify-between items-center">
-                <div>
-                  <CardTitle>Admin Investment Management</CardTitle>
-                  <CardDescription>Verify or reject pending investment requests. Exit load of 2% is automated on withdrawal.</CardDescription>
-                </div>
-                <div className="flex gap-2">
-                  {['All', 'Pending', 'Verified', 'Sold', 'Rejected'].map(status => (
-                    <Button 
-                      key={status} 
-                      variant={adminFilter === status ? 'default' : 'outline'} 
-                      size="sm"
-                      onClick={() => setAdminFilter(status)}
-                    >
-                      {status}
-                    </Button>
-                  ))}
-                </div>
+          <SectionCard
+            title="Admin Investment Management"
+            description="Verify or reject pending investment requests. Exit load of 2% is automated on withdrawal."
+            action={
+              <div className="flex gap-2">
+                {['All', 'Pending', 'Verified', 'Sold', 'Rejected'].map(status => (
+                  <Button 
+                    key={status} 
+                    variant={adminFilter === status ? 'default' : 'outline'} 
+                    size="sm"
+                    onClick={() => setAdminFilter(status)}
+                  >
+                    {status}
+                  </Button>
+                ))}
               </div>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Investor</TableHead>
-                      <TableHead>Bank Info</TableHead>
-                      <TableHead>Amount</TableHead>
-                      <TableHead>UTR</TableHead>
-                      <TableHead>Price @ Buy</TableHead>
-                      <TableHead>Shares</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Action</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredAdminInvestments.map(inv => (
+            }
+          >
+            <div className="overflow-x-auto rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Investor</TableHead>
+                    <TableHead>Bank Info</TableHead>
+                    <TableHead>Amount</TableHead>
+                    <TableHead>UTR</TableHead>
+                    <TableHead>Price @ Buy</TableHead>
+                    <TableHead>Shares</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Action</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredAdminInvestments.map(inv => (
                     <TableRow key={inv.id}>
                       <TableCell>{new Date(inv.created_at).toLocaleDateString()}</TableCell>
                       <TableCell>
@@ -762,55 +732,30 @@ export default function Invest() {
                       </TableCell>
                     </TableRow>
                   ))}
-                               {filteredAdminInvestments.length === 0 && (
-                      <TableRow><TableCell colSpan={8} className="text-center py-6 text-muted-foreground">No investments found</TableCell></TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-          </Card>
+                  {filteredAdminInvestments.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={9} className="py-12">
+                        <EmptyState icon={<TrendingUp className="h-8 w-8" />} title="No investments found" description="Adjust your filters or verify pending logs." />
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </SectionCard>
         </div>
       ) : (
         <div className="space-y-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Card className="glass-card shadow-sm border-0">
-              <CardContent className="p-4 flex flex-col items-center justify-center text-center">
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Total Invested</p>
-                <p className="text-3xl font-bold text-indigo-600 dark:text-indigo-400 mt-1">₹{totalMyInvested.toLocaleString()}</p>
-              </CardContent>
-            </Card>
-            <Card className="glass-card shadow-sm border-0">
-              <CardContent className="p-4 flex flex-col items-center justify-center text-center">
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Current Value</p>
-                <p className={`text-3xl font-bold mt-1 ${totalMyValue > totalMyInvested ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-800 dark:text-slate-200'}`}>
-                  ₹{totalMyValue.toLocaleString()}
-                </p>
-              </CardContent>
-            </Card>
-            <Card className="glass-card shadow-sm border-0">
-              <CardContent className="p-4 flex flex-col items-center justify-center text-center">
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Absolute Return</p>
-                <p className={`text-3xl font-bold mt-1 ${totalMyValue - totalMyInvested >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
-                  {totalMyInvested > 0 ? (((totalMyValue - totalMyInvested) / totalMyInvested) * 100).toFixed(2) : 0}%
-                </p>
-              </CardContent>
-            </Card>
-            <Card className="glass-card shadow-sm border-0">
-              <CardContent className="p-4 flex flex-col items-center justify-center text-center">
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Active SIPs</p>
-                <p className="text-3xl font-bold text-slate-800 dark:text-slate-200 mt-1">{sips.length}</p>
-              </CardContent>
-            </Card>
+            <StatCard title="Total Invested" value={`₹${totalMyInvested.toLocaleString()}`} color="primary" icon={<TrendingUp />} />
+            <StatCard title="Current Value" value={`₹${totalMyValue.toLocaleString()}`} color={totalMyValue > totalMyInvested ? "emerald" : "slate"} icon={<TrendingUp />} />
+            <StatCard title="Absolute Return" value={`${totalMyInvested > 0 ? (((totalMyValue - totalMyInvested) / totalMyInvested) * 100).toFixed(2) : 0}%`} color={totalMyValue >= totalMyInvested ? "emerald" : "red"} icon={<TrendingUp />} />
+            <StatCard title="Active SIPs" value={sips.length} color="slate" icon={<CalendarClock />} />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Card className="glass-card shadow-sm border-0">
-              <CardHeader>
-                <CardTitle className="text-base font-semibold">Asset Allocation</CardTitle>
-                <CardDescription>Your equity vs total platform equity</CardDescription>
-              </CardHeader>
-              <CardContent className="flex justify-center h-64">
+            <SectionCard title="Asset Allocation" description="Your equity vs total platform equity" className="glass-card shadow-sm border-0">
+              <div className="flex justify-center h-64">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
@@ -826,15 +771,11 @@ export default function Invest() {
                     <RechartsTooltip formatter={(value: number) => value.toFixed(4)} />
                   </PieChart>
                 </ResponsiveContainer>
-              </CardContent>
-            </Card>
+              </div>
+            </SectionCard>
 
-            <Card className="glass-card shadow-sm border-0">
-              <CardHeader>
-                <CardTitle className="text-base font-semibold">Portfolio Performance</CardTitle>
-                <CardDescription>Capital appreciation visualization</CardDescription>
-              </CardHeader>
-              <CardContent className="flex justify-center h-64">
+            <SectionCard title="Portfolio Performance" description="Capital appreciation visualization" className="glass-card shadow-sm border-0">
+              <div className="flex justify-center h-64">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
@@ -850,48 +791,44 @@ export default function Invest() {
                     <RechartsTooltip formatter={(value: number) => `₹${value.toFixed(2)}`} />
                   </PieChart>
                 </ResponsiveContainer>
-              </CardContent>
-            </Card>
+              </div>
+            </SectionCard>
           </div>
 
-          <Card className="glass-card shadow-sm border-0 mt-6">
-            <CardHeader>
-              <div className="flex justify-between items-center">
-                <div>
-                  <CardTitle>My Transaction Ledger</CardTitle>
-                  <CardDescription>A complete history of your deposits, share allotments, and withdrawals.</CardDescription>
-                </div>
-                <Button variant="outline" size="sm" onClick={handleExportLedger}>
-                  <Download className="h-4 w-4 mr-2" />
-                  Account Statement
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto rounded-md border mb-6">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Amount Invested</TableHead>
-                      <TableHead>Shares</TableHead>
-                      <TableHead>Buy Price</TableHead>
-                      <TableHead>Current Value</TableHead>
-                      <TableHead>Exit Load</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Action</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {myInvestments.map(inv => {
-                      const buyDate = new Date(inv.created_at);
+          <SectionCard
+            title="My Transaction Ledger"
+            description="A complete history of your deposits, share allotments, and withdrawals."
+            className="glass-card shadow-sm border-0 mt-6"
+            action={
+              <Button variant="outline" size="sm" onClick={handleExportLedger}>
+                <Download className="h-4 w-4 mr-2" />
+                Account Statement
+              </Button>
+            }
+          >
+            <div className="overflow-x-auto rounded-md border mb-6">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Amount Invested</TableHead>
+                    <TableHead>Shares</TableHead>
+                    <TableHead>Buy Price</TableHead>
+                    <TableHead>Current Value</TableHead>
+                    <TableHead>Exit Load</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Action</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {myInvestments.map(inv => {
+                    const buyDate = new Date(inv.created_at);
                     const oneYearLater = new Date(buyDate);
                     oneYearLater.setFullYear(oneYearLater.getFullYear() + 1);
                     const now = new Date();
                     const hasExitLoad = now < oneYearLater;
                     
                     const currentValue = inv.shares ? inv.shares * currentPrice : 0;
-                    // Apply 2% exit load if sold before 1 year
                     const currentValueAfterFee = hasExitLoad ? currentValue * 0.98 : currentValue;
                     const profit = currentValueAfterFee - inv.amount;
 
@@ -942,78 +879,78 @@ export default function Invest() {
                       </TableRow>
                     );
                   })}
-                    {myInvestments.length === 0 && (
-                      <TableRow><TableCell colSpan={8} className="text-center py-6 text-muted-foreground">You haven't made any transactions yet.</TableCell></TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-          </Card>
+                  {myInvestments.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={8} className="py-12">
+                        <EmptyState icon={<TrendingUp className="h-8 w-8" />} title="No transactions yet" description="You haven't made any transactions yet." />
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </SectionCard>
         </div>
       )}
       </TabsContent>
 
-      <TabsContent value="disclosures" className="space-y-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Company Financial Disclosures</CardTitle>
-            <CardDescription>Transparent historical performance and dividend history.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-6">
-              {disclosedPeriods.map((dp, i) => {
-                const netProfit = calculateNetProfit(dp.sales_data || [], dp.inventory_snapshot || [], dp.returns_data || [], dp.ad_expenses_data || []);
-                const rev = (dp.sales_data || []).reduce((sum: number, s: any) => sum + (s.quantity_sold * s.average_selling_price), 0);
-                
-                return (
-                  <div key={dp.id} className="border rounded-lg p-5 bg-card relative overflow-hidden">
-                    <div className="absolute top-0 right-0 p-4">
-                      {dp.dividend_declared > 0 ? (
-                        <Badge className="bg-emerald-500">{dp.dividend_declared}% Dividend Declared</Badge>
-                      ) : (
-                        <Badge variant="secondary">Earnings Reinvested</Badge>
-                      )}
-                    </div>
-                    <div className="mb-4">
-                      <h3 className="text-xl font-bold">{dp.period_name}</h3>
-                      <p className="text-sm text-muted-foreground">Published on {new Date(dp.created_at).toLocaleDateString()}</p>
-                    </div>
-                    
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                      <div>
-                        <p className="text-xs text-muted-foreground">Revenue</p>
-                        <p className="font-semibold">₹{rev.toLocaleString()}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Net Profit</p>
-                        <p className={`font-semibold ${netProfit >= 0 ? 'text-emerald-500' : 'text-destructive'}`}>
-                          ₹{netProfit.toLocaleString()}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Sales Volume</p>
-                        <p className="font-semibold">{(dp.sales_data || []).reduce((sum: number, s: any) => sum + s.quantity_sold, 0)} units</p>
-                      </div>
-                    </div>
-
-                    {dp.notes && (
-                      <div className="bg-slate-50 dark:bg-slate-900 p-3 rounded-md mt-4 border text-sm">
-                        <strong className="block mb-1">Board Notes:</strong>
-                        <p className="text-slate-700 dark:text-slate-300">{dp.notes}</p>
-                      </div>
+      <TabsContent value="disclosures" className="space-y-6 animate-in">
+        <SectionCard
+          title="Company Financial Disclosures"
+          description="Transparent historical performance and dividend history."
+        >
+          <div className="space-y-6">
+            {disclosedPeriods.map((dp, i) => {
+              const netProfit = calculateNetProfit(dp.sales_data || [], dp.inventory_snapshot || [], dp.returns_data || [], dp.ad_expenses_data || []);
+              const rev = (dp.sales_data || []).reduce((sum: number, s: any) => sum + (s.quantity_sold * s.average_selling_price), 0);
+              
+              return (
+                <div key={dp.id} className="border rounded-lg p-5 bg-card relative overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+                  <div className="absolute top-0 right-0 p-4">
+                    {dp.dividend_declared > 0 ? (
+                      <Badge className="bg-emerald-500">{dp.dividend_declared}% Dividend Declared</Badge>
+                    ) : (
+                      <Badge variant="secondary">Earnings Reinvested</Badge>
                     )}
                   </div>
-                );
-              })}
-              {disclosedPeriods.length === 0 && (
-                <div className="text-center py-12 border rounded-lg bg-slate-50 dark:bg-slate-900">
-                  <p className="text-muted-foreground">No historical financial disclosures available yet.</p>
+                  <div className="mb-4">
+                    <h3 className="text-xl font-bold">{dp.period_name}</h3>
+                    <p className="text-sm text-muted-foreground">Published on {new Date(dp.created_at).toLocaleDateString()}</p>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Revenue</p>
+                      <p className="font-semibold">₹{rev.toLocaleString()}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Net Profit</p>
+                      <p className={`font-semibold ${netProfit >= 0 ? 'text-emerald-500' : 'text-destructive'}`}>
+                        ₹{netProfit.toLocaleString()}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Sales Volume</p>
+                      <p className="font-semibold">{(dp.sales_data || []).reduce((sum: number, s: any) => sum + s.quantity_sold, 0)} units</p>
+                    </div>
+                  </div>
+
+                  {dp.notes && (
+                    <div className="bg-slate-50 dark:bg-slate-900 p-3 rounded-md mt-4 border text-sm">
+                      <strong className="block mb-1">Board Notes:</strong>
+                      <p className="text-slate-700 dark:text-slate-300">{dp.notes}</p>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+              );
+            })}
+            {disclosedPeriods.length === 0 && (
+              <div className="text-center py-12 border rounded-lg bg-slate-50 dark:bg-slate-900">
+                <p className="text-muted-foreground">No historical financial disclosures available yet.</p>
+              </div>
+            )}
+          </div>
+        </SectionCard>
       </TabsContent>
       </Tabs>
 

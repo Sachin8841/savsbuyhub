@@ -201,14 +201,14 @@ export default function Dashboard() {
   // Expenses breakdown for pie chart
   const expensePieData = useMemo(() => {
     const adSpend = filteredAdExpenses.filter(e => e.category === 'Ads' || !e.category || e.category === 'Other' || e.category === 'Packaging' || e.category === 'Software').reduce((s, e) => s + e.amount, 0);
-    const deliveryExpenses = filteredAdExpenses.filter(e => (e.category as string)?.includes('Delivery') || (e.category as string)?.includes('Freight')).reduce((s, e) => s + e.amount, 0) + totalDeliveryFees;
+    const deliveryExpenses = filteredAdExpenses.filter(e => (e.category as string)?.includes('Delivery') || (e.category as string)?.includes('Freight')).reduce((s, e) => s + e.amount, 0) + totalInventoryDeliveryFees;
     const penaltiesTotal = totalPenalties;
     return [
       { name: 'Ads & Marketing', value: Math.round(adSpend), color: 'hsl(224, 76%, 48%)' },
       { name: 'Delivery Fees', value: Math.round(deliveryExpenses), color: 'hsl(38, 92%, 50%)' },
       { name: 'Return Penalties', value: Math.round(penaltiesTotal), color: 'hsl(0, 84%, 60%)' },
     ].filter(d => d.value > 0);
-  }, [filteredAdExpenses, totalDeliveryFees, totalPenalties]);
+  }, [filteredAdExpenses, totalInventoryDeliveryFees, totalPenalties]);
 
   const handleAdSubmit = async () => {
     if (!adForm.platform || !adForm.amount) return;
@@ -264,7 +264,7 @@ export default function Dashboard() {
     { title: 'Pending Payments', value: fmt(pendingPayments), icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50 dark:bg-amber-950' },
     { title: 'Stock Value', value: fmt(stockHoldingValue), icon: Warehouse, color: 'text-primary', bg: 'bg-primary/10' },
     { title: 'Returns', value: `${totalReturnedQty} units`, subtitle: `${returnRate}% rate · ${fmt(totalPenalties)} penalty`, icon: AlertTriangle, color: 'text-destructive', bg: 'bg-destructive/10' },
-    { title: 'Total Expenses', value: fmt(totalAdSpend + totalDeliveryFees + totalPenalties), subtitle: `Ads ${fmt(totalAdSpend)} · Del ${fmt(totalDeliveryFees)} · Pen ${fmt(totalPenalties)}`, icon: Megaphone, color: 'text-amber-600', bg: 'bg-amber-50 dark:bg-amber-950' },
+    { title: 'Total Expenses', value: fmt(totalAdSpend + totalInventoryDeliveryFees + totalPenalties), subtitle: `Ads ${fmt(totalAdSpend)} · Del ${fmt(totalInventoryDeliveryFees)} · Pen ${fmt(totalPenalties)}`, icon: Megaphone, color: 'text-amber-600', bg: 'bg-amber-50 dark:bg-amber-950' },
   ];
 
   const CustomTooltip = ({ active, payload, label }: any) => {

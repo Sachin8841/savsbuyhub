@@ -13,7 +13,8 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { exportToXlsx } from '@/lib/xlsx-export';
-import { Plus, Download, Trash2, Search, AlertTriangle, Package, Activity, Frown } from 'lucide-react';
+import { Plus, Download, Trash2, Search, AlertTriangle, Package, Activity, Frown, RotateCcw } from 'lucide-react';
+import { PageHeader, StatCard, SectionCard, EmptyState } from '@/components/PageHeader';
 import { CsvImportButton } from '@/components/CsvImportButton';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { useForm, Controller } from 'react-hook-form';
@@ -180,30 +181,27 @@ export default function Returns() {
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <h2 className="text-2xl font-bold">Returns</h2>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={handleExport}><Download className="mr-1 h-4 w-4" />Export Excel</Button>
+    <div className="space-y-5 animate-in">
+      <PageHeader
+        title="Returns"
+        subtitle={`${returns.length} total returns · ${fmt(totalPenalty)} in penalties`}
+        icon={<RotateCcw className="h-5 w-5 text-red-500" />}
+        actions={<>
+          <Button variant="outline" size="sm" onClick={handleExport} className="gap-1.5"><Download className="h-4 w-4" />Export</Button>
           {admin && <CsvImportButton onImport={handleImport} expectedColumns={['sku', 'return_type', 'quantity_returned', 'return_date']} label="Import CSV" />}
           {admin && (
             <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) form.reset(); }}>
-              <DialogTrigger asChild><Button size="sm"><Plus className="mr-1 h-4 w-4" />Log Return</Button></DialogTrigger>
+              <DialogTrigger asChild><Button size="sm" className="gap-1.5 bg-gradient-to-r from-red-600 to-rose-500 hover:from-red-700 hover:to-rose-600 shadow-sm"><Plus className="h-4 w-4" />Log Return</Button></DialogTrigger>
               <DialogContent>
                 <DialogHeader><DialogTitle>Log Return</DialogTitle></DialogHeader>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                  <div>
-                    <Label>Return Date</Label>
-                    <Input type="date" {...form.register('return_date')} />
-                  </div>
+                  <div><Label>Return Date</Label><Input type="date" {...form.register('return_date')} /></div>
                   <div>
                     <Label>Product</Label>
                     <Controller name="inventory_id" control={form.control} render={({ field }) => (
                       <Select value={field.value} onValueChange={field.onChange}>
                         <SelectTrigger><SelectValue placeholder="Select product" /></SelectTrigger>
-                        <SelectContent>
-                          {inventory.map(i => <SelectItem key={i.id} value={i.id}>{i.sku} - {i.product_name}</SelectItem>)}
-                        </SelectContent>
+                        <SelectContent>{inventory.map(i => <SelectItem key={i.id} value={i.id}>{i.sku} - {i.product_name}</SelectItem>)}</SelectContent>
                       </Select>
                     )} />
                     {form.formState.errors.inventory_id && <p className="text-sm text-destructive">{form.formState.errors.inventory_id.message}</p>}
@@ -226,28 +224,25 @@ export default function Returns() {
               </DialogContent>
             </Dialog>
           )}
-        </div>
+        </>}
+      />
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <StatCard title="Total Units Returned" value={`${totalReturns}`} subtitle="All time" icon={<Package />} color="slate" />
+        <StatCard title="Penalty Costs" value={fmt(totalPenalty)} icon={<AlertTriangle />} color="red" />
+        <StatCard title="In Transit" value={inTransit} icon={<Activity />} color="amber" />
+        <StatCard title="Received" value={received} icon={<Package />} color="emerald" />
       </div>
 
-      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
-        <Card className="glass-card bg-gradient-to-br from-slate-50 to-white dark:from-slate-900 dark:to-slate-950 border-slate-200 dark:border-slate-800"><CardContent className="p-4 flex items-center gap-3"><div className="h-10 w-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center"><Package className="h-5 w-5 text-slate-600 dark:text-slate-300" /></div><div><p className="text-xs font-semibold text-muted-foreground uppercase">Total Returns</p><p className="font-bold text-2xl mt-1">{totalReturns} <span className="text-sm font-normal text-muted-foreground">units</span></p></div></CardContent></Card>
-        <Card className="glass-card bg-gradient-to-br from-red-50 to-white dark:from-red-950/20 dark:to-slate-950 border-red-100 dark:border-red-900/50"><CardContent className="p-4 flex items-center gap-3"><div className="h-10 w-10 rounded-full bg-red-100 dark:bg-red-900/50 flex items-center justify-center"><AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400" /></div><div><p className="text-xs font-semibold text-muted-foreground uppercase">Penalty Costs</p><p className="font-bold text-2xl text-red-600 dark:text-red-400 mt-1">{fmt(totalPenalty)}</p></div></CardContent></Card>
-        <Card className="glass-card bg-gradient-to-br from-amber-50 to-white dark:from-amber-950/20 dark:to-slate-950 border-amber-100 dark:border-amber-900/50"><CardContent className="p-4 flex items-center gap-3"><div className="h-10 w-10 rounded-full bg-amber-100 dark:bg-amber-900/50 flex items-center justify-center"><Activity className="h-5 w-5 text-amber-600 dark:text-amber-400" /></div><div><p className="text-xs font-semibold text-muted-foreground uppercase">In Transit</p><p className="font-bold text-2xl mt-1 text-amber-600 dark:text-amber-400">{inTransit}</p></div></CardContent></Card>
-        <Card className="glass-card bg-gradient-to-br from-emerald-50 to-white dark:from-emerald-950/20 dark:to-slate-950 border-emerald-100 dark:border-emerald-900/50"><CardContent className="p-4 flex items-center gap-3"><div className="h-10 w-10 rounded-full bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center"><Package className="h-5 w-5 text-emerald-600 dark:text-emerald-400" /></div><div><p className="text-xs font-semibold text-muted-foreground uppercase">Received</p><p className="font-bold text-2xl mt-1 text-emerald-600 dark:text-emerald-400">{received}</p></div></CardContent></Card>
-      </div>
-
-      <Card className="glass-card shadow-sm border-0">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-semibold flex items-center gap-2"><Frown className="h-4 w-4 text-red-500" /> Top Problematic SKUs (Highest Penalty)</CardTitle>
-        </CardHeader>
-        <CardContent className="h-52 pt-0">
+      <SectionCard title="Top Problematic SKUs" description="Sorted by highest penalty cost" noPadding={false}>
+        <div className="h-52">
           {topPenalizedSkus.length > 0 ? (
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={topPenalizedSkus} layout="vertical" margin={{ top: 10, right: 30, left: 20, bottom: 0 }}>
+              <BarChart data={topPenalizedSkus} layout="vertical" margin={{ top: 4, right: 20, left: 16, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="hsl(var(--border))" />
                 <XAxis type="number" tickFormatter={(v) => `₹${v}`} fontSize={11} tickLine={false} axisLine={false} />
                 <YAxis dataKey="sku" type="category" fontSize={11} width={80} tickLine={false} axisLine={false} />
-                <Tooltip formatter={(val: number) => `₹${val}`} />
+                <Tooltip formatter={(val: number) => [`₹${val}`, 'Penalty']} contentStyle={{ borderRadius: '8px', fontSize: '12px' }} />
                 <Bar dataKey="penalty" radius={[0, 4, 4, 0]} barSize={20}>
                   {topPenalizedSkus.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={index === 0 ? "hsl(0, 84%, 60%)" : "hsl(0, 84%, 60%, 0.6)"} />
@@ -256,92 +251,98 @@ export default function Returns() {
               </BarChart>
             </ResponsiveContainer>
           ) : (
-            <div className="flex h-full items-center justify-center text-muted-foreground text-sm">No return penalties recorded.</div>
+            <EmptyState icon={<Frown className="h-8 w-8" />} title="No penalty data" description="No return penalties recorded yet." />
           )}
-        </CardContent>
-      </Card>
-
-      <div className="flex flex-wrap gap-3">
-        <div className="relative max-w-sm flex-1">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input placeholder="Search returns..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
         </div>
-        <Select value={typeFilter} onValueChange={setTypeFilter}>
-          <SelectTrigger className="w-40"><SelectValue placeholder="Type" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Types</SelectItem>
-            <SelectItem value="Customer Return">Customer Return</SelectItem>
-            <SelectItem value="RTO">RTO</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-40"><SelectValue placeholder="Status" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Statuses</SelectItem>
-            <SelectItem value="In Transit">In Transit</SelectItem>
-            <SelectItem value="Received">Received</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+      </SectionCard>
 
-      <div className="overflow-x-auto rounded-lg border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Return Date</TableHead>
-              <TableHead>SKU</TableHead>
-              <TableHead>Product</TableHead>
-              <TableHead>Platform</TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead className="text-right">Qty</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Delivered</TableHead>
-              <TableHead className="text-right">Penalty</TableHead>
-              {admin && <TableHead className="text-right">Actions</TableHead>}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filtered.map(r => {
-              const sale = r.sales as any;
-              const inv = (r as any).inventory ?? sale?.inventory ?? inventory.find(i => i.id === r.inventory_id);
-              return (
-                <TableRow key={r.id}>
-                  <TableCell>{r.return_date ?? '—'}</TableCell>
-                  <TableCell className="font-mono text-sm">{inv?.sku ?? '—'}</TableCell>
-                  <TableCell>{inv?.product_name ?? '—'}</TableCell>
-                  <TableCell><Badge variant="secondary">{sale?.platform ?? '—'}</Badge></TableCell>
-                  <TableCell><Badge variant={r.return_type === 'RTO' ? 'outline' : 'secondary'}>{r.return_type}</Badge></TableCell>
-                  <TableCell className="text-right">{r.quantity_returned}</TableCell>
-                  <TableCell>
-                    {admin ? (
-                      <Button
-                        variant={r.delivery_status === 'Received' ? 'default' : 'outline'}
-                        size="sm"
-                        className="text-xs h-7"
-                        onClick={() => toggleDeliveryStatus(r)}
-                      >
-                        {r.delivery_status}
-                      </Button>
-                    ) : (
-                      <Badge variant={r.delivery_status === 'Received' ? 'default' : 'outline'}>{r.delivery_status}</Badge>
-                    )}
-                  </TableCell>
-                  <TableCell>{r.delivered_date ?? '—'}</TableCell>
-                  <TableCell className="text-right">₹{r.penalty_amount}</TableCell>
-                  {admin && (
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="icon" onClick={() => handleDelete(r.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+      <SectionCard
+        title="Returns Ledger"
+        description={`${filtered.length} records`}
+        action={
+          <div className="flex flex-wrap gap-2">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input placeholder="Search returns..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9 h-8 w-48 text-sm" />
+            </div>
+            <Select value={typeFilter} onValueChange={setTypeFilter}>
+              <SelectTrigger className="w-36 h-8 text-sm"><SelectValue placeholder="Type" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Types</SelectItem>
+                <SelectItem value="Customer Return">Customer Return</SelectItem>
+                <SelectItem value="RTO">RTO</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-36 h-8 text-sm"><SelectValue placeholder="Status" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="In Transit">In Transit</SelectItem>
+                <SelectItem value="Received">Received</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        }
+        noPadding
+      >
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/30">
+                <TableHead className="font-semibold">Return Date</TableHead>
+                <TableHead className="font-semibold">SKU</TableHead>
+                <TableHead className="font-semibold">Product</TableHead>
+                <TableHead className="font-semibold">Platform</TableHead>
+                <TableHead className="font-semibold">Type</TableHead>
+                <TableHead className="text-right font-semibold">Qty</TableHead>
+                <TableHead className="font-semibold">Status</TableHead>
+                <TableHead className="font-semibold">Delivered</TableHead>
+                <TableHead className="text-right font-semibold">Penalty</TableHead>
+                {admin && <TableHead className="text-right font-semibold">Actions</TableHead>}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filtered.map(r => {
+                const sale = r.sales as any;
+                const inv = (r as any).inventory ?? sale?.inventory ?? inventory.find(i => i.id === r.inventory_id);
+                return (
+                  <TableRow key={r.id} className="hover:bg-primary/5 transition-colors group">
+                    <TableCell className="text-muted-foreground text-sm">{r.return_date ?? '—'}</TableCell>
+                    <TableCell className="font-mono text-xs font-medium text-primary">{inv?.sku ?? '—'}</TableCell>
+                    <TableCell className="font-medium">{inv?.product_name ?? '—'}</TableCell>
+                    <TableCell><Badge variant="secondary" className="text-xs">{sale?.platform ?? '—'}</Badge></TableCell>
+                    <TableCell>
+                      <Badge variant={r.return_type === 'RTO' ? 'outline' : 'secondary'} className={`text-xs ${r.return_type === 'Customer Return' ? 'bg-red-50 text-red-700 border-red-200 dark:bg-red-950 dark:text-red-300' : ''}` }>{r.return_type}</Badge>
                     </TableCell>
-                  )}
+                    <TableCell className="text-right font-semibold">{r.quantity_returned}</TableCell>
+                    <TableCell>
+                      {admin ? (
+                        <Button variant={r.delivery_status === 'Received' ? 'default' : 'outline'} size="sm" className="text-xs h-6 px-2" onClick={() => toggleDeliveryStatus(r)}>{r.delivery_status}</Button>
+                      ) : (
+                        <Badge variant={r.delivery_status === 'Received' ? 'default' : 'outline'} className="text-xs">{r.delivery_status}</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{r.delivered_date ?? '—'}</TableCell>
+                    <TableCell className="text-right font-semibold text-red-600 dark:text-red-400">₹{r.penalty_amount}</TableCell>
+                    {admin && (
+                      <TableCell className="text-right">
+                        <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:bg-destructive/10" onClick={() => handleDelete(r.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
+                      </TableCell>
+                    )}
+                  </TableRow>
+                );
+              })}
+              {filtered.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={admin ? 10 : 9} className="py-16">
+                    <EmptyState icon={<RotateCcw className="h-8 w-8" />} title="No returns found" description="Log a return or adjust your filters." />
+                  </TableCell>
                 </TableRow>
-              );
-            })}
-            {filtered.length === 0 && (
-              <TableRow><TableCell colSpan={admin ? 10 : 9} className="text-center text-muted-foreground py-8">No returns found</TableCell></TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      </SectionCard>
     </div>
   );
 }

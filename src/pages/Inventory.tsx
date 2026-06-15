@@ -11,7 +11,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { useToast } from '@/hooks/use-toast';
 import { exportToXlsx } from '@/lib/xlsx-export';
 import { Card, CardContent } from '@/components/ui/card';
-import { Plus, Download, Pencil, Trash2, Search, AlertTriangle, PackagePlus } from 'lucide-react';
+import { Plus, Download, Pencil, Trash2, Search, AlertTriangle, PackagePlus, Package, Boxes, TrendingUp, BarChart2 } from 'lucide-react';
+import { PageHeader, StatCard, SectionCard, EmptyState } from '@/components/PageHeader';
 import { CsvImportButton } from '@/components/CsvImportButton';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useForm } from 'react-hook-form';
@@ -218,14 +219,17 @@ export default function Inventory() {
     return { success, errors };
   };
 
+  const totalSkus = inventory.length;
+  const lowStockCount = inventory.filter(i => (currentStocks[i.id] ?? 0) <= 5).length;
+  const totalBulk = inventory.reduce((s, i) => s + i.total_bulk_stock_in, 0);
+
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-bold">Inventory</h2>
-          <p className="text-sm text-muted-foreground">Stock Holding Value: <span className="font-semibold text-primary">{fmt(totalStockValue)}</span></p>
-        </div>
-        <div className="flex gap-2">
+    <div className="space-y-5 animate-in">
+      <PageHeader
+        title="Inventory"
+        subtitle={`${totalSkus} SKUs · Stock Holding Value: ${fmt(totalStockValue)}`}
+        icon={<Package className="h-5 w-5 text-indigo-500" />}
+        actions={<>
           <Button variant="outline" size="sm" onClick={handleExport}><Download className="mr-1 h-4 w-4" />Export Excel</Button>
           {admin && <CsvImportButton onImport={handleImport} expectedColumns={['sku', 'product_name', 'average_cost_price', 'average_selling_price', 'total_bulk_stock_in']} label="Import CSV" />}
           {admin && (
@@ -317,86 +321,100 @@ export default function Inventory() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="md:col-span-1 glass-card shadow-sm border-0 bg-gradient-to-br from-indigo-50 to-white dark:from-slate-900 dark:to-slate-950">
-          <CardContent className="p-6 flex flex-col justify-center h-full">
-            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Total Locked Capital</h3>
-            <p className="text-4xl font-bold text-indigo-600 dark:text-indigo-400">{fmt(totalStockValue)}</p>
-            <p className="text-sm mt-4 text-slate-500">Capital tied up in physical inventory across <span className="font-semibold text-slate-700 dark:text-slate-300">{filtered.length} SKUs</span>.</p>
-          </CardContent>
-        </Card>
-        <Card className="md:col-span-2 glass-card shadow-sm border-0 h-48">
-          <CardContent className="p-4 h-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={filtered.map(i => {
-                return { name: i.sku, value: (currentStocks[i.id] ?? 0) * (i.average_cost_price || 0) };
-              }).sort((a,b) => b.value - a.value).slice(0, 10)}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-                <XAxis dataKey="name" fontSize={10} tickLine={false} axisLine={false} />
-                <YAxis tickFormatter={(v) => `₹${v}`} fontSize={10} tickLine={false} axisLine={false} />
-                <Tooltip formatter={(v: number) => `₹${v.toFixed(2)}`} cursor={{ fill: 'transparent' }} />
-                <Bar dataKey="value" fill="hsl(238, 81%, 65%)" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
+      {/* KPI Row */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <StatCard title="Locked Capital" value={fmt(totalStockValue)} icon={<Package />} color="primary" subtitle={`${totalSkus} SKUs`} />
+        <StatCard title="Total Stock In" value={totalBulk.toLocaleString()} icon={<Boxes />} color="slate" subtitle="All batches" />
+        <StatCard title="Low Stock" value={lowStockCount} icon={<AlertTriangle />} color={lowStockCount > 0 ? 'amber' : 'emerald'} subtitle="≤ 5 units remaining" />
+        <StatCard title="Unique SKUs" value={totalSkus} icon={<BarChart2 />} color="slate" subtitle="Tracked products" />
       </div>
 
-      <div className="relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input placeholder="Search inventory..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
-      </div>
+      {/* Chart */}
+      <SectionCard title="Top 10 SKUs by Stock Value" noPadding={false}>
+        <div className="h-48">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={filtered.map(i => ({ name: i.sku, value: (currentStocks[i.id] ?? 0) * (i.average_cost_price || 0) })).sort((a,b) => b.value - a.value).slice(0, 10)}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
+              <XAxis dataKey="name" fontSize={10} tickLine={false} axisLine={false} />
+              <YAxis tickFormatter={(v) => `₹${(v/1000).toFixed(0)}k`} fontSize={10} tickLine={false} axisLine={false} />
+              <Tooltip formatter={(v: number) => [`₹${v.toLocaleString('en-IN')}`, 'Stock Value']} contentStyle={{ borderRadius: '8px', fontSize: '12px' }} cursor={{ fill: 'hsl(var(--primary)/0.05)' }} />
+              <Bar dataKey="value" fill="hsl(238, 81%, 65%)" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </SectionCard>
 
-      <div className="overflow-x-auto rounded-lg border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>SKU</TableHead>
-              <TableHead>Product Name</TableHead>
-              <TableHead className="text-right">Cost Price</TableHead>
-              <TableHead className="text-right">Selling Price</TableHead>
-              <TableHead className="text-right">Current Stock</TableHead>
-              <TableHead className="text-right">Delivery Fee</TableHead>
-              <TableHead>Stock Added</TableHead>
-              {admin && <TableHead className="text-right">Actions</TableHead>}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filtered.map(item => (
-              <TableRow key={item.id}>
-                <TableCell className="font-mono text-sm">{item.sku}</TableCell>
-                <TableCell>{item.product_name}</TableCell>
-                <TableCell className="text-right">{fmt(item.average_cost_price)}</TableCell>
-                <TableCell className="text-right">{fmt(item.average_selling_price ?? 0)}</TableCell>
-                <TableCell className="text-right font-semibold">
-                  <div className="flex items-center justify-end gap-2">
-                    {(currentStocks[item.id] ?? 0) <= 5 && (
-                      <AlertTriangle className="h-4 w-4 text-amber-500" title="Low Stock Warning" />
-                    )}
-                    {currentStocks[item.id] ?? '—'}
-                  </div>
-                </TableCell>
-                <TableCell className="text-right">{fmt(item.delivery_fee ?? 0)}</TableCell>
-                <TableCell>{(item as any).stock_added_date ?? '—'}</TableCell>
-                {admin && (
-                  <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      {!/_B\d+$/.test(item.sku) && (
-                        <Button variant="ghost" size="icon" title="Restock (New Batch)" onClick={() => handleRestockInit(item)} className="text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50"><PackagePlus className="h-4 w-4" /></Button>
-                      )}
-                      <Button variant="ghost" size="icon" title="Edit Item" onClick={() => handleEdit(item)}><Pencil className="h-4 w-4" /></Button>
-                      <Button variant="ghost" size="icon" title="Delete Item" onClick={() => handleDelete(item.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
-                    </div>
-                  </TableCell>
-                )}
+      {/* Search & Table */}
+      <SectionCard
+        title="Stock Ledger"
+        description={`${filtered.length} items`}
+        action={
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input placeholder="Search SKU or name..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9 h-8 w-56 text-sm" />
+          </div>
+        }
+        noPadding
+      >
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/30">
+                <TableHead className="font-semibold">SKU</TableHead>
+                <TableHead className="font-semibold">Product Name</TableHead>
+                <TableHead className="text-right font-semibold">Cost Price</TableHead>
+                <TableHead className="text-right font-semibold">Selling Price</TableHead>
+                <TableHead className="text-right font-semibold">In Stock</TableHead>
+                <TableHead className="text-right font-semibold">Delivery Fee</TableHead>
+                <TableHead className="font-semibold">Date Added</TableHead>
+                {admin && <TableHead className="text-right font-semibold">Actions</TableHead>}
               </TableRow>
-            ))}
-            {filtered.length === 0 && (
-              <TableRow><TableCell colSpan={admin ? 9 : 8} className="text-center text-muted-foreground py-8">No inventory items found</TableCell></TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
+            </TableHeader>
+            <TableBody>
+              {filtered.map(item => {
+                const stock = currentStocks[item.id] ?? 0;
+                const isLow = stock <= 5;
+                return (
+                  <TableRow key={item.id} className="hover:bg-primary/5 transition-colors group">
+                    <TableCell className="font-mono text-xs font-medium text-primary">{item.sku}</TableCell>
+                    <TableCell className="font-medium">{item.product_name}</TableCell>
+                    <TableCell className="text-right text-muted-foreground">{fmt(item.average_cost_price)}</TableCell>
+                    <TableCell className="text-right text-muted-foreground">{fmt(item.average_selling_price ?? 0)}</TableCell>
+                    <TableCell className="text-right">
+                      <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold ${
+                        isLow ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+                      }`}>
+                        {isLow && <AlertTriangle className="h-3 w-3" />}
+                        {stock}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-right text-muted-foreground">{fmt(item.delivery_fee ?? 0)}</TableCell>
+                    <TableCell className="text-muted-foreground text-sm">{(item as any).stock_added_date ?? '—'}</TableCell>
+                    {admin && (
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                          {!/_B\d+$/.test(item.sku) && (
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-indigo-500 hover:text-indigo-700 hover:bg-indigo-50" title="Restock (New Batch)" onClick={() => handleRestockInit(item)}><PackagePlus className="h-4 w-4" /></Button>
+                          )}
+                          <Button variant="ghost" size="icon" className="h-8 w-8" title="Edit" onClick={() => handleEdit(item)}><Pencil className="h-3.5 w-3.5" /></Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10" title="Delete" onClick={() => handleDelete(item.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
+                        </div>
+                      </TableCell>
+                    )}
+                  </TableRow>
+                );
+              })}
+              {filtered.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={admin ? 8 : 7} className="py-16">
+                    <EmptyState icon={<Package className="h-8 w-8" />} title="No inventory items found" description="Add your first product or adjust your search." />
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      </SectionCard>
     </div>
   );
 }

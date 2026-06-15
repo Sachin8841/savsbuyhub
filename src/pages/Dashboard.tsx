@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { DollarSign, Clock, AlertTriangle, Package, ShoppingCart, ArrowUpRight, ArrowDownRight, Megaphone, Warehouse, Download, TrendingUp, Trash2, Pencil } from 'lucide-react';
+import { DollarSign, Clock, AlertTriangle, Package, ShoppingCart, ArrowUpRight, ArrowDownRight, Megaphone, Warehouse, Download, TrendingUp, Trash2, Pencil, Percent, Truck } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Line, PieChart, Pie, Cell, Legend, ComposedChart, Area } from 'recharts';
 import { exportDashboardReport } from '@/lib/xlsx-export';
 import { AlertNotifications } from '@/components/AlertNotifications';
@@ -180,6 +180,36 @@ export default function Dashboard() {
     return Object.values(map).sort((a, b) => b.revenue - a.revenue).slice(0, 6);
   }, [filteredSales, inventory]);
 
+  // Courier performance table data
+  const courierData = useMemo(() => {
+    const map: Record<string, { courier: string; orders: number; units: number; revenue: number; penalties: number }> = {};
+    filteredSales.forEach(s => {
+      const key = s.courier_partner || 'Unknown';
+      if (!map[key]) map[key] = { courier: key, orders: 0, units: 0, revenue: 0, penalties: 0 };
+      map[key].orders += 1;
+      map[key].units += s.quantity_sold;
+      map[key].revenue += s.quantity_sold * s.average_selling_price;
+    });
+    filteredReturns.forEach(r => {
+      const sale = sales.find(s => s.id === r.sales_id);
+      const key = (sale as any)?.courier_partner || 'Unknown';
+      if (map[key]) map[key].penalties += r.penalty_amount;
+    });
+    return Object.values(map).sort((a, b) => b.orders - a.orders).slice(0, 8);
+  }, [filteredSales, filteredReturns, sales]);
+
+  // Expenses breakdown for pie chart
+  const expensePieData = useMemo(() => {
+    const adSpend = filteredAdExpenses.filter(e => e.category === 'Ads' || !e.category || e.category === 'Other' || e.category === 'Packaging' || e.category === 'Software').reduce((s, e) => s + e.amount, 0);
+    const deliveryExpenses = filteredAdExpenses.filter(e => (e.category as string)?.includes('Delivery') || (e.category as string)?.includes('Freight')).reduce((s, e) => s + e.amount, 0) + totalDeliveryFees;
+    const penaltiesTotal = totalPenalties;
+    return [
+      { name: 'Ads & Marketing', value: Math.round(adSpend), color: 'hsl(224, 76%, 48%)' },
+      { name: 'Delivery Fees', value: Math.round(deliveryExpenses), color: 'hsl(38, 92%, 50%)' },
+      { name: 'Return Penalties', value: Math.round(penaltiesTotal), color: 'hsl(0, 84%, 60%)' },
+    ].filter(d => d.value > 0);
+  }, [filteredAdExpenses, totalDeliveryFees, totalPenalties]);
+
   const handleAdSubmit = async () => {
     if (!adForm.platform || !adForm.amount) return;
     
@@ -221,6 +251,8 @@ export default function Dashboard() {
 
   const handleDownload = () => exportDashboardReport(sales, inventory, returns, adExpenses, currentStocks);
 
+  const roi = totalCost > 0 ? ((netProfit / totalCost) * 100).toFixed(1) : '0';
+
   const kpis = [
     { title: 'Total Revenue', value: fmt(totalRevenue), icon: DollarSign, color: 'text-primary', bg: 'bg-primary/10' },
     { title: 'Total Investment', value: fmt(totalCost + stockHoldingValue + totalAdSpend + totalInventoryDeliveryFees), subtitle: 'COGS + Stock + Ads + Delivery', icon: Package, color: 'text-amber-600', bg: 'bg-amber-50 dark:bg-amber-950' },
@@ -228,10 +260,11 @@ export default function Dashboard() {
     { title: 'Net Profit', value: fmt(netProfit), subtitle: `${profitMargin}% margin`, icon: netProfit >= 0 ? ArrowUpRight : ArrowDownRight, color: netProfit >= 0 ? 'text-emerald-600' : 'text-destructive', bg: netProfit >= 0 ? 'bg-emerald-50 dark:bg-emerald-950' : 'bg-destructive/10' },
     { title: 'Total Orders', value: totalOrders.toLocaleString(), subtitle: `${totalUnits} units · Avg ${fmt(Math.round(avgUnitValue))}/unit`, icon: ShoppingCart, color: 'text-primary', bg: 'bg-primary/10' },
     { title: 'Profit/Unit', value: fmt(Math.round(profitPerUnit)), icon: TrendingUp, color: profitPerUnit >= 0 ? 'text-emerald-600' : 'text-destructive', bg: profitPerUnit >= 0 ? 'bg-emerald-50 dark:bg-emerald-950' : 'bg-destructive/10' },
+    { title: 'ROI', value: `${roi}%`, subtitle: 'Return on Investment', icon: Percent, color: Number(roi) >= 0 ? 'text-emerald-600' : 'text-destructive', bg: Number(roi) >= 0 ? 'bg-emerald-50 dark:bg-emerald-950' : 'bg-destructive/10' },
     { title: 'Pending Payments', value: fmt(pendingPayments), icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50 dark:bg-amber-950' },
     { title: 'Stock Value', value: fmt(stockHoldingValue), icon: Warehouse, color: 'text-primary', bg: 'bg-primary/10' },
     { title: 'Returns', value: `${totalReturnedQty} units`, subtitle: `${returnRate}% rate · ${fmt(totalPenalties)} penalty`, icon: AlertTriangle, color: 'text-destructive', bg: 'bg-destructive/10' },
-    { title: 'Total Expenses', value: fmt(totalAdSpend + totalInventoryDeliveryFees + totalPenalties), subtitle: 'Ads, Delivery, Penalties', icon: Megaphone, color: 'text-amber-600', bg: 'bg-amber-50 dark:bg-amber-950' },
+    { title: 'Total Expenses', value: fmt(totalAdSpend + totalDeliveryFees + totalPenalties), subtitle: `Ads ${fmt(totalAdSpend)} · Del ${fmt(totalDeliveryFees)} · Pen ${fmt(totalPenalties)}`, icon: Megaphone, color: 'text-amber-600', bg: 'bg-amber-50 dark:bg-amber-950' },
   ];
 
   const CustomTooltip = ({ active, payload, label }: any) => {
@@ -533,6 +566,70 @@ export default function Dashboard() {
           )}
         </CardContent>
       </Card>
+
+      {/* Expenses Breakdown + Courier Performance */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card className="glass-card micro-animate">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Expenses Breakdown</CardTitle>
+            <CardDescription>Ads, delivery fees & return penalties split</CardDescription>
+          </CardHeader>
+          <CardContent className="h-72">
+            {expensePieData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={expensePieData} cx="50%" cy="50%" innerRadius={52} outerRadius={85} dataKey="value" paddingAngle={3}
+                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} labelLine={false}>
+                    {expensePieData.map((entry, i) => (
+                      <Cell key={i} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(v: number) => fmt(v)} />
+                  <Legend formatter={(value) => <span className="text-xs">{value}</span>} />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex h-full items-center justify-center text-muted-foreground">No expense data yet</div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="glass-card micro-animate">
+          <CardHeader className="pb-2">
+            <div className="flex items-center gap-2">
+              <Truck className="h-4 w-4 text-muted-foreground" />
+              <div>
+                <CardTitle className="text-base">Courier Performance</CardTitle>
+                <CardDescription>Orders, units shipped & return penalties by courier</CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {courierData.length > 0 ? (
+              <div className="space-y-2">
+                <div className="grid grid-cols-4 text-xs text-muted-foreground font-medium px-2 pb-1 border-b">
+                  <span>Courier</span>
+                  <span className="text-right">Orders</span>
+                  <span className="text-right">Units</span>
+                  <span className="text-right">Penalties</span>
+                </div>
+                {courierData.map((c, i) => (
+                  <div key={c.courier} className={`grid grid-cols-4 text-sm px-2 py-1.5 rounded-md ${i % 2 === 0 ? 'bg-muted/30' : ''}`}>
+                    <span className="font-medium truncate pr-1">{c.courier}</span>
+                    <span className="text-right tabular-nums">{c.orders}</span>
+                    <span className="text-right tabular-nums">{c.units}</span>
+                    <span className={`text-right tabular-nums text-xs ${c.penalties > 0 ? 'text-destructive font-medium' : 'text-muted-foreground'}`}>
+                      {c.penalties > 0 ? fmt(c.penalties) : '—'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-center text-muted-foreground py-6">No courier data yet</p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

@@ -2,8 +2,9 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+// Hardcoded as fallback because .env is excluded from git (anon key is safe to commit)
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL ?? "https://nuxygngqxgnisqkcxpme.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im51eHlnbmdxeGduaXNxa2N4cG1lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MzY4MjIsImV4cCI6MjA5MTQxMjgyMn0.tKq3fiBVUmoa0IOcAZM3QhMhSLRc_eqSkcwixJlyo7s";
 
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";

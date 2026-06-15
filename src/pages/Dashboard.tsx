@@ -84,6 +84,12 @@ export default function Dashboard() {
     return sum + s.quantity_sold * costPrice;
   }, 0) - returnedCogs;
   const totalAdSpend = filteredAdExpenses.reduce((sum, e) => sum + e.amount, 0);
+  const totalInventoryDeliveryFees = useMemo(() => {
+    const filteredInventory = filterFrom
+      ? inventory.filter(i => i.stock_added_date && new Date(i.stock_added_date) >= filterFrom)
+      : inventory;
+    return filteredInventory.reduce((sum, i) => sum + (i.delivery_fee || 0), 0);
+  }, [inventory, filterFrom]);
   const totalDeliveryFees = filteredSales.reduce((sum, s) => {
     const inv = inventory.find(i => i.id === s.inventory_id);
     const feePerUnit = inv ? (inv.delivery_fee || 0) / (inv.total_bulk_stock_in || 1) : 0;
@@ -217,7 +223,7 @@ export default function Dashboard() {
 
   const kpis = [
     { title: 'Total Revenue', value: fmt(totalRevenue), icon: DollarSign, color: 'text-primary', bg: 'bg-primary/10' },
-    { title: 'Total Investment', value: fmt(totalCost + stockHoldingValue + totalAdSpend + totalDeliveryFees), subtitle: 'COGS + Stock + Ads + Delivery', icon: Package, color: 'text-amber-600', bg: 'bg-amber-50 dark:bg-amber-950' },
+    { title: 'Total Investment', value: fmt(totalCost + stockHoldingValue + totalAdSpend + totalInventoryDeliveryFees), subtitle: 'COGS + Stock + Ads + Delivery', icon: Package, color: 'text-amber-600', bg: 'bg-amber-50 dark:bg-amber-950' },
     { title: 'Investor Capital', value: fmt(totalInvestorCapital), subtitle: 'From Investors', icon: DollarSign, color: 'text-emerald-600', bg: 'bg-emerald-50 dark:bg-emerald-950' },
     { title: 'Net Profit', value: fmt(netProfit), subtitle: `${profitMargin}% margin`, icon: netProfit >= 0 ? ArrowUpRight : ArrowDownRight, color: netProfit >= 0 ? 'text-emerald-600' : 'text-destructive', bg: netProfit >= 0 ? 'bg-emerald-50 dark:bg-emerald-950' : 'bg-destructive/10' },
     { title: 'Total Orders', value: totalOrders.toLocaleString(), subtitle: `${totalUnits} units · Avg ${fmt(Math.round(avgUnitValue))}/unit`, icon: ShoppingCart, color: 'text-primary', bg: 'bg-primary/10' },
@@ -225,7 +231,7 @@ export default function Dashboard() {
     { title: 'Pending Payments', value: fmt(pendingPayments), icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50 dark:bg-amber-950' },
     { title: 'Stock Value', value: fmt(stockHoldingValue), icon: Warehouse, color: 'text-primary', bg: 'bg-primary/10' },
     { title: 'Returns', value: `${totalReturnedQty} units`, subtitle: `${returnRate}% rate · ${fmt(totalPenalties)} penalty`, icon: AlertTriangle, color: 'text-destructive', bg: 'bg-destructive/10' },
-    { title: 'Total Expenses', value: fmt(totalAdSpend + totalDeliveryFees + totalPenalties), subtitle: 'Ads, Delivery, Penalties', icon: Megaphone, color: 'text-amber-600', bg: 'bg-amber-50 dark:bg-amber-950' },
+    { title: 'Total Expenses', value: fmt(totalAdSpend + totalInventoryDeliveryFees + totalPenalties), subtitle: 'Ads, Delivery, Penalties', icon: Megaphone, color: 'text-amber-600', bg: 'bg-amber-50 dark:bg-amber-950' },
   ];
 
   const CustomTooltip = ({ active, payload, label }: any) => {

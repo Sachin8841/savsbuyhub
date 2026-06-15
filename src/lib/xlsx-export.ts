@@ -91,8 +91,8 @@ export function exportDashboardReport(
         'Qty Sold': s.quantity_sold,
         'Selling Price (₹)': s.average_selling_price,
         'Revenue (₹)': s.quantity_sold * s.average_selling_price,
-        'Cost Price (₹)': inv?.average_cost_price ?? 0,
-        'Profit (₹)': s.quantity_sold * (s.average_selling_price - (inv?.average_cost_price ?? 0)),
+        'Cost Price (₹)': s.cost_price ?? inv?.average_cost_price ?? 0,
+        'Profit (₹)': s.quantity_sold * (s.average_selling_price - (s.cost_price ?? inv?.average_cost_price ?? 0)),
         'Courier': s.courier_partner ?? '',
         'Payment': s.payment_status,
         'Settlement Date': s.settlement_date ?? '',
@@ -123,7 +123,7 @@ export function exportDashboardReport(
   if (returns.length) {
     const retData = returns.map(r => {
       const sale = r.sales as any;
-      const inv = sale?.inventory;
+      const inv = (r as any).inventory ?? sale?.inventory ?? inventory.find((i: any) => i.id === r.inventory_id);
       return {
         'Return Date': r.return_date ?? '',
         'SKU': inv?.sku ?? '',

@@ -10,8 +10,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { exportToXlsx } from '@/lib/xlsx-export';
-import { Plus, Download, Pencil, Trash2, Search } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
+import { Plus, Download, Pencil, Trash2, Search, AlertTriangle, PackagePlus } from 'lucide-react';
 import { CsvImportButton } from '@/components/CsvImportButton';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -41,6 +43,79 @@ export default function Inventory() {
 
   const form = useForm<FormData>({ resolver: zodResolver(schema), defaultValues: { sku: '', product_name: '', aliases: '', average_cost_price: 0, average_selling_price: 0, total_bulk_stock_in: 0, delivery_fee: 0, stock_added_date: new Date().toISOString().slice(0, 10) } });
 
+  const [restockDialogOpen, setRestockDialogOpen] = useState(false);
+  const [restockItem, setRestockItem] = useState<any>(null);
+
+  const restockForm = useForm<FormData>({
+    resolver: zodResolver(schema),
+    defaultValues: { sku: '', product_name: '', aliases: '', average_cost_price: 0, average_selling_price: 0, total_bulk_stock_in: 0, delivery_fee: 0, stock_added_date: new Date().toISOString().slice(0, 10) }
+  });
+
+  const getNextBatchSkuAndName = (item: any, inventoryList: any[]) => {
+    const baseSku = item.sku.replace(/_B\d+$/, '');
+    const baseName = item.product_name.replace(/\s*\(Batch\s*\d+\)$/, '');
+    
+    let maxBatch = 1;
+    inventoryList.forEach(i => {
+      if (i.sku === baseSku) {
+        // base batch
+      } else {
+        const match = i.sku.match(new RegExp(`^${baseSku}_B(\\d+)$`));
+        if (match) {
+          const num = parseInt(match[1], 10);
+          if (num > maxBatch) maxBatch = num;
+        }
+      }
+    });
+    
+    const nextBatch = maxBatch + 1;
+    return {
+      sku: `${baseSku}_B${nextBatch}`,
+      product_name: `${baseName} (Batch ${nextBatch})`
+    };
+  };
+
+  const handleRestockInit = (item: any) => {
+    setRestockItem(item);
+    const { sku, product_name } = getNextBatchSkuAndName(item, inventory);
+    restockForm.reset({
+      sku,
+      product_name,
+      aliases: (item.aliases ?? []).join(', '),
+      average_cost_price: 0,
+      average_selling_price: item.average_selling_price ?? 0,
+      total_bulk_stock_in: 0,
+      delivery_fee: 0,
+      stock_added_date: new Date().toISOString().slice(0, 10)
+    });
+    setRestockDialogOpen(true);
+  };
+
+  const onRestockSubmit = async (values: FormData) => {
+    try {
+      const aliases = (values.aliases ?? '').split(',').map(s => s.trim()).filter(Boolean);
+      const payload = {
+        sku: values.sku,
+        product_name: values.product_name,
+        aliases,
+        average_cost_price: values.average_cost_price,
+        average_selling_price: values.average_selling_price,
+        total_bulk_stock_in: values.total_bulk_stock_in,
+        delivery_fee: values.delivery_fee,
+        stock_added_date: values.stock_added_date || new Date().toISOString().slice(0, 10),
+      };
+      const { error } = await supabase.from('inventory').insert(payload);
+      if (error) throw error;
+      toast({ title: 'New batch restocked successfully' });
+      qc.invalidateQueries({ queryKey: ['inventory'] });
+      setRestockDialogOpen(false);
+      setRestockItem(null);
+      restockForm.reset();
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    }
+  };
+
   useEffect(() => {
     inventory.forEach(async (item) => {
       const { data } = await supabase.rpc('get_current_stock', { inv_id: item.id });
@@ -56,12 +131,13 @@ export default function Inventory() {
   // Calculate stock holding value
   const totalStockValue = inventory.reduce((sum, item) => {
     const stock = currentStocks[item.id] ?? 0;
-    return sum + stock * item.average_cost_price + item.delivery_fee;
+    return sum + stock * (item.average_cost_price || 0);
   }, 0);
 
   const onSubmit = async (values: FormData) => {
     try {
       const aliases = (values.aliases ?? '').split(',').map(s => s.trim()).filter(Boolean);
+
       const payload = {
         sku: values.sku,
         product_name: values.product_name,
@@ -177,7 +253,93 @@ export default function Inventory() {
               </DialogContent>
             </Dialog>
           )}
+          
+          {admin && (
+            <Dialog open={restockDialogOpen} onOpenChange={(o) => { setRestockDialogOpen(o); if (!o) { setRestockItem(null); restockForm.reset(); } }}>
+              <DialogContent className="sm:max-w-[425px]">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2 text-indigo-600">
+                    <PackagePlus className="h-5 w-5" />
+                    Restock Item (New Batch)
+                  </DialogTitle>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    Adding new stock for "{restockItem?.product_name}" at a different price point. This creates a new batch SKU to preserve history.
+                  </div>
+                </DialogHeader>
+                <form onSubmit={restockForm.handleSubmit(onRestockSubmit)} className="space-y-4 pt-2">
+                  <div>
+                    <Label>Batch SKU *</Label>
+                    <Input {...restockForm.register('sku')} />
+                    {restockForm.formState.errors.sku && <p className="text-sm text-destructive">{restockForm.formState.errors.sku.message}</p>}
+                  </div>
+                  <div>
+                    <Label>Product Name *</Label>
+                    <Input {...restockForm.register('product_name')} />
+                    {restockForm.formState.errors.product_name && <p className="text-sm text-destructive">{restockForm.formState.errors.product_name.message}</p>}
+                  </div>
+                  <div>
+                    <Label>Aliases (comma-separated)</Label>
+                    <Input placeholder="e.g. Blue Tee, Cotton T-shirt Blue" {...restockForm.register('aliases')} />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label>New Cost Price (₹) *</Label>
+                      <Input type="number" step="0.01" {...restockForm.register('average_cost_price', { valueAsNumber: true })} />
+                      {restockForm.formState.errors.average_cost_price && <p className="text-sm text-destructive">{restockForm.formState.errors.average_cost_price.message}</p>}
+                    </div>
+                    <div>
+                      <Label>Selling Price (₹) *</Label>
+                      <Input type="number" step="0.01" {...restockForm.register('average_selling_price', { valueAsNumber: true })} />
+                      {restockForm.formState.errors.average_selling_price && <p className="text-sm text-destructive">{restockForm.formState.errors.average_selling_price.message}</p>}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label>Bulk Stock In *</Label>
+                      <Input type="number" {...restockForm.register('total_bulk_stock_in', { valueAsNumber: true })} />
+                      {restockForm.formState.errors.total_bulk_stock_in && <p className="text-sm text-destructive">{restockForm.formState.errors.total_bulk_stock_in.message}</p>}
+                    </div>
+                    <div>
+                      <Label>Delivery Fee (₹) *</Label>
+                      <Input type="number" step="0.01" {...restockForm.register('delivery_fee', { valueAsNumber: true })} />
+                      {restockForm.formState.errors.delivery_fee && <p className="text-sm text-destructive">{restockForm.formState.errors.delivery_fee.message}</p>}
+                    </div>
+                  </div>
+                  <div>
+                    <Label>Stock Added Date</Label>
+                    <Input type="date" {...restockForm.register('stock_added_date')} />
+                  </div>
+                  <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white">Add Batch Stock</Button>
+                </form>
+              </DialogContent>
+            </Dialog>
+          )}
         </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card className="md:col-span-1 glass-card shadow-sm border-0 bg-gradient-to-br from-indigo-50 to-white dark:from-slate-900 dark:to-slate-950">
+          <CardContent className="p-6 flex flex-col justify-center h-full">
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Total Locked Capital</h3>
+            <p className="text-4xl font-bold text-indigo-600 dark:text-indigo-400">{fmt(totalStockValue)}</p>
+            <p className="text-sm mt-4 text-slate-500">Capital tied up in physical inventory across <span className="font-semibold text-slate-700 dark:text-slate-300">{filtered.length} SKUs</span>.</p>
+          </CardContent>
+        </Card>
+        <Card className="md:col-span-2 glass-card shadow-sm border-0 h-48">
+          <CardContent className="p-4 h-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={filtered.map(i => {
+                return { name: i.sku, value: (currentStocks[i.id] ?? 0) * (i.average_cost_price || 0) };
+              }).sort((a,b) => b.value - a.value).slice(0, 10)}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
+                <XAxis dataKey="name" fontSize={10} tickLine={false} axisLine={false} />
+                <YAxis tickFormatter={(v) => `₹${v}`} fontSize={10} tickLine={false} axisLine={false} />
+                <Tooltip formatter={(v: number) => `₹${v.toFixed(2)}`} cursor={{ fill: 'transparent' }} />
+                <Bar dataKey="value" fill="hsl(238, 81%, 65%)" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
       </div>
 
       <div className="relative max-w-sm">
@@ -206,13 +368,25 @@ export default function Inventory() {
                 <TableCell>{item.product_name}</TableCell>
                 <TableCell className="text-right">{fmt(item.average_cost_price)}</TableCell>
                 <TableCell className="text-right">{fmt(item.average_selling_price ?? 0)}</TableCell>
-                <TableCell className="text-right font-semibold">{currentStocks[item.id] ?? '—'}</TableCell>
+                <TableCell className="text-right font-semibold">
+                  <div className="flex items-center justify-end gap-2">
+                    {(currentStocks[item.id] ?? 0) <= 5 && (
+                      <AlertTriangle className="h-4 w-4 text-amber-500" title="Low Stock Warning" />
+                    )}
+                    {currentStocks[item.id] ?? '—'}
+                  </div>
+                </TableCell>
                 <TableCell className="text-right">{fmt(item.delivery_fee ?? 0)}</TableCell>
                 <TableCell>{(item as any).stock_added_date ?? '—'}</TableCell>
                 {admin && (
                   <TableCell className="text-right">
-                    <Button variant="ghost" size="icon" onClick={() => handleEdit(item)}><Pencil className="h-4 w-4" /></Button>
-                    <Button variant="ghost" size="icon" onClick={() => handleDelete(item.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                    <div className="flex items-center justify-end gap-1">
+                      {!/_B\d+$/.test(item.sku) && (
+                        <Button variant="ghost" size="icon" title="Restock (New Batch)" onClick={() => handleRestockInit(item)} className="text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50"><PackagePlus className="h-4 w-4" /></Button>
+                      )}
+                      <Button variant="ghost" size="icon" title="Edit Item" onClick={() => handleEdit(item)}><Pencil className="h-4 w-4" /></Button>
+                      <Button variant="ghost" size="icon" title="Delete Item" onClick={() => handleDelete(item.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                    </div>
                   </TableCell>
                 )}
               </TableRow>

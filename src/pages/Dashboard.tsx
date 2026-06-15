@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useSales, useReturns, useInventory, useAdExpenses } from '@/hooks/useData';
+import { useSales, useReturns, useInventory, useAdExpenses, useInvestments } from '@/hooks/useData';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuthStore } from '@/stores/authStore';
 import { useQueryClient } from '@tanstack/react-query';
@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { DollarSign, Clock, AlertTriangle, Package, ShoppingCart, ArrowUpRight, ArrowDownRight, Megaphone, Warehouse, Download, TrendingUp } from 'lucide-react';
+import { DollarSign, Clock, AlertTriangle, Package, ShoppingCart, ArrowUpRight, ArrowDownRight, Megaphone, Warehouse, Download, TrendingUp, Trash2, Pencil } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Line, PieChart, Pie, Cell, Legend, ComposedChart, Area } from 'recharts';
 import { exportDashboardReport } from '@/lib/xlsx-export';
 import { AlertNotifications } from '@/components/AlertNotifications';
@@ -23,6 +23,7 @@ export default function Dashboard() {
   const { data: returns = [] } = useReturns();
   const { data: inventory = [] } = useInventory();
   const { data: adExpenses = [] } = useAdExpenses();
+  const { data: investments = [] } = useInvestments();
   const { isAdmin } = useAuthStore();
   const admin = isAdmin();
   const qc = useQueryClient();
@@ -33,7 +34,8 @@ export default function Dashboard() {
   const [unitsPeriod, setUnitsPeriod] = useState('max');
   const [unitsDateRange, setUnitsDateRange] = useState<{ from?: Date; to?: Date }>({});
   const [adDialogOpen, setAdDialogOpen] = useState(false);
-  const [adForm, setAdForm] = useState({ platform: '', amount: '', expense_date: new Date().toISOString().slice(0, 10), description: '' });
+  const [adForm, setAdForm] = useState({ category: 'Ads', platform: '', amount: '', expense_date: new Date().toISOString().slice(0, 10), description: '' });
+  const [adEditId, setAdEditId] = useState<string | null>(null);
   const [currentStocks, setCurrentStocks] = useState<Record<string, number>>({});
 
   useEffect(() => {
@@ -45,8 +47,9 @@ export default function Dashboard() {
 
   const filterSalesByPeriod = (p: string, dr: { from?: Date; to?: Date }) => {
     const { from, to } = getFilterDate(p, dr);
-    if (!from) return sales;
-    return sales.filter(s => {
+    const nonCancelled = sales.filter(s => s.payment_status !== 'Cancelled');
+    if (!from) return nonCancelled;
+    return nonCancelled.filter(s => {
       const d = new Date(s.dispatch_date);
       return d >= from && (!to || d <= to);
     });
@@ -57,39 +60,61 @@ export default function Dashboard() {
   const filteredReturns = filterFrom ? returns.filter(r => new Date(r.return_date) >= filterFrom) : returns;
   const filteredAdExpenses = filterFrom ? adExpenses.filter(e => new Date(e.expense_date) >= filterFrom) : adExpenses;
 
-  const totalRevenue = filteredSales.reduce((sum, s) => sum + s.quantity_sold * s.average_selling_price, 0);
+  const returnedRevenue = filteredReturns.reduce((sum, r) => {
+    const sale = sales.find(s => s.id === r.sales_id);
+    return sum + r.quantity_returned * (sale?.average_selling_price ?? 0);
+  }, 0);
+  const returnedCogs = filteredReturns.reduce((sum, r) => {
+    const sale = sales.find(s => s.id === r.sales_id);
+    const invId = r.inventory_id || sale?.inventory_id;
+    const inv = inventory.find(i => i.id === invId);
+    const costPrice = sale?.cost_price ?? inv?.average_cost_price ?? 0;
+    return sum + r.quantity_returned * costPrice;
+  }, 0);
+  
+  const totalRevenue = filteredSales.reduce((sum, s) => sum + s.quantity_sold * s.average_selling_price, 0) - returnedRevenue;
   const totalUnits = filteredSales.reduce((sum, s) => sum + s.quantity_sold, 0);
   const totalOrders = filteredSales.length;
   const pendingPayments = filteredSales.filter(s => s.payment_status === 'Pending').reduce((sum, s) => sum + s.quantity_sold * s.average_selling_price, 0);
   const totalPenalties = filteredReturns.reduce((sum, r) => sum + r.penalty_amount, 0);
   const totalReturnedQty = filteredReturns.reduce((sum, r) => sum + r.quantity_returned, 0);
   const totalCost = filteredSales.reduce((sum, s) => {
-    const inv = s.inventory as any;
-    return sum + s.quantity_sold * (inv?.average_cost_price ?? 0);
-  }, 0);
+    const inv = inventory.find(i => i.id === s.inventory_id);
+    const costPrice = s.cost_price ?? inv?.average_cost_price ?? 0;
+    return sum + s.quantity_sold * costPrice;
+  }, 0) - returnedCogs;
   const totalAdSpend = filteredAdExpenses.reduce((sum, e) => sum + e.amount, 0);
   const totalDeliveryFees = filteredSales.reduce((sum, s) => {
-    const inv = s.inventory as any;
-    return sum + (inv?.delivery_fee ?? 0);
+    const inv = inventory.find(i => i.id === s.inventory_id);
+    const feePerUnit = inv ? (inv.delivery_fee || 0) / (inv.total_bulk_stock_in || 1) : 0;
+    return sum + s.quantity_sold * feePerUnit;
   }, 0);
   const netProfit = totalRevenue - totalCost - totalPenalties - totalAdSpend - totalDeliveryFees;
   const profitMargin = totalRevenue > 0 ? ((netProfit / totalRevenue) * 100).toFixed(1) : '0';
   const returnRate = totalUnits > 0 ? ((totalReturnedQty / totalUnits) * 100).toFixed(1) : '0';
-  const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
-  const profitPerUnit = totalUnits > 0 ? netProfit / totalUnits : 0;
+  const grossRevenue = filteredSales.reduce((sum, s) => sum + s.quantity_sold * s.average_selling_price, 0);
+  const avgUnitValue = totalUnits > 0 ? grossRevenue / totalUnits : 0;
+  const netUnits = totalUnits - totalReturnedQty;
+  const profitPerUnit = netUnits > 0 ? netProfit / netUnits : 0;
 
   const stockHoldingValue = inventory.reduce((sum, item) => {
     const stock = currentStocks[item.id] ?? 0;
-    return sum + stock * item.average_cost_price + (item.delivery_fee ?? 0);
+    return sum + stock * (item.average_cost_price || 0);
   }, 0);
+
+  const totalInvestorCapital = investments.filter(i => i.status === 'Verified').reduce((sum, i) => sum + i.amount, 0);
 
   const platformData = useMemo(() => ['Meesho', 'Flipkart', 'Amazon', 'Offline'].map(p => {
     const platSales = filteredSales.filter(s => s.platform === p);
     const revenue = platSales.reduce((sum, s) => sum + s.quantity_sold * s.average_selling_price, 0);
-    const cost = platSales.reduce((sum, s) => sum + s.quantity_sold * ((s.inventory as any)?.average_cost_price ?? 0), 0);
+    const cost = platSales.reduce((sum, s) => {
+      const inv = inventory.find(i => i.id === s.inventory_id);
+      const cp = s.cost_price ?? (inv as any)?.average_cost_price ?? 0;
+      return sum + s.quantity_sold * cp;
+    }, 0);
     const units = platSales.reduce((sum, s) => sum + s.quantity_sold, 0);
     return { platform: p, revenue, cost, profit: revenue - cost, orders: platSales.length, units };
-  }), [filteredSales]);
+  }), [filteredSales, inventory]);
 
   const customerReturns = filteredReturns.filter(r => r.return_type === 'Customer Return');
   const rtoReturns = filteredReturns.filter(r => r.return_type === 'RTO');
@@ -108,9 +133,14 @@ export default function Dashboard() {
       else if (p === 'week' || p === 'month' || p === 'custom') key = s.dispatch_date;
       else key = s.dispatch_date?.slice(0, 7) ?? date.toISOString().slice(0, 7);
       if (!dataMap[key]) dataMap[key] = { label: key, revenue: 0, cost: 0, investment: 0, profit: 0, units: 0, orders: 0, profitPerUnit: 0 };
+      
+      const inv = inventory.find(i => i.id === s.inventory_id);
       const rev = s.quantity_sold * s.average_selling_price;
-      const cost = s.quantity_sold * ((s.inventory as any)?.average_cost_price ?? 0);
-      const deliveryFee = (s.inventory as any)?.delivery_fee ?? 0;
+      const cp = s.cost_price ?? (inv as any)?.average_cost_price ?? 0;
+      const cost = s.quantity_sold * cp;
+      const deliveryFee = s.quantity_sold * (inv ? (inv.delivery_fee || 0) / (inv.total_bulk_stock_in || 1) : 0);
+
+      
       dataMap[key].revenue += rev;
       dataMap[key].cost += cost;
       dataMap[key].investment += cost + deliveryFee;
@@ -125,48 +155,77 @@ export default function Dashboard() {
     return arr;
   };
 
-  const trendData = useMemo(() => buildTrendData(trendPeriod, trendDateRange), [sales, trendPeriod, trendDateRange]);
-  const profitTrendData = useMemo(() => buildTrendData(profitPeriod, profitDateRange), [sales, profitPeriod, profitDateRange]);
-  const unitsTrendData = useMemo(() => buildTrendData(unitsPeriod, unitsDateRange), [sales, unitsPeriod, unitsDateRange]);
+  const trendData = useMemo(() => buildTrendData(trendPeriod, trendDateRange), [sales, trendPeriod, trendDateRange, inventory]);
+  const profitTrendData = useMemo(() => buildTrendData(profitPeriod, profitDateRange), [sales, profitPeriod, profitDateRange, inventory]);
+  const unitsTrendData = useMemo(() => buildTrendData(unitsPeriod, unitsDateRange), [sales, unitsPeriod, unitsDateRange, inventory]);
 
   const topProducts = useMemo(() => {
     const map: Record<string, { name: string; sku: string; revenue: number; units: number; profit: number; profitPerUnit: number }> = {};
     filteredSales.forEach(s => {
-      const inv = s.inventory as any;
+      const inv = inventory.find(i => i.id === s.inventory_id);
       if (!inv) return;
       if (!map[inv.sku]) map[inv.sku] = { name: inv.product_name, sku: inv.sku, revenue: 0, units: 0, profit: 0, profitPerUnit: 0 };
+      const cp = s.cost_price ?? inv.average_cost_price ?? 0;
       map[inv.sku].revenue += s.quantity_sold * s.average_selling_price;
       map[inv.sku].units += s.quantity_sold;
-      map[inv.sku].profit += s.quantity_sold * (s.average_selling_price - (inv.average_cost_price ?? 0));
+      map[inv.sku].profit += s.quantity_sold * (s.average_selling_price - cp);
     });
     Object.values(map).forEach(p => { p.profitPerUnit = p.units > 0 ? Math.round(p.profit / p.units) : 0; });
     return Object.values(map).sort((a, b) => b.revenue - a.revenue).slice(0, 6);
-  }, [filteredSales]);
+  }, [filteredSales, inventory]);
 
   const handleAdSubmit = async () => {
     if (!adForm.platform || !adForm.amount) return;
-    const { error } = await supabase.from('ad_expenses').insert({
-      platform: adForm.platform, amount: parseFloat(adForm.amount),
-      expense_date: adForm.expense_date, description: adForm.description || null,
-    });
-    if (error) return;
+    
+    if (adEditId) {
+      const { error } = await supabase.from('ad_expenses').update({
+        category: adForm.category, platform: adForm.platform, amount: parseFloat(adForm.amount),
+        expense_date: adForm.expense_date, description: adForm.description || null,
+      }).eq('id', adEditId);
+      if (error) return;
+    } else {
+      const { error } = await supabase.from('ad_expenses').insert({
+        category: adForm.category, platform: adForm.platform, amount: parseFloat(adForm.amount),
+        expense_date: adForm.expense_date, description: adForm.description || null,
+      });
+      if (error) return;
+    }
+
     qc.invalidateQueries({ queryKey: ['ad_expenses'] });
-    setAdDialogOpen(false);
-    setAdForm({ platform: '', amount: '', expense_date: new Date().toISOString().slice(0, 10), description: '' });
+    setAdForm({ category: 'Ads', platform: '', amount: '', expense_date: new Date().toISOString().slice(0, 10), description: '' });
+    setAdEditId(null);
+  };
+
+  const handleAdDelete = async (id: string) => {
+    if (!confirm('Delete this expense?')) return;
+    const { error } = await supabase.from('ad_expenses').delete().eq('id', id);
+    if (!error) qc.invalidateQueries({ queryKey: ['ad_expenses'] });
+  };
+
+  const handleAdEdit = (exp: any) => {
+    setAdEditId(exp.id);
+    setAdForm({
+      category: exp.category || 'Ads',
+      platform: exp.platform,
+      amount: exp.amount.toString(),
+      expense_date: exp.expense_date,
+      description: exp.description || ''
+    });
   };
 
   const handleDownload = () => exportDashboardReport(sales, inventory, returns, adExpenses, currentStocks);
 
   const kpis = [
     { title: 'Total Revenue', value: fmt(totalRevenue), icon: DollarSign, color: 'text-primary', bg: 'bg-primary/10' },
-    { title: 'Total Investment', value: fmt(totalCost + totalDeliveryFees), icon: Package, color: 'text-amber-600', bg: 'bg-amber-50 dark:bg-amber-950' },
+    { title: 'Total Investment', value: fmt(totalCost + stockHoldingValue + totalAdSpend + totalDeliveryFees), subtitle: 'COGS + Stock + Ads + Delivery', icon: Package, color: 'text-amber-600', bg: 'bg-amber-50 dark:bg-amber-950' },
+    { title: 'Investor Capital', value: fmt(totalInvestorCapital), subtitle: 'From Investors', icon: DollarSign, color: 'text-emerald-600', bg: 'bg-emerald-50 dark:bg-emerald-950' },
     { title: 'Net Profit', value: fmt(netProfit), subtitle: `${profitMargin}% margin`, icon: netProfit >= 0 ? ArrowUpRight : ArrowDownRight, color: netProfit >= 0 ? 'text-emerald-600' : 'text-destructive', bg: netProfit >= 0 ? 'bg-emerald-50 dark:bg-emerald-950' : 'bg-destructive/10' },
-    { title: 'Total Orders', value: totalOrders.toLocaleString(), subtitle: `${totalUnits} units · Avg ${fmt(Math.round(avgOrderValue))}`, icon: ShoppingCart, color: 'text-primary', bg: 'bg-primary/10' },
+    { title: 'Total Orders', value: totalOrders.toLocaleString(), subtitle: `${totalUnits} units · Avg ${fmt(Math.round(avgUnitValue))}/unit`, icon: ShoppingCart, color: 'text-primary', bg: 'bg-primary/10' },
     { title: 'Profit/Unit', value: fmt(Math.round(profitPerUnit)), icon: TrendingUp, color: profitPerUnit >= 0 ? 'text-emerald-600' : 'text-destructive', bg: profitPerUnit >= 0 ? 'bg-emerald-50 dark:bg-emerald-950' : 'bg-destructive/10' },
     { title: 'Pending Payments', value: fmt(pendingPayments), icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50 dark:bg-amber-950' },
     { title: 'Stock Value', value: fmt(stockHoldingValue), icon: Warehouse, color: 'text-primary', bg: 'bg-primary/10' },
     { title: 'Returns', value: `${totalReturnedQty} units`, subtitle: `${returnRate}% rate · ${fmt(totalPenalties)} penalty`, icon: AlertTriangle, color: 'text-destructive', bg: 'bg-destructive/10' },
-    { title: 'Ad Spend', value: fmt(totalAdSpend), icon: Megaphone, color: 'text-amber-600', bg: 'bg-amber-50 dark:bg-amber-950' },
+    { title: 'Total Expenses', value: fmt(totalAdSpend + totalDeliveryFees + totalPenalties), subtitle: 'Ads, Delivery, Penalties', icon: Megaphone, color: 'text-amber-600', bg: 'bg-amber-50 dark:bg-amber-950' },
   ];
 
   const CustomTooltip = ({ active, payload, label }: any) => {
@@ -201,7 +260,7 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-2xl font-bold tracking-tight">Dashboard</h2>
@@ -211,16 +270,26 @@ export default function Dashboard() {
           <PeriodSelector value={trendPeriod} onChange={setTrendPeriod} dateRange={trendDateRange} onDateRangeChange={setTrendDateRange} />
           <Button variant="outline" size="sm" onClick={handleDownload}><Download className="mr-1 h-4 w-4" />Report</Button>
           {admin && (
-            <Dialog open={adDialogOpen} onOpenChange={setAdDialogOpen}>
-              <DialogTrigger asChild><Button variant="outline" size="sm"><Megaphone className="mr-1 h-4 w-4" />Ad Expense</Button></DialogTrigger>
-              <DialogContent>
-                <DialogHeader><DialogTitle>Log Ad Expense</DialogTitle></DialogHeader>
+            <Dialog open={adDialogOpen} onOpenChange={(open) => { setAdDialogOpen(open); if (!open) { setAdEditId(null); setAdForm({ category: 'Ads', platform: '', amount: '', expense_date: new Date().toISOString().slice(0, 10), description: '' }); } }}>
+              <DialogTrigger asChild><Button variant="outline" size="sm"><Megaphone className="mr-1 h-4 w-4" />Log Expense</Button></DialogTrigger>
+              <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
+                <DialogHeader><DialogTitle>{adEditId ? 'Edit Expense' : 'Log Expense'}</DialogTitle></DialogHeader>
                 <div className="space-y-3">
-                  <div><Label>Platform</Label>
-                    <Select value={adForm.platform} onValueChange={v => setAdForm(p => ({ ...p, platform: v }))}>
-                      <SelectTrigger><SelectValue placeholder="Select platform" /></SelectTrigger>
+                  <div><Label>Category</Label>
+                    <Select value={adForm.category} onValueChange={v => setAdForm(p => ({ ...p, category: v }))}>
+                      <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
                       <SelectContent>
-                        {['Meesho', 'Flipkart', 'Amazon', 'Instagram', 'Facebook', 'Google', 'Other'].map(p => (
+                        {['Ads', 'Delivery/Freight', 'Packaging', 'Software', 'Other'].map(c => (
+                          <SelectItem key={c} value={c}>{c}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div><Label>Platform / Vendor</Label>
+                    <Select value={adForm.platform} onValueChange={v => setAdForm(p => ({ ...p, platform: v }))}>
+                      <SelectTrigger><SelectValue placeholder="Select platform or vendor" /></SelectTrigger>
+                      <SelectContent>
+                        {['Meesho', 'Flipkart', 'Amazon', 'Instagram', 'Facebook', 'Google', 'Dealer', 'Local Vendor', 'Other'].map(p => (
                           <SelectItem key={p} value={p}>{p}</SelectItem>
                         ))}
                       </SelectContent>
@@ -229,7 +298,29 @@ export default function Dashboard() {
                   <div><Label>Amount (₹)</Label><Input type="number" step="0.01" value={adForm.amount} onChange={e => setAdForm(p => ({ ...p, amount: e.target.value }))} /></div>
                   <div><Label>Date</Label><Input type="date" value={adForm.expense_date} onChange={e => setAdForm(p => ({ ...p, expense_date: e.target.value }))} /></div>
                   <div><Label>Description (Optional)</Label><Input value={adForm.description} onChange={e => setAdForm(p => ({ ...p, description: e.target.value }))} /></div>
-                  <Button onClick={handleAdSubmit} className="w-full">Save Expense</Button>
+                  <div className="flex gap-2">
+                    {adEditId && <Button variant="outline" onClick={() => { setAdEditId(null); setAdForm({ category: 'Ads', platform: '', amount: '', expense_date: new Date().toISOString().slice(0, 10), description: '' }); }} className="flex-1">Cancel</Button>}
+                    <Button onClick={handleAdSubmit} className="flex-1">{adEditId ? 'Update' : 'Save'} Expense</Button>
+                  </div>
+                </div>
+                
+                <div className="mt-6 border-t pt-4">
+                  <h4 className="text-sm font-semibold mb-3">Recent Expenses</h4>
+                  <div className="space-y-2">
+                    {adExpenses.slice(0, 5).map(exp => (
+                      <div key={exp.id} className="flex items-center justify-between bg-muted/30 p-2 rounded-md text-sm border">
+                        <div>
+                          <p className="font-medium">{exp.category} - {exp.platform} <span className="text-muted-foreground text-xs font-normal">{exp.expense_date}</span></p>
+                          <p className="text-xs text-muted-foreground">₹{exp.amount} {exp.description && `- ${exp.description}`}</p>
+                        </div>
+                        <div className="flex gap-1">
+                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleAdEdit(exp)}><Pencil className="h-3.5 w-3.5" /></Button>
+                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleAdDelete(exp.id)}><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>
+                        </div>
+                      </div>
+                    ))}
+                    {adExpenses.length === 0 && <p className="text-xs text-muted-foreground text-center">No expenses logged yet.</p>}
+                  </div>
                 </div>
               </DialogContent>
             </Dialog>
@@ -242,7 +333,7 @@ export default function Dashboard() {
 
       <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
         {kpis.map(kpi => (
-          <Card key={kpi.title} className="border-none shadow-sm">
+          <Card key={kpi.title} className="border-none glass-card micro-animate">
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
                 <div className={`rounded-lg p-2 ${kpi.bg}`}><kpi.icon className={`h-4 w-4 ${kpi.color}`} /></div>
@@ -258,7 +349,7 @@ export default function Dashboard() {
       </div>
 
       {/* Revenue & Profit Trend */}
-      <Card>
+      <Card className="glass-card micro-animate">
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div>
@@ -297,7 +388,7 @@ export default function Dashboard() {
 
       {/* Profit Per Unit + Units Sold */}
       <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
+        <Card className="glass-card micro-animate">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <div>
@@ -328,7 +419,7 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="glass-card micro-animate">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <div>
@@ -360,7 +451,7 @@ export default function Dashboard() {
 
       {/* Platform Performance + Returns */}
       <div className="grid gap-6 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
+        <Card className="glass-card micro-animate lg:col-span-2">
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Platform Performance</CardTitle>
             <CardDescription>Revenue, cost, profit & units by platform</CardDescription>
@@ -383,7 +474,7 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="glass-card micro-animate">
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Return Breakdown</CardTitle>
             <CardDescription>Units & penalty by return type</CardDescription>
@@ -409,7 +500,7 @@ export default function Dashboard() {
       </div>
 
       {/* Top Products */}
-      <Card>
+      <Card className="glass-card micro-animate">
         <CardHeader className="pb-2">
           <CardTitle className="text-base">Top Performing Products</CardTitle>
           <CardDescription>Best sellers by revenue with profit per unit</CardDescription>

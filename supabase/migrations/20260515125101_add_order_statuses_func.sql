@@ -1,0 +1,20 @@
+-- 2. Update get_current_stock to ignore Cancelled sales
+CREATE OR REPLACE FUNCTION public.get_current_stock(inv_id uuid)
+RETURNS integer
+LANGUAGE sql
+STABLE SECURITY DEFINER
+SET search_path TO 'public'
+AS $function$
+  SELECT
+    i.total_bulk_stock_in
+    - COALESCE((SELECT SUM(s.quantity_sold) FROM public.sales s WHERE s.inventory_id = inv_id AND s.payment_status != 'Cancelled'), 0)::INTEGER
+    + COALESCE((
+        SELECT SUM(r.quantity_returned)
+        FROM public.returns r
+        LEFT JOIN public.sales s ON r.sales_id = s.id
+        WHERE COALESCE(r.inventory_id, s.inventory_id) = inv_id
+          AND r.delivery_status = 'Received'
+      ), 0)::INTEGER
+  FROM public.inventory i
+  WHERE i.id = inv_id
+$function$;

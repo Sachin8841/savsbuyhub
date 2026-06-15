@@ -7,6 +7,15 @@ import { Button } from '@/components/ui/button';
 import { Download, FileText } from 'lucide-react';
 import { PeriodSelector, getFilterDate } from '@/components/DateRangePicker';
 import { exportToXlsx } from '@/lib/xlsx-export';
+import { useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { AlertTriangle, TrendingUp, TrendingDown, DollarSign } from 'lucide-react';
+import { useEffect } from 'react';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 
 const fmt = (n: number) => '₹' + n.toLocaleString('en-IN', { maximumFractionDigits: 0 });
 
@@ -17,6 +26,38 @@ export default function PnL() {
   const { data: adExpenses = [] } = useAdExpenses();
   const [period, setPeriod] = useState('month');
   const [dateRange, setDateRange] = useState<{ from?: Date; to?: Date }>({});
+  const [disclosureOpen, setDisclosureOpen] = useState(false);
+  const [disclosureConfirm, setDisclosureConfirm] = useState('');
+  const [disclosureNotes, setDisclosureNotes] = useState('');
+  const [dividendDeclared, setDividendDeclared] = useState<number | ''>('');
+
+  
+  const [disclosedPeriods, setDisclosedPeriods] = useState<any[]>([]);
+  const [selectedDisclosedPeriod, setSelectedDisclosedPeriod] = useState<string>('active');
+  const [currentStocks, setCurrentStocks] = useState<Record<string, number>>({});
+
+  const qc = useQueryClient();
+  const { toast } = useToast();
+
+  useEffect(() => {
+    inventory.forEach(async (item) => {
+      const { data } = await supabase.rpc('get_current_stock', { inv_id: item.id });
+      if (data !== null) setCurrentStocks(prev => ({ ...prev, [item.id]: data as number }));
+    });
+  }, [inventory]);
+
+  useEffect(() => {
+    supabase.from('disclosed_periods').select('*').order('created_at', { ascending: false }).then(res => {
+      if (res.data) setDisclosedPeriods(res.data);
+    });
+  }, []);
+
+  // Determine which data to use (Active ledger vs Archived snapshot)
+  const activePeriod = selectedDisclosedPeriod === 'active' ? null : disclosedPeriods.find(p => p.id === selectedDisclosedPeriod);
+  
+  const currentSales = activePeriod ? activePeriod.sales_data : sales;
+  const currentReturns = activePeriod ? activePeriod.returns_data : returns;
+  const currentAdExpenses = activePeriod ? activePeriod.ad_expenses_data : adExpenses;
 
   const { from: filterFrom, to: filterTo } = getFilterDate(period, dateRange);
 
@@ -26,52 +67,94 @@ export default function PnL() {
     return d >= filterFrom && (!filterTo || d <= filterTo);
   };
 
-  const filteredSales = sales.filter(s => inRange(s.dispatch_date));
-  const filteredReturns = returns.filter(r => inRange(r.return_date));
-  const filteredAdExpenses = adExpenses.filter(e => inRange(e.expense_date));
+  const filteredSales = currentSales.filter((s: any) => inRange(s.dispatch_date) && s.payment_status !== 'Cancelled');
+  const filteredReturns = currentReturns.filter((r: any) => inRange(r.return_date));
+  const filteredAdExpenses = currentAdExpenses.filter((e: any) => inRange(e.expense_date));
 
   const pnl = useMemo(() => {
-    const revenue = filteredSales.reduce((sum, s) => sum + s.quantity_sold * s.average_selling_price, 0);
+    const currentInventory = activePeriod ? activePeriod.inventory_snapshot || [] : inventory;
+
+    const returnedRevenue = filteredReturns.reduce((sum, r) => {
+      const sale = currentSales.find((s: any) => s.id === r.sales_id);
+      return sum + r.quantity_returned * (sale?.average_selling_price ?? 0);
+    }, 0);
+
+    const returnedCogs = filteredReturns.reduce((sum, r) => {
+      const sale = currentSales.find((s: any) => s.id === r.sales_id);
+      const invId = r.inventory_id || sale?.inventory_id;
+      const inv = currentInventory.find((i: any) => i.id === invId);
+      const costPrice = sale?.cost_price ?? inv?.average_cost_price ?? 0;
+      return sum + r.quantity_returned * costPrice;
+    }, 0);
+    
+    const revenue = filteredSales.reduce((sum, s) => sum + s.quantity_sold * s.average_selling_price, 0) - returnedRevenue;
     const units = filteredSales.reduce((sum, s) => sum + s.quantity_sold, 0);
     const cogs = filteredSales.reduce((sum, s) => {
-      const inv = s.inventory as any;
-      return sum + s.quantity_sold * (inv?.average_cost_price ?? 0);
-    }, 0);
+      const inv = currentInventory.find((i: any) => i.id === s.inventory_id);
+      const costPrice = s.cost_price ?? inv?.average_cost_price ?? 0;
+      return sum + s.quantity_sold * costPrice;
+    }, 0) - returnedCogs;
     const deliveryFees = filteredSales.reduce((sum, s) => {
-      const inv = s.inventory as any;
-      return sum + (inv?.delivery_fee ?? 0);
+      const inv = currentInventory.find((i: any) => i.id === s.inventory_id);
+      const feePerUnit = inv ? (inv.delivery_fee || 0) / (inv.total_bulk_stock_in || 1) : 0;
+      return sum + s.quantity_sold * feePerUnit;
     }, 0);
     const grossProfit = revenue - cogs;
     const returnPenalties = filteredReturns.reduce((sum, r) => sum + r.penalty_amount, 0);
     const returnedUnits = filteredReturns.reduce((sum, r) => sum + r.quantity_returned, 0);
-    const adSpend = filteredAdExpenses.reduce((sum, e) => sum + e.amount, 0);
-    const totalExpenses = deliveryFees + returnPenalties + adSpend;
+    
+    const filteredInventoryForDelivery = filterFrom
+      ? currentInventory.filter((i: any) => !i.stock_added_date || new Date(i.stock_added_date) >= filterFrom)
+      : currentInventory;
+    const inventoryDeliveryFees = filteredInventoryForDelivery.reduce((sum: number, i: any) => sum + (i.delivery_fee || 0), 0);
+
+    const adSpend = filteredAdExpenses.filter(e => e.category === 'Ads' || !e.category).reduce((sum, e) => sum + e.amount, 0);
+    const freightExpenses = filteredAdExpenses.filter(e => e.category === 'Delivery/Freight').reduce((sum, e) => sum + e.amount, 0);
+    const packagingExpenses = filteredAdExpenses.filter(e => e.category === 'Packaging').reduce((sum, e) => sum + e.amount, 0);
+    const otherExpenses = filteredAdExpenses.filter(e => !['Ads', 'Delivery/Freight', 'Packaging'].includes(e.category) && e.category).reduce((sum, e) => sum + e.amount, 0);
+
+    const totalExpenses = deliveryFees + returnPenalties + adSpend + freightExpenses + packagingExpenses + otherExpenses;
     const netProfit = grossProfit - totalExpenses;
-    const profitPerUnit = units > 0 ? netProfit / units : 0;
+    const netUnits = units - returnedUnits;
+    const profitPerUnit = netUnits > 0 ? netProfit / netUnits : 0;
 
     // Platform breakdown
     const platforms = ['Meesho', 'Flipkart', 'Amazon', 'Offline'].map(p => {
       const pSales = filteredSales.filter(s => s.platform === p);
       const pRev = pSales.reduce((sum, s) => sum + s.quantity_sold * s.average_selling_price, 0);
-      const pCost = pSales.reduce((sum, s) => sum + s.quantity_sold * ((s.inventory as any)?.average_cost_price ?? 0), 0);
+      const pCost = pSales.reduce((sum, s) => {
+        const inv = currentInventory.find((i: any) => i.id === s.inventory_id);
+        const cp = s.cost_price ?? inv?.average_cost_price ?? 0;
+        return sum + s.quantity_sold * cp;
+      }, 0);
       const pUnits = pSales.reduce((sum, s) => sum + s.quantity_sold, 0);
       return { platform: p, revenue: pRev, cost: pCost, profit: pRev - pCost, units: pUnits };
     }).filter(p => p.revenue > 0);
 
-    return { revenue, units, cogs, deliveryFees, grossProfit, returnPenalties, returnedUnits, adSpend, totalExpenses, netProfit, profitPerUnit, platforms };
-  }, [filteredSales, filteredReturns, filteredAdExpenses]);
+    const stockHoldingValue = currentInventory.reduce((sum: number, item: any) => {
+      const stock = activePeriod ? (item.total_bulk_stock_in || 0) : (currentStocks[item.id] ?? 0);
+      return sum + stock * (item.average_cost_price || 0);
+    }, 0);
+
+    return { revenue, units, cogs, deliveryFees, grossProfit, returnPenalties, returnedUnits, adSpend, freightExpenses, packagingExpenses, otherExpenses, totalExpenses, netProfit, profitPerUnit, platforms, stockHoldingValue };
+  }, [filteredSales, filteredReturns, filteredAdExpenses, currentStocks, activePeriod, inventory]);
 
   const lineItems = [
     { label: 'Sales Revenue', value: pnl.revenue, bold: true, type: 'income' as const },
     { label: `  Units Sold`, value: pnl.units, isMeta: true },
     { label: 'Cost of Goods Sold (COGS)', value: -pnl.cogs, type: 'expense' as const },
     { label: 'Gross Profit', value: pnl.grossProfit, bold: true, type: 'subtotal' as const },
-    { label: 'Delivery Fees', value: -pnl.deliveryFees, type: 'expense' as const },
+    { label: 'Outbound Delivery Fees (Couriers)', value: -pnl.deliveryFees, type: 'expense' as const },
     { label: `Return Penalties (${pnl.returnedUnits} units)`, value: -pnl.returnPenalties, type: 'expense' as const },
-    { label: 'Advertising Spend', value: -pnl.adSpend, type: 'expense' as const },
+    { label: 'Advertising & Marketing', value: -pnl.adSpend, type: 'expense' as const },
+    { label: 'Inbound Freight & Dealer Delivery', value: -pnl.freightExpenses, type: 'expense' as const },
+    { label: 'Packaging Costs', value: -pnl.packagingExpenses, type: 'expense' as const },
+    { label: 'Other General Expenses', value: -pnl.otherExpenses, type: 'expense' as const },
     { label: 'Total Operating Expenses', value: -pnl.totalExpenses, bold: true, type: 'subtotal' as const },
     { label: 'Net Profit / (Loss)', value: pnl.netProfit, bold: true, type: 'total' as const },
     { label: 'Profit Per Unit', value: pnl.profitPerUnit, bold: true, type: 'total' as const },
+    { label: 'Total Capital Outlay (Expenses + COGS)', value: -(pnl.cogs + pnl.totalExpenses), bold: true, type: 'expense' as const },
+    { label: 'Capital Tied Up in Unsold Inventory (Asset)', value: pnl.stockHoldingValue, bold: true, type: 'income' as const },
   ];
 
   const handleExport = () => {
@@ -87,6 +170,60 @@ export default function PnL() {
     });
   };
 
+  const handleMonthlyDisclosure = async () => {
+    const confirmationText = disclosureConfirm.trim().toLowerCase();
+    const allowedConfirmations = ['cmo approval', 'approve', 'confirm', 'cmo', 'yes'];
+    if (!allowedConfirmations.includes(confirmationText)) {
+      toast({ 
+        title: 'Confirmation Required', 
+        description: 'Please type "CMO Approval" or "confirm" in the confirmation field to proceed.', 
+        variant: 'destructive' 
+      });
+      return;
+    }
+
+    try {
+      const { error: rpcError } = await supabase.rpc('execute_monthly_disclosure', {
+        _period_name: `Period ending ${new Date().toLocaleDateString()}`,
+        _notes: disclosureNotes,
+        _dividend_declared: dividendDeclared === '' ? 0 : dividendDeclared
+      });
+
+      if (rpcError) throw new Error(`Archiving Failed: ${rpcError.message}`);
+
+      // Refresh data
+      qc.invalidateQueries({ queryKey: ['sales'] });
+      qc.invalidateQueries({ queryKey: ['returns'] });
+      qc.invalidateQueries({ queryKey: ['ad_expenses'] });
+      qc.invalidateQueries({ queryKey: ['inventory'] });
+      
+      const res = await supabase.from('disclosed_periods').select('*').order('created_at', { ascending: false });
+      if (res.data) setDisclosedPeriods(res.data);
+
+      toast({ title: 'Monthly Disclosure Complete', description: 'Financial period archived and ledger zeroed successfully.' });
+      setDisclosureOpen(false);
+      setDisclosureConfirm('');
+      setDisclosureNotes('');
+      setDividendDeclared('');
+    } catch (err: any) {
+      const isSchemaError = err.message?.toLowerCase().includes('column') || err.message?.toLowerCase().includes('function') || err.message?.toLowerCase().includes('relation');
+      toast({ 
+        title: 'Disclosure Halted', 
+        description: (
+          <div className="space-y-2 text-sm text-left">
+            <p>{err.message || String(err)}</p>
+            {isSchemaError && (
+              <div className="bg-slate-900 text-slate-300 p-2.5 rounded text-xs font-mono border border-slate-700 mt-2">
+                <strong>Migration required:</strong> Paste and run the contents of <code>phase5_fixes.sql</code> in your Supabase SQL Editor.
+              </div>
+            )}
+          </div>
+        ) as any, 
+        variant: 'destructive' 
+      });
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
@@ -97,42 +234,167 @@ export default function PnL() {
             <p className="text-muted-foreground">SAVS BuyHub — Financial Overview</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="mr-2">
+            <select 
+              className="flex h-9 w-40 items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+              value={selectedDisclosedPeriod}
+              onChange={(e) => setSelectedDisclosedPeriod(e.target.value)}
+            >
+              <option value="active">Active Ledger</option>
+              {disclosedPeriods.map(dp => (
+                <option key={dp.id} value={dp.id}>{dp.period_name}</option>
+              ))}
+            </select>
+          </div>
+          <Dialog open={disclosureOpen} onOpenChange={setDisclosureOpen}>
+            <DialogTrigger asChild>
+              <Button variant="destructive" size="sm" className="gap-1"><AlertTriangle className="h-4 w-4" />Monthly Disclosure</Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle className="text-destructive">⚠️ Monthly Disclosure — Zero Accounts</DialogTitle>
+              </DialogHeader>
+              <p className="text-sm text-muted-foreground">
+                This will permanently archive and delete <strong>ALL sales, returns, and expenses</strong> from the active ledger to start a new period. This action is irreversible.
+              </p>
+              <div className="mt-4 space-y-4">
+                <div>
+                  <Label>Disclosure Notes (Optional)</Label>
+                  <Input value={disclosureNotes} onChange={e => setDisclosureNotes(e.target.value)} placeholder="e.g. Q3 Outstanding Performance, expansion planned." className="mt-1" />
+                </div>
+                <div>
+                  <Label>Dividend Declared (%) (Optional)</Label>
+                  <Input type="number" value={dividendDeclared} onChange={e => setDividendDeclared(e.target.value === '' ? '' : Number(e.target.value))} placeholder="e.g. 5" className="mt-1" />
+                </div>
+                <div>
+                  <Label>Type <strong>CMO Approval</strong> to proceed</Label>
+                  <Input value={disclosureConfirm} onChange={e => setDisclosureConfirm(e.target.value)} placeholder="Type CMO Approval here..." className="mt-1" />
+                </div>
+              </div>
+              <DialogFooter className="mt-4">
+                <Button variant="outline" onClick={() => setDisclosureOpen(false)}>Cancel</Button>
+                <Button variant="destructive" onClick={handleMonthlyDisclosure}>Archive Period</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
           <PeriodSelector value={period} onChange={setPeriod} dateRange={dateRange} onDateRangeChange={setDateRange} />
-          <Button variant="outline" size="sm" onClick={handleExport}><Download className="mr-1 h-4 w-4" />Export</Button>
+          <Button variant="outline" size="sm" onClick={handleExport}><Download className="mr-1 h-4 w-4" />Export Statement</Button>
         </div>
       </div>
 
       {/* Summary Cards */}
-      <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
-        <Card><CardContent className="p-4 text-center"><p className="text-xs text-muted-foreground">Revenue</p><p className="text-xl font-bold text-primary">{fmt(pnl.revenue)}</p></CardContent></Card>
-        <Card><CardContent className="p-4 text-center"><p className="text-xs text-muted-foreground">Gross Profit</p><p className="text-xl font-bold text-amber-500">{fmt(pnl.grossProfit)}</p></CardContent></Card>
-        <Card><CardContent className="p-4 text-center"><p className="text-xs text-muted-foreground">Net Profit</p><p className={`text-xl font-bold ${pnl.netProfit >= 0 ? 'text-emerald-500' : 'text-destructive'}`}>{fmt(pnl.netProfit)}</p></CardContent></Card>
-        <Card><CardContent className="p-4 text-center"><p className="text-xs text-muted-foreground">Profit/Unit</p><p className={`text-xl font-bold ${pnl.profitPerUnit >= 0 ? 'text-emerald-500' : 'text-destructive'}`}>{fmt(Math.round(pnl.profitPerUnit))}</p></CardContent></Card>
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+        <Card className="glass-card bg-gradient-to-br from-indigo-50/50 to-white dark:from-indigo-950/20 dark:to-slate-900 border-indigo-100 dark:border-indigo-900/50">
+          <CardContent className="p-5 flex flex-col gap-1 text-center">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Gross Revenue</p>
+            <p className="text-3xl font-bold text-indigo-600 dark:text-indigo-400 mt-1">{fmt(pnl.revenue)}</p>
+          </CardContent>
+        </Card>
+        <Card className="glass-card">
+          <CardContent className="p-5 flex flex-col gap-1 text-center">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Gross Profit</p>
+            <p className="text-3xl font-bold text-amber-500 mt-1">{fmt(pnl.grossProfit)}</p>
+          </CardContent>
+        </Card>
+        <Card className={`glass-card ${pnl.netProfit >= 0 ? 'bg-gradient-to-br from-emerald-50/50 to-white dark:from-emerald-950/20 dark:to-slate-900 border-emerald-100 dark:border-emerald-900/50' : 'bg-gradient-to-br from-red-50/50 to-white dark:from-red-950/20 dark:to-slate-900 border-red-100 dark:border-red-900/50'}`}>
+          <CardContent className="p-5 flex flex-col gap-1 text-center">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Net Profit / (Loss)</p>
+            <div className="flex items-center justify-center gap-2 mt-1">
+              {pnl.netProfit >= 0 ? <TrendingUp className="h-5 w-5 text-emerald-500" /> : <TrendingDown className="h-5 w-5 text-destructive" />}
+              <p className={`text-3xl font-bold ${pnl.netProfit >= 0 ? 'text-emerald-500' : 'text-destructive'}`}>{fmt(pnl.netProfit)}</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="glass-card">
+          <CardContent className="p-5 flex flex-col gap-1 text-center">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Profit Per Unit</p>
+            <p className={`text-3xl font-bold mt-1 ${pnl.profitPerUnit >= 0 ? 'text-emerald-500' : 'text-destructive'}`}>{fmt(Math.round(pnl.profitPerUnit))}</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Visualizations */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card className="glass-card">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2"><DollarSign className="h-4 w-4" /> Revenue vs Total Costs</CardTitle>
+          </CardHeader>
+          <CardContent className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={[{ name: 'Financials', Revenue: pnl.revenue, Costs: pnl.cogs + pnl.totalExpenses, Profit: pnl.netProfit }]} layout="vertical" margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="hsl(var(--border))" />
+                <XAxis type="number" tickFormatter={(v) => `₹${v >= 1000 ? (v / 1000).toFixed(0) + 'k' : v}`} fontSize={11} />
+                <YAxis type="category" dataKey="name" hide />
+                <Tooltip formatter={(value: number) => fmt(value)} cursor={{ fill: 'transparent' }} />
+                <Legend />
+                <Bar dataKey="Revenue" fill="hsl(224, 76%, 48%)" radius={[0, 4, 4, 0]} barSize={30} />
+                <Bar dataKey="Costs" fill="hsl(38, 92%, 50%)" radius={[0, 4, 4, 0]} barSize={30} />
+                <Bar dataKey="Profit" fill={pnl.netProfit >= 0 ? "hsl(142, 76%, 36%)" : "hsl(0, 84%, 60%)"} radius={[0, 4, 4, 0]} barSize={30} />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        <Card className="glass-card">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Operating Expenses Breakdown</CardTitle>
+          </CardHeader>
+          <CardContent className="h-64">
+            {pnl.totalExpenses > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={[
+                      { name: 'Delivery Fees', value: pnl.deliveryFees },
+                      { name: 'Return Penalties', value: pnl.returnPenalties },
+                      { name: 'Ad Spend', value: pnl.adSpend },
+                      { name: 'Freight', value: pnl.freightExpenses },
+                      { name: 'Packaging', value: pnl.packagingExpenses },
+                      { name: 'Other', value: pnl.otherExpenses }
+                    ].filter(d => d.value > 0)}
+                    cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={2} dataKey="value"
+                  >
+                    <Cell fill="hsl(224, 76%, 48%)" />
+                    <Cell fill="hsl(0, 84%, 60%)" />
+                    <Cell fill="hsl(38, 92%, 50%)" />
+                    <Cell fill="hsl(280, 68%, 50%)" />
+                    <Cell fill="hsl(142, 76%, 36%)" />
+                    <Cell fill="hsl(215, 16%, 47%)" />
+                  </Pie>
+                  <Tooltip formatter={(value: number) => fmt(value)} />
+                  <Legend layout="vertical" verticalAlign="middle" align="right" wrapperStyle={{ fontSize: '11px' }} />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex h-full items-center justify-center text-muted-foreground">No expenses recorded</div>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
       {/* P&L Table */}
-      <Card>
-        <CardHeader><CardTitle className="text-base">Income Statement</CardTitle><CardDescription>Detailed breakdown of revenue and expenses</CardDescription></CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto rounded-lg border">
+      <Card className="glass-card shadow-lg border-t-4 border-t-indigo-600">
+        <CardHeader className="bg-muted/10 border-b pb-4"><CardTitle className="text-xl font-bold text-slate-800 dark:text-slate-100">Corporate Income Statement</CardTitle><CardDescription>Comprehensive breakdown of revenues, direct costs, and operational expenses.</CardDescription></CardHeader>
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
             <Table>
               <TableHeader>
-                <TableRow>
-                  <TableHead className="w-3/4">Line Item</TableHead>
-                  <TableHead className="text-right">Amount</TableHead>
+                <TableRow className="bg-slate-50 dark:bg-slate-900/50">
+                  <TableHead className="w-3/4 font-semibold text-slate-600 dark:text-slate-300">Financial Line Item</TableHead>
+                  <TableHead className="text-right font-semibold text-slate-600 dark:text-slate-300">Amount (INR)</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {lineItems.map((item, i) => (
-                  <TableRow key={i} className={item.type === 'total' ? 'bg-muted/50 border-t-2' : item.type === 'subtotal' ? 'bg-muted/30' : ''}>
-                    <TableCell className={`${item.bold ? 'font-semibold' : ''} ${item.isMeta ? 'text-muted-foreground text-xs' : ''}`}>
+                  <TableRow key={i} className={`${item.type === 'total' ? 'bg-indigo-50/50 dark:bg-indigo-900/20 border-t-2 border-indigo-200 dark:border-indigo-800' : item.type === 'subtotal' ? 'bg-slate-50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-800' : 'border-b-0'} hover:bg-muted/50 transition-colors`}>
+                    <TableCell className={`${item.bold ? 'font-bold text-slate-900 dark:text-slate-100' : 'text-slate-600 dark:text-slate-400'} ${item.isMeta ? 'text-xs italic' : 'pl-6'}`}>
                       {item.label}
                     </TableCell>
-                    <TableCell className={`text-right ${item.bold ? 'font-semibold' : ''} ${item.isMeta ? 'text-muted-foreground text-xs' : ''} ${item.type === 'total' ? (item.value >= 0 ? 'text-emerald-600' : 'text-destructive') : ''}`}>
+                    <TableCell className={`text-right font-mono ${item.bold ? 'font-bold text-slate-900 dark:text-slate-100' : ''} ${item.isMeta ? 'text-muted-foreground text-xs' : ''} ${item.type === 'total' ? (item.value >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400') : ''}`}>
                       {item.isMeta ? item.value.toLocaleString() : fmt(Math.round(Math.abs(item.value)))}
-                      {!item.isMeta && item.value < 0 && <span className="text-destructive ml-1">▼</span>}
-                      {!item.isMeta && item.value > 0 && item.type !== 'expense' && <span className="text-emerald-500 ml-1">▲</span>}
+                      {!item.isMeta && item.value < 0 && <span className="text-red-500 ml-2 inline-block w-3">▼</span>}
+                      {!item.isMeta && item.value > 0 && item.type !== 'expense' && <span className="text-emerald-500 ml-2 inline-block w-3">▲</span>}
                     </TableCell>
                   </TableRow>
                 ))}

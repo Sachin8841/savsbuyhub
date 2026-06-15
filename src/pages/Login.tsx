@@ -36,25 +36,33 @@ export default function Login() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-secondary/30 p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <img src="/savs-logo-placeholder.png" alt="SAVS Buyhub Logo" className="mx-auto mb-4 h-16 w-auto" />
-          <CardTitle className="text-2xl">{isSignUp ? 'Create Account' : 'Welcome Back'}</CardTitle>
-          <CardDescription>SAVS Buyhub Sales Command Center</CardDescription>
+    <div className="flex min-h-screen items-center justify-center animated-gradient-bg p-4 relative overflow-hidden">
+      {/* Decorative blurred circles for extra premium feel */}
+      <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-indigo-500/20 rounded-full blur-3xl pointer-events-none mix-blend-multiply dark:mix-blend-screen"></div>
+      <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-emerald-500/20 rounded-full blur-3xl pointer-events-none mix-blend-multiply dark:mix-blend-screen"></div>
+      
+      <Card className="w-full max-w-md glass-card shadow-2xl border-white/40 dark:border-white/10 relative z-10 micro-animate">
+        <CardHeader className="text-center pb-2">
+          <div className="mx-auto mb-6 h-20 w-20 rounded-2xl bg-white shadow-xl flex items-center justify-center border border-slate-100 p-2.5 relative overflow-hidden">
+            <img src="/savs-logo-placeholder.png" alt="SAVS Logo" className="h-full w-full object-contain" />
+          </div>
+          <CardTitle className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-slate-800 to-slate-500 dark:from-slate-100 dark:to-slate-400">
+            {isSignUp ? 'Create Account' : 'Welcome Back'}
+          </CardTitle>
+          <CardDescription className="text-sm font-medium mt-2">SAVS Buyhub Sales Command Center</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-4">
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required placeholder="you@example.com" />
+            <div className="space-y-1.5">
+              <Label htmlFor="email">Email Address</Label>
+              <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required placeholder="you@example.com" className="bg-white/50 dark:bg-slate-900/50" />
             </div>
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <Label htmlFor="password">Password</Label>
-              <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required placeholder="••••••••" minLength={6} />
+              <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required placeholder="••••••••" minLength={6} className="bg-white/50 dark:bg-slate-900/50" />
             </div>
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Loading...' : isSignUp ? 'Sign Up' : 'Sign In'}
+            <Button type="submit" className="w-full bg-gradient-to-r from-indigo-600 to-emerald-500 hover:from-indigo-700 hover:to-emerald-600 text-white shadow-lg mt-6" disabled={loading}>
+              {loading ? 'Processing...' : isSignUp ? 'Sign Up Securely' : 'Sign In Securely'}
             </Button>
           </form>
           <p className="mt-4 text-center text-sm text-muted-foreground">

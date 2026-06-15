@@ -24,7 +24,7 @@ export function useSales() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('sales')
-        .select('*, inventory(sku, product_name, average_cost_price, average_selling_price)')
+        .select('*, inventory(sku, product_name, average_cost_price, average_selling_price, delivery_fee)')
         .order('dispatch_date', { ascending: false });
       if (error) throw error;
       return data;
@@ -41,7 +41,7 @@ export function useReturns() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('returns')
-        .select('*, inventory(sku, product_name), sales(id, platform, inventory_id, quantity_sold, average_selling_price, dispatch_date, inventory(sku, product_name))')
+        .select('*, sales(id, platform, inventory_id, quantity_sold, average_selling_price, dispatch_date, inventory(sku, product_name, average_cost_price, delivery_fee))')
         .order('created_at', { ascending: false });
       if (error) throw error;
       return data;
@@ -78,5 +78,22 @@ export function useCurrentStock(inventoryId: string) {
       return data as number;
     },
     enabled: !loading && !!inventoryId,
+  });
+}
+
+export function useInvestments() {
+  const loading = useAuthStore((state) => state.loading);
+
+  return useQuery({
+    queryKey: ['investments'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('investments')
+        .select('*, profiles:user_id(full_name, email, pan_number, aadhar_number, bank_name, account_number, ifsc_code)')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !loading,
   });
 }

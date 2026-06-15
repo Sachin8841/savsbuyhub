@@ -10,11 +10,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { exportToXlsx } from '@/lib/xlsx-export';
-import { Plus, Download, Trash2, Search, AlertTriangle, Package } from 'lucide-react';
+import { Plus, Download, Trash2, Search, AlertTriangle, Package, Activity, Frown } from 'lucide-react';
 import { CsvImportButton } from '@/components/CsvImportButton';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -47,11 +48,12 @@ export default function Returns() {
 
   const filtered = returns.filter(r => {
     const sale = r.sales as any;
-    const inv = (r as any).inventory ?? sale?.inventory;
+    const inv = (r as any).inventory ?? sale?.inventory ?? inventory.find(i => i.id === r.inventory_id);
+    const searchLower = search.toLowerCase();
     const matchSearch = search === '' ||
-      inv?.sku?.toLowerCase().includes(search.toLowerCase()) ||
-      inv?.product_name?.toLowerCase().includes(search.toLowerCase()) ||
-      r.return_type.toLowerCase().includes(search.toLowerCase());
+      (inv?.sku && inv.sku.toLowerCase().includes(searchLower)) ||
+      (inv?.product_name && inv.product_name.toLowerCase().includes(searchLower)) ||
+      (r.return_type && r.return_type.toLowerCase().includes(searchLower));
     const matchType = typeFilter === 'all' || r.return_type === typeFilter;
     const matchStatus = statusFilter === 'all' || r.delivery_status === statusFilter;
     return matchSearch && matchType && matchStatus;
@@ -63,22 +65,36 @@ export default function Returns() {
   const received = returns.filter(r => r.delivery_status === 'Received').length;
   const fmt = (n: number) => '₹' + n.toLocaleString('en-IN', { maximumFractionDigits: 0 });
 
+  // Generate Penalty Chart Data
+  const penaltyBySku = filtered.reduce((acc: any, curr) => {
+    const sale = curr.sales as any;
+    const inv = (curr as any).inventory ?? sale?.inventory ?? inventory.find(i => i.id === curr.inventory_id);
+    const sku = inv?.sku || 'Unknown';
+    if (!acc[sku]) acc[sku] = { sku, penalty: 0, count: 0 };
+    acc[sku].penalty += curr.penalty_amount;
+    acc[sku].count += curr.quantity_returned;
+    return acc;
+  }, {});
+  
+  const topPenalizedSkus = Object.values(penaltyBySku)
+    .sort((a: any, b: any) => b.penalty - a.penalty)
+    .slice(0, 5);
+
   const onSubmit = async (values: FormData) => {
     try {
       const penalty_per_unit = values.return_type === 'Customer Return' ? 160 : 0;
-      // One row per returned unit (quantity-based logging)
-      const rows = Array.from({ length: values.quantity_returned }, () => ({
+      const row = {
         sales_id: null,
         inventory_id: values.inventory_id,
         return_type: values.return_type,
-        quantity_returned: 1,
+        quantity_returned: values.quantity_returned,
         return_date: values.return_date,
-        penalty_amount: penalty_per_unit,
+        penalty_amount: penalty_per_unit * values.quantity_returned,
         delivery_status: 'In Transit' as const,
-      }));
-      const { error } = await supabase.from('returns').insert(rows as any);
+      };
+      const { error } = await supabase.from('returns').insert(row as any);
       if (error) throw error;
-      toast({ title: `Logged ${rows.length} return${rows.length > 1 ? 's' : ''}` });
+      toast({ title: `Logged return of ${values.quantity_returned} unit(s)` });
       qc.invalidateQueries({ queryKey: ['returns'] });
       qc.invalidateQueries({ queryKey: ['inventory'] });
       setDialogOpen(false);
@@ -114,7 +130,7 @@ export default function Returns() {
       title: 'SAVS BuyHub - Returns Report',
       rows: filtered.map(r => {
         const sale = r.sales as any;
-        const inv = (r as any).inventory ?? sale?.inventory;
+        const inv = (r as any).inventory ?? sale?.inventory ?? inventory.find(i => i.id === r.inventory_id);
         return {
           'Return Date': r.return_date ?? '',
           SKU: inv?.sku ?? '',
@@ -213,12 +229,37 @@ export default function Returns() {
         </div>
       </div>
 
-      <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
-        <Card><CardContent className="p-3 flex items-center gap-2"><Package className="h-4 w-4 text-primary" /><div><p className="text-xs text-muted-foreground">Total Returns</p><p className="font-bold text-sm">{totalReturns} units</p></div></CardContent></Card>
-        <Card><CardContent className="p-3 flex items-center gap-2"><AlertTriangle className="h-4 w-4 text-destructive" /><div><p className="text-xs text-muted-foreground">Total Penalty</p><p className="font-bold text-sm">{fmt(totalPenalty)}</p></div></CardContent></Card>
-        <Card><CardContent className="p-3 flex items-center gap-2"><Package className="h-4 w-4 text-amber-500" /><div><p className="text-xs text-muted-foreground">In Transit</p><p className="font-bold text-sm">{inTransit}</p></div></CardContent></Card>
-        <Card><CardContent className="p-3 flex items-center gap-2"><Package className="h-4 w-4 text-emerald-500" /><div><p className="text-xs text-muted-foreground">Received</p><p className="font-bold text-sm">{received}</p></div></CardContent></Card>
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+        <Card className="glass-card bg-gradient-to-br from-slate-50 to-white dark:from-slate-900 dark:to-slate-950 border-slate-200 dark:border-slate-800"><CardContent className="p-4 flex items-center gap-3"><div className="h-10 w-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center"><Package className="h-5 w-5 text-slate-600 dark:text-slate-300" /></div><div><p className="text-xs font-semibold text-muted-foreground uppercase">Total Returns</p><p className="font-bold text-2xl mt-1">{totalReturns} <span className="text-sm font-normal text-muted-foreground">units</span></p></div></CardContent></Card>
+        <Card className="glass-card bg-gradient-to-br from-red-50 to-white dark:from-red-950/20 dark:to-slate-950 border-red-100 dark:border-red-900/50"><CardContent className="p-4 flex items-center gap-3"><div className="h-10 w-10 rounded-full bg-red-100 dark:bg-red-900/50 flex items-center justify-center"><AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400" /></div><div><p className="text-xs font-semibold text-muted-foreground uppercase">Penalty Costs</p><p className="font-bold text-2xl text-red-600 dark:text-red-400 mt-1">{fmt(totalPenalty)}</p></div></CardContent></Card>
+        <Card className="glass-card bg-gradient-to-br from-amber-50 to-white dark:from-amber-950/20 dark:to-slate-950 border-amber-100 dark:border-amber-900/50"><CardContent className="p-4 flex items-center gap-3"><div className="h-10 w-10 rounded-full bg-amber-100 dark:bg-amber-900/50 flex items-center justify-center"><Activity className="h-5 w-5 text-amber-600 dark:text-amber-400" /></div><div><p className="text-xs font-semibold text-muted-foreground uppercase">In Transit</p><p className="font-bold text-2xl mt-1 text-amber-600 dark:text-amber-400">{inTransit}</p></div></CardContent></Card>
+        <Card className="glass-card bg-gradient-to-br from-emerald-50 to-white dark:from-emerald-950/20 dark:to-slate-950 border-emerald-100 dark:border-emerald-900/50"><CardContent className="p-4 flex items-center gap-3"><div className="h-10 w-10 rounded-full bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center"><Package className="h-5 w-5 text-emerald-600 dark:text-emerald-400" /></div><div><p className="text-xs font-semibold text-muted-foreground uppercase">Received</p><p className="font-bold text-2xl mt-1 text-emerald-600 dark:text-emerald-400">{received}</p></div></CardContent></Card>
       </div>
+
+      <Card className="glass-card shadow-sm border-0">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-semibold flex items-center gap-2"><Frown className="h-4 w-4 text-red-500" /> Top Problematic SKUs (Highest Penalty)</CardTitle>
+        </CardHeader>
+        <CardContent className="h-52 pt-0">
+          {topPenalizedSkus.length > 0 ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={topPenalizedSkus} layout="vertical" margin={{ top: 10, right: 30, left: 20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="hsl(var(--border))" />
+                <XAxis type="number" tickFormatter={(v) => `₹${v}`} fontSize={11} tickLine={false} axisLine={false} />
+                <YAxis dataKey="sku" type="category" fontSize={11} width={80} tickLine={false} axisLine={false} />
+                <Tooltip formatter={(val: number) => `₹${val}`} />
+                <Bar dataKey="penalty" radius={[0, 4, 4, 0]} barSize={20}>
+                  {topPenalizedSkus.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={index === 0 ? "hsl(0, 84%, 60%)" : "hsl(0, 84%, 60%, 0.6)"} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex h-full items-center justify-center text-muted-foreground text-sm">No return penalties recorded.</div>
+          )}
+        </CardContent>
+      </Card>
 
       <div className="flex flex-wrap gap-3">
         <div className="relative max-w-sm flex-1">
@@ -262,12 +303,12 @@ export default function Returns() {
           <TableBody>
             {filtered.map(r => {
               const sale = r.sales as any;
-              const inv = (r as any).inventory ?? sale?.inventory;
+              const inv = (r as any).inventory ?? sale?.inventory ?? inventory.find(i => i.id === r.inventory_id);
               return (
                 <TableRow key={r.id}>
                   <TableCell>{r.return_date ?? '—'}</TableCell>
-                  <TableCell className="font-mono text-sm">{inv?.sku}</TableCell>
-                  <TableCell>{inv?.product_name}</TableCell>
+                  <TableCell className="font-mono text-sm">{inv?.sku ?? '—'}</TableCell>
+                  <TableCell>{inv?.product_name ?? '—'}</TableCell>
                   <TableCell><Badge variant="secondary">{sale?.platform ?? '—'}</Badge></TableCell>
                   <TableCell><Badge variant={r.return_type === 'RTO' ? 'outline' : 'secondary'}>{r.return_type}</Badge></TableCell>
                   <TableCell className="text-right">{r.quantity_returned}</TableCell>

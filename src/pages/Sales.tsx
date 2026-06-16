@@ -270,14 +270,93 @@ ${JSON.stringify(invSlim).slice(0, 4000)}`;
       const args = toolCall?.args;
       const parsedItems = args?.items ?? [];
 
+      const cleanSkuAndExtractQty = (s: string, parsedQty: number) => {
+        if (!s) return { qty: parsedQty || 1, baseSku: '' };
+        const trimmed = s.trim();
+        const prefixMatch = trimmed.match(/^(\d+)x[\s_-]*(.*)$/i);
+        if (prefixMatch) {
+          return { qty: parseInt(prefixMatch[1], 10), baseSku: prefixMatch[2].trim() };
+        }
+        const suffixMatch = trimmed.match(/^(.*?)[\s_-]*(\d+)x$/i);
+        if (suffixMatch) {
+          return { qty: parseInt(suffixMatch[2], 10), baseSku: suffixMatch[1].trim() };
+        }
+        return { qty: parsedQty || 1, baseSku: trimmed };
+      };
+
       const items: any[] = parsedItems.map((it: any) => {
-        const inv = inventory.find((i: any) =>
-          (it.sku && i.sku.toLowerCase() === String(it.sku).toLowerCase()) ||
-          (it.product_name && i.product_name.toLowerCase() === String(it.product_name).toLowerCase()) ||
-          (it.product_name && (i.aliases ?? []).some((a: string) => a.toLowerCase() === String(it.product_name).toLowerCase()))
-        );
-        return { ...it, matched_inventory_id: inv?.id ?? '', matched_sku: inv?.sku ?? '', matched_name: inv?.product_name ?? it.product_name };
+        const invoiceSku = it.sku || '';
+        const invoiceName = it.product_name || '';
+        
+        const { qty, baseSku } = cleanSkuAndExtractQty(invoiceSku, it.quantity);
+
+        let bestMatch = null;
+        let bestScore = 0;
+        
+        const baseSkuLower = baseSku.toLowerCase().replace(/[\s_-]+/g, '');
+        const invNameLower = invoiceName.toLowerCase();
+        
+        for (const item of inventory) {
+          let score = 0;
+          
+          const { baseSku: dbBaseSku } = cleanSkuAndExtractQty(item.sku, 1);
+          const dbSkuClean = dbBaseSku.toLowerCase().replace(/[\s_-]+/g, '');
+          const dbSkuFull = item.sku.trim().toLowerCase().replace(/[\s_-]+/g, '');
+          const dbName = (item.product_name || '').toLowerCase();
+          
+          if (baseSkuLower === dbSkuClean && baseSkuLower.length > 0) {
+            score = 100;
+          } else if (baseSkuLower === dbSkuFull && baseSkuLower.length > 0) {
+            score = 95;
+          } else if (baseSkuLower.length > 2 && (baseSkuLower.includes(dbSkuClean) || dbSkuClean.includes(baseSkuLower))) {
+            score = 80;
+          } else if (invNameLower && invNameLower === dbName) {
+            score = 90;
+          } else if (invNameLower && dbName && (invNameLower.includes(dbName) || dbName.includes(invNameLower))) {
+            score = 75;
+          } else {
+            const aliases = item.aliases || [];
+            for (const alias of aliases) {
+              const aliasLower = alias.toLowerCase();
+              if (invNameLower && invNameLower === aliasLower) {
+                score = 90;
+                break;
+              } else if (invNameLower && (invNameLower.includes(aliasLower) || aliasLower.includes(invNameLower))) {
+                score = 70;
+                break;
+              }
+            }
+          }
+          
+          if (score < 85 && baseSkuLower.length > 2) {
+            if (baseSkuLower.includes('strip') && dbSkuClean.includes('strip')) {
+              score = 88;
+            } else if (baseSkuLower.includes('sealer') && dbSkuClean.includes('sealer')) {
+              score = 88;
+            } else if (baseSkuLower.includes('juicer') && dbSkuClean.includes('juicer')) {
+              score = 88;
+            } else if (baseSkuLower.includes('p9') && (dbSkuClean.includes('p9') || dbName.includes('p9'))) {
+              score = 88;
+            }
+          }
+          
+          if (score > bestScore) {
+            bestScore = score;
+            bestMatch = item;
+          }
+        }
+
+        const matchedInv = bestScore >= 70 ? bestMatch : null;
+        
+        return { 
+          ...it, 
+          quantity: qty,
+          matched_inventory_id: matchedInv?.id ?? '', 
+          matched_sku: matchedInv?.sku ?? '', 
+          matched_name: matchedInv?.product_name ?? it.product_name 
+        };
       });
+
       if (!items.length) { toast({ title: 'No orders detected in document', variant: 'destructive' }); return; }
       setBillPreview(items);
       setBillPreviewOpen(true);
@@ -297,7 +376,7 @@ ${JSON.stringify(invSlim).slice(0, 4000)}`;
       if (!it.matched_inventory_id) { skipped.push(it.product_name || it.sku || 'unknown'); continue; }
       const inv = inventory.find(i => i.id === it.matched_inventory_id) as any;
       const qty = Math.max(1, parseInt(it.quantity ?? 1, 10));
-      const unit_price = it.total_amount && qty ? Number(it.total_amount) / qty : (inv?.average_selling_price ?? 0);
+      const unit_price = inv?.average_selling_price ?? 0;
       // Each order on the bill = one row, with its quantity (1x/2x/...)
       rows.push({
         dispatch_date: today,
@@ -574,7 +653,7 @@ ${JSON.stringify(invSlim).slice(0, 4000)}`;
               <XAxis dataKey="date" tickFormatter={(v) => v.slice(5)} fontSize={10} tickLine={false} axisLine={false} />
               <YAxis tickFormatter={(v) => `₹${v}`} fontSize={10} tickLine={false} axisLine={false} />
               <Tooltip formatter={(val: number) => `₹${val.toFixed(2)}`} labelFormatter={(l) => `Date: ${l}`} />
-              <Area type="monotone" dataKey="revenue" stroke="#4f46e5" strokeWidth={2} fillOpacity={1} fill="url(#colorRevenue)" />
+              <Area dataKey="revenue" stroke="#4f46e5" strokeWidth={2} fillOpacity={1} fill="url(#colorRevenue)" />
             </AreaChart>
           </ResponsiveContainer>
         </div>
@@ -723,20 +802,23 @@ ${JSON.stringify(invSlim).slice(0, 4000)}`;
           <p className="text-sm text-muted-foreground">Date will be today ({new Date().toISOString().slice(0,10)}). Rows without an SKU match are skipped.</p>
           <div className="overflow-x-auto rounded border max-h-[400px] overflow-y-auto">
             <Table>
-              <TableHeader><TableRow><TableHead>SKU</TableHead><TableHead>Product</TableHead><TableHead>Qty</TableHead><TableHead>Order #</TableHead><TableHead>Total</TableHead><TableHead>Pay</TableHead><TableHead>Courier</TableHead><TableHead>Platform</TableHead></TableRow></TableHeader>
+              <TableHeader><TableRow><TableHead>SKU</TableHead><TableHead>Product</TableHead><TableHead>Qty</TableHead><TableHead>Order #</TableHead><TableHead>Catalog Price</TableHead><TableHead>Pay</TableHead><TableHead>Courier</TableHead><TableHead>Platform</TableHead></TableRow></TableHeader>
               <TableBody>
-                {billPreview?.map((it, i) => (
-                  <TableRow key={i} className={!it.matched_inventory_id ? 'opacity-50' : ''}>
-                    <TableCell className="font-mono text-xs">{it.matched_sku || it.sku || '—'}</TableCell>
-                    <TableCell className="text-sm">{it.matched_name || it.product_name || '—'}</TableCell>
-                    <TableCell>{it.quantity}</TableCell>
-                    <TableCell className="text-xs">{it.order_number || '—'}</TableCell>
-                    <TableCell>{it.total_amount ? `₹${it.total_amount}` : '—'}</TableCell>
-                    <TableCell>{it.payment_method || '—'}</TableCell>
-                    <TableCell className="text-xs">{it.courier_partner || '—'}</TableCell>
-                    <TableCell className="text-xs">{it.platform || '—'}</TableCell>
-                  </TableRow>
-                ))}
+                {billPreview?.map((it, i) => {
+                  const matchedInv = it.matched_inventory_id ? inventory.find(inv => inv.id === it.matched_inventory_id) : null;
+                  return (
+                    <TableRow key={i} className={!it.matched_inventory_id ? 'opacity-50' : ''}>
+                      <TableCell className="font-mono text-xs">{it.matched_sku || it.sku || '—'}</TableCell>
+                      <TableCell className="text-sm">{it.matched_name || it.product_name || '—'}</TableCell>
+                      <TableCell>{it.quantity}</TableCell>
+                      <TableCell className="text-xs">{it.order_number || '—'}</TableCell>
+                      <TableCell>{matchedInv ? `₹${matchedInv.average_selling_price}` : '—'}</TableCell>
+                      <TableCell>{it.payment_method || '—'}</TableCell>
+                      <TableCell className="text-xs">{it.courier_partner || '—'}</TableCell>
+                      <TableCell className="text-xs">{it.platform || '—'}</TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </div>

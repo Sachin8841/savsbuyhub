@@ -623,7 +623,7 @@ export default function Invest() {
                   labelFormatter={(label) => new Date(label).toLocaleDateString(undefined, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}
                   formatter={(value: number) => [`₹${value.toFixed(2)}`, 'Share Price']}
                 />
-                <Area type="monotone" dataKey="price" stroke="#4f46e5" strokeWidth={3} fillOpacity={1} fill="url(#colorP)" />
+                <Area dataKey="price" stroke="#4f46e5" strokeWidth={3} fillOpacity={1} fill="url(#colorP)" />
               </AreaChart>
             </ResponsiveContainer>
           </div>

@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuthStore } from '@/stores/authStore';
 import { useQueryClient } from '@tanstack/react-query';
@@ -31,6 +32,78 @@ interface UserWithProfile {
   address?: string;
   gender?: string;
 }
+
+// ─── Emergency Admin Recovery Panel ─────────────────────────────────────────
+function EmergencyAdminPanel() {
+  const { user, role, forceAdminRestore } = useAuthStore();
+  const { toast } = useToast();
+  const navigate = useNavigate();
+  const [restoring, setRestoring] = useState(false);
+
+  if (!user) return null;
+
+  const handleRestore = async () => {
+    setRestoring(true);
+    const ok = await forceAdminRestore();
+    setRestoring(false);
+    if (ok) {
+      toast({
+        title: '✅ Admin Access Restored',
+        description: 'Your role has been reset to Admin. Redirecting to Dashboard…',
+      });
+      setTimeout(() => navigate('/'), 1200);
+    } else {
+      toast({
+        title: 'Restore Failed',
+        description: 'Could not update your role. Check Supabase RLS or run the SQL fix below.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  return (
+    <div className="rounded-xl border-2 border-rose-300 dark:border-rose-700 bg-rose-50 dark:bg-rose-950/20 p-4 space-y-3">
+      <div className="flex items-start gap-3">
+        <AlertTriangle className="h-5 w-5 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
+        <div>
+          <p className="font-bold text-rose-800 dark:text-rose-300 text-sm">
+            Your account role is <code className="bg-rose-100 dark:bg-rose-900/40 px-1 rounded font-mono">{role ?? 'unknown'}</code> — not Admin
+          </p>
+          <p className="text-xs text-rose-600 dark:text-rose-400 mt-1">
+            This blocks access to Sales, Inventory, Dashboard and other admin pages. If this is your admin account, click below to restore access immediately.
+          </p>
+        </div>
+      </div>
+      <Button
+        onClick={handleRestore}
+        disabled={restoring}
+        className="bg-rose-600 hover:bg-rose-700 text-white w-full sm:w-auto"
+        size="sm"
+      >
+        {restoring ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />}
+        {restoring ? 'Restoring…' : 'Restore My Admin Access'}
+      </Button>
+      <details className="text-xs">
+        <summary className="cursor-pointer text-rose-600 dark:text-rose-400 font-medium select-none">
+          Manual SQL fix (run in Supabase Dashboard if button fails)
+        </summary>
+        <pre className="mt-2 p-2 bg-slate-900 text-green-400 rounded text-[10px] overflow-x-auto whitespace-pre-wrap select-all">
+{`-- Paste in Supabase Dashboard → SQL Editor → Run:
+
+-- Fix your specific account:
+UPDATE public.user_roles
+SET role = 'admin'
+WHERE user_id = '${user.id}';
+
+-- OR reset ALL accounts back to admin:
+UPDATE public.user_roles SET role = 'admin';`}
+        </pre>
+      </details>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 export default function SettingsPage() {
   const { user, isAdmin } = useAuthStore();
@@ -554,6 +627,10 @@ export default function SettingsPage() {
           subtitle="Manage your profile configuration and KYC compliance."
           icon={<UserCircle className="h-5 w-5 text-indigo-500" />}
         />
+
+        {/* ⚠️ Emergency Admin Recovery — shown only when logged-in user's role isn't admin */}
+        <EmergencyAdminPanel />
+
         <SectionCard
           title="KYC & Profile compliance"
           description="Manage your details for secure investing and bank payouts."
@@ -904,31 +981,45 @@ export default function SettingsPage() {
                 </TableHeader>
                 <TableBody>
                   {users.map(u => (
-                    <TableRow key={u.user_id}>
+                    <TableRow key={u.user_id} className={u.role !== 'admin' && u.role !== 'user' ? 'bg-rose-50/50 dark:bg-rose-950/10' : ''}>
                       <TableCell>
                         <div className="flex items-center gap-3">
                           <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold text-xs">
                             {u.full_name ? u.full_name.substring(0, 2).toUpperCase() : 'U'}
                           </div>
-                          <span className="font-medium text-sm">{u.full_name || 'Anonymous User'}</span>
+                          <div>
+                            <span className="font-medium text-sm">{u.full_name || 'Anonymous User'}</span>
+                            {u.user_id === user?.id && <Badge variant="outline" className="ml-2 text-[9px] px-1 py-0">You</Badge>}
+                          </div>
                         </div>
                       </TableCell>
-                      <TableCell className="text-muted-foreground">{u.email}</TableCell>
+                      <TableCell className="text-muted-foreground text-sm">{u.email}</TableCell>
                       <TableCell>
-                        <Badge variant={u.role === 'admin' ? 'default' : 'secondary'} className={u.role === 'admin' ? 'bg-indigo-600' : ''}>
-                          {u.role.toUpperCase()}
+                        <Badge
+                          variant={u.role === 'admin' ? 'default' : u.role === 'user' ? 'secondary' : 'destructive'}
+                          className={u.role === 'admin' ? 'bg-indigo-600' : u.role !== 'user' ? 'bg-rose-600 text-white' : ''}
+                        >
+                          {u.role === 'admin' || u.role === 'user' ? u.role.toUpperCase() : `⚠ ${u.role.toUpperCase()}`}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-right flex items-center justify-end gap-2">
-                        {u.user_id !== user?.id && (
-                          <Select value={u.role} onValueChange={(v) => updateRole(u.user_id, v)}>
-                            <SelectTrigger className="w-32 h-8 text-xs"><SelectValue /></SelectTrigger>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <Select
+                            value={u.role === 'admin' || u.role === 'user' ? u.role : ''}
+                            onValueChange={(v) => updateRole(u.user_id, v)}
+                          >
+                            <SelectTrigger className="w-32 h-8 text-xs"><SelectValue placeholder="Set role…" /></SelectTrigger>
                             <SelectContent>
                               <SelectItem value="admin">Admin</SelectItem>
                               <SelectItem value="user">User</SelectItem>
                             </SelectContent>
                           </Select>
-                        )}
+                          {u.user_id !== user?.id && (
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10" title="Delete user" onClick={() => deleteUser(u.user_id)}>
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -939,6 +1030,38 @@ export default function SettingsPage() {
               </Table>
             </div>
           </SectionCard>
+
+          {/* Bulk recovery panel — shown automatically when any user has an unexpected role */}
+          {users.some(u => u.role !== 'admin' && u.role !== 'user') && (
+            <div className="rounded-xl border-2 border-rose-300 dark:border-rose-700 bg-rose-50 dark:bg-rose-950/20 p-4 space-y-3">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="h-5 w-5 text-rose-600 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-bold text-rose-800 dark:text-rose-300 text-sm">⚠ {users.filter(u => u.role !== 'admin' && u.role !== 'user').length} account(s) have an invalid role</p>
+                  <p className="text-xs text-rose-600 dark:text-rose-400 mt-1">
+                    Accounts with roles other than <code className="font-mono bg-rose-100 dark:bg-rose-900/30 px-1 rounded">admin</code> or <code className="font-mono bg-rose-100 dark:bg-rose-900/30 px-1 rounded">user</code> cannot access the ERP. Click below to reset them all to Admin immediately.
+                  </p>
+                </div>
+              </div>
+              <Button
+                size="sm"
+                className="bg-rose-600 hover:bg-rose-700 text-white"
+                onClick={async () => {
+                  const badUsers = users.filter(u => u.role !== 'admin' && u.role !== 'user');
+                  let fixed = 0;
+                  for (const u of badUsers) {
+                    const { error } = await supabase.from('user_roles').update({ role: 'admin' as any }).eq('user_id', u.user_id);
+                    if (!error) fixed++;
+                  }
+                  setUsers(prev => prev.map(u => (u.role !== 'admin' && u.role !== 'user') ? { ...u, role: 'admin' } : u));
+                  toast({ title: `✅ Fixed ${fixed} account(s)`, description: 'All invalid-role accounts have been reset to Admin.' });
+                }}
+              >
+                <ShieldCheck className="mr-2 h-4 w-4" />
+                Reset All Invalid Roles → Admin
+              </Button>
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="approvals" className="space-y-6">

@@ -520,7 +520,7 @@ ${JSON.stringify(invSlim).slice(0, 4000)}`;
 
     try {
       const settlement_date = newStatus === 'Settled' ? new Date().toISOString().slice(0, 10) : null;
-      const { error } = await supabase.from('sales').update({ payment_status: newStatus, settlement_date }).eq('id', sale.id);
+      const { error } = await supabase.from('sales').update({ payment_status: newStatus as any, settlement_date }).eq('id', sale.id);
       if (error) throw error;
       
       // Auto-log return if needed

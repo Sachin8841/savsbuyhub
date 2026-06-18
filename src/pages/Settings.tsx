@@ -436,7 +436,7 @@ export default function SettingsPage() {
   const deleteUser = async (userId: string) => {
     if (!confirm('WARNING: This will permanently delete this user profile and revoke all access. Proceed?')) return;
     try {
-      const { error } = await supabase.rpc('delete_user_account', { _target_user_id: userId });
+      const { error } = await (supabase.rpc as any)('delete_user_account', { _target_user_id: userId });
       if (error) throw error;
       toast({ title: 'User Deleted', description: 'The user account has been successfully scrubbed.' });
       setUsers(prev => prev.filter(u => u.user_id !== userId));

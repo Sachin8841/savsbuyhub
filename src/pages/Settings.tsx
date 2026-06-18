@@ -1,5 +1,4 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuthStore } from '@/stores/authStore';
 import { useQueryClient } from '@tanstack/react-query';
@@ -33,77 +32,6 @@ interface UserWithProfile {
   gender?: string;
 }
 
-// ─── Emergency Admin Recovery Panel ─────────────────────────────────────────
-function EmergencyAdminPanel() {
-  const { user, role, forceAdminRestore } = useAuthStore();
-  const { toast } = useToast();
-  const navigate = useNavigate();
-  const [restoring, setRestoring] = useState(false);
-
-  if (!user) return null;
-
-  const handleRestore = async () => {
-    setRestoring(true);
-    const ok = await forceAdminRestore();
-    setRestoring(false);
-    if (ok) {
-      toast({
-        title: '✅ Admin Access Restored',
-        description: 'Your role has been reset to Admin. Redirecting to Dashboard…',
-      });
-      setTimeout(() => navigate('/'), 1200);
-    } else {
-      toast({
-        title: 'Restore Failed',
-        description: 'Could not update your role. Check Supabase RLS or run the SQL fix below.',
-        variant: 'destructive',
-      });
-    }
-  };
-
-  return (
-    <div className="rounded-xl border-2 border-rose-300 dark:border-rose-700 bg-rose-50 dark:bg-rose-950/20 p-4 space-y-3">
-      <div className="flex items-start gap-3">
-        <AlertTriangle className="h-5 w-5 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
-        <div>
-          <p className="font-bold text-rose-800 dark:text-rose-300 text-sm">
-            Your account role is <code className="bg-rose-100 dark:bg-rose-900/40 px-1 rounded font-mono">{role ?? 'unknown'}</code> — not Admin
-          </p>
-          <p className="text-xs text-rose-600 dark:text-rose-400 mt-1">
-            This blocks access to Sales, Inventory, Dashboard and other admin pages. If this is your admin account, click below to restore access immediately.
-          </p>
-        </div>
-      </div>
-      <Button
-        onClick={handleRestore}
-        disabled={restoring}
-        className="bg-rose-600 hover:bg-rose-700 text-white w-full sm:w-auto"
-        size="sm"
-      >
-        {restoring ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />}
-        {restoring ? 'Restoring…' : 'Restore My Admin Access'}
-      </Button>
-      <details className="text-xs">
-        <summary className="cursor-pointer text-rose-600 dark:text-rose-400 font-medium select-none">
-          Manual SQL fix (run in Supabase Dashboard if button fails)
-        </summary>
-        <pre className="mt-2 p-2 bg-slate-900 text-green-400 rounded text-[10px] overflow-x-auto whitespace-pre-wrap select-all">
-{`-- Paste in Supabase Dashboard → SQL Editor → Run:
-
--- Fix your specific account:
-UPDATE public.user_roles
-SET role = 'admin'
-WHERE user_id = '${user.id}';
-
--- OR reset ALL accounts back to admin:
-UPDATE public.user_roles SET role = 'admin';`}
-        </pre>
-      </details>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 
 export default function SettingsPage() {
   const { user, isAdmin } = useAuthStore();
@@ -628,8 +556,6 @@ export default function SettingsPage() {
           icon={<UserCircle className="h-5 w-5 text-indigo-500" />}
         />
 
-        {/* ⚠️ Emergency Admin Recovery — shown only when logged-in user's role isn't admin */}
-        <EmergencyAdminPanel />
 
         <SectionCard
           title="KYC & Profile compliance"

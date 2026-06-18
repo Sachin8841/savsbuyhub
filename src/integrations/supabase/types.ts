@@ -44,6 +44,42 @@ export type Database = {
         }
         Relationships: []
       }
+      disclosed_periods: {
+        Row: {
+          ad_expenses_data: Json
+          created_at: string
+          dividend_declared: number | null
+          id: string
+          inventory_snapshot: Json
+          notes: string | null
+          period_name: string
+          returns_data: Json
+          sales_data: Json
+        }
+        Insert: {
+          ad_expenses_data?: Json
+          created_at?: string
+          dividend_declared?: number | null
+          id?: string
+          inventory_snapshot?: Json
+          notes?: string | null
+          period_name: string
+          returns_data?: Json
+          sales_data?: Json
+        }
+        Update: {
+          ad_expenses_data?: Json
+          created_at?: string
+          dividend_declared?: number | null
+          id?: string
+          inventory_snapshot?: Json
+          notes?: string | null
+          period_name?: string
+          returns_data?: Json
+          sales_data?: Json
+        }
+        Relationships: []
+      }
       inventory: {
         Row: {
           aliases: string[]
@@ -86,31 +122,97 @@ export type Database = {
         }
         Relationships: []
       }
+      investments: {
+        Row: {
+          amount: number
+          created_at: string
+          id: string
+          purchase_date: string
+          share_price_at_buy: number | null
+          shares: number | null
+          status: string
+          user_id: string
+          utr_number: string | null
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          id?: string
+          purchase_date?: string
+          share_price_at_buy?: number | null
+          shares?: number | null
+          status?: string
+          user_id: string
+          utr_number?: string | null
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          id?: string
+          purchase_date?: string
+          share_price_at_buy?: number | null
+          shares?: number | null
+          status?: string
+          user_id?: string
+          utr_number?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
+          aadhar_number: string | null
+          account_number: string | null
+          address: string | null
           avatar_url: string | null
+          bank_name: string | null
           created_at: string
+          dob: string | null
           email: string | null
           full_name: string | null
+          gender: string | null
           id: string
+          ifsc_code: string | null
+          initial: string | null
+          pan_number: string | null
+          phone: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
+          aadhar_number?: string | null
+          account_number?: string | null
+          address?: string | null
           avatar_url?: string | null
+          bank_name?: string | null
           created_at?: string
+          dob?: string | null
           email?: string | null
           full_name?: string | null
+          gender?: string | null
           id?: string
+          ifsc_code?: string | null
+          initial?: string | null
+          pan_number?: string | null
+          phone?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
+          aadhar_number?: string | null
+          account_number?: string | null
+          address?: string | null
           avatar_url?: string | null
+          bank_name?: string | null
           created_at?: string
+          dob?: string | null
           email?: string | null
           full_name?: string | null
+          gender?: string | null
           id?: string
+          ifsc_code?: string | null
+          initial?: string | null
+          pan_number?: string | null
+          phone?: string | null
           updated_at?: string
           user_id?: string
         }
@@ -166,6 +268,7 @@ export type Database = {
       sales: {
         Row: {
           average_selling_price: number
+          cost_price: number | null
           courier_partner: string | null
           created_at: string
           dispatch_date: string
@@ -180,6 +283,7 @@ export type Database = {
         }
         Insert: {
           average_selling_price: number
+          cost_price?: number | null
           courier_partner?: string | null
           created_at?: string
           dispatch_date: string
@@ -194,6 +298,7 @@ export type Database = {
         }
         Update: {
           average_selling_price?: number
+          cost_price?: number | null
           courier_partner?: string | null
           created_at?: string
           dispatch_date?: string
@@ -215,6 +320,42 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      sips: {
+        Row: {
+          amount: number
+          autopay_enabled: boolean | null
+          created_at: string
+          frequency: string
+          id: string
+          next_date: string
+          start_date: string
+          status: string | null
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          autopay_enabled?: boolean | null
+          created_at?: string
+          frequency?: string
+          id?: string
+          next_date?: string
+          start_date?: string
+          status?: string | null
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          autopay_enabled?: boolean | null
+          created_at?: string
+          frequency?: string
+          id?: string
+          next_date?: string
+          start_date?: string
+          status?: string | null
+          user_id?: string
+        }
+        Relationships: []
       }
       user_roles: {
         Row: {
@@ -239,7 +380,24 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      execute_monthly_disclosure: {
+        Args: {
+          _dividend_declared?: number
+          _notes?: string
+          _period_name: string
+        }
+        Returns: boolean
+      }
       get_current_stock: { Args: { inv_id: string }; Returns: number }
+      get_public_forecast_data: { Args: never; Returns: Json }
+      get_public_price_history: {
+        Args: never
+        Returns: {
+          price: number
+          time: string
+        }[]
+      }
+      get_public_share_price: { Args: never; Returns: number }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -258,7 +416,7 @@ export type Database = {
         | "SAVS Trans X"
         | "Other"
       delivery_status_type: "In Transit" | "Received"
-      payment_status_type: "Pending" | "Settled"
+      payment_status_type: "Pending" | "Settled" | "Cancelled"
       platform_type: "Meesho" | "Flipkart" | "Amazon" | "Offline"
       return_type: "Customer Return" | "RTO"
     }
@@ -398,7 +556,7 @@ export const Constants = {
         "Other",
       ],
       delivery_status_type: ["In Transit", "Received"],
-      payment_status_type: ["Pending", "Settled"],
+      payment_status_type: ["Pending", "Settled", "Cancelled"],
       platform_type: ["Meesho", "Flipkart", "Amazon", "Offline"],
       return_type: ["Customer Return", "RTO"],
     },

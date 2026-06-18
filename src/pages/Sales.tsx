@@ -568,6 +568,7 @@ ${JSON.stringify(invSlim).slice(0, 4000)}`;
         return {
           'Dispatch Date': s.dispatch_date,
           Platform: s.platform,
+          'Order ID': (s as any).order_number ?? '',
           SKU: inv?.sku ?? '',
           'Product Name': inv?.product_name ?? '',
           'Qty Sold': qty,
@@ -640,55 +641,64 @@ ${JSON.stringify(invSlim).slice(0, 4000)}`;
           {admin && (
             <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) { setEditId(null); form.reset(); } }}>
               <DialogTrigger asChild><Button size="sm"><Plus className="mr-1 h-4 w-4" />Log Sale</Button></DialogTrigger>
-              <DialogContent className="max-h-[90vh] overflow-y-auto">
+              <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
                 <DialogHeader><DialogTitle>{editId ? 'Edit Sale' : 'Log New Sale'}</DialogTitle></DialogHeader>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                  <div><Label>Dispatch Date</Label><Input type="date" {...form.register('dispatch_date')} /></div>
-                  <div>
-                    <Label>Platform</Label>
-                    <Controller name="platform" control={form.control} render={({ field }) => (
-                      <Select value={field.value} onValueChange={field.onChange}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {['Meesho', 'Flipkart', 'Amazon', 'Offline'].map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    )} />
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3 pt-1">
+                  {/* Row 1: Date + Platform */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><Label className="text-xs font-semibold">Dispatch Date</Label><Input type="date" {...form.register('dispatch_date')} className="mt-1" /></div>
+                    <div>
+                      <Label className="text-xs font-semibold">Platform</Label>
+                      <Controller name="platform" control={form.control} render={({ field }) => (
+                        <Select value={field.value} onValueChange={field.onChange}>
+                          <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {['Meesho', 'Flipkart', 'Amazon', 'Offline'].map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      )} />
+                    </div>
                   </div>
+
+                  {/* Product */}
                   <div>
-                    <Label>Product (SKU)</Label>
+                    <Label className="text-xs font-semibold">Product (SKU)</Label>
                     <Controller name="inventory_id" control={form.control} render={({ field }) => (
                       <Select value={field.value} onValueChange={(v) => { field.onChange(v); }}>
-                        <SelectTrigger><SelectValue placeholder="Select product" /></SelectTrigger>
+                        <SelectTrigger className="mt-1"><SelectValue placeholder="Select product" /></SelectTrigger>
                         <SelectContent>
-                          {inventory.map(i => <SelectItem key={i.id} value={i.id}>{i.sku} - {i.product_name}</SelectItem>)}
+                          {inventory.map(i => <SelectItem key={i.id} value={i.id}>{i.sku} – {i.product_name}</SelectItem>)}
                         </SelectContent>
                       </Select>
                     )} />
-                    {form.formState.errors.inventory_id && <p className="text-sm text-destructive">{form.formState.errors.inventory_id.message}</p>}
+                    {form.formState.errors.inventory_id && <p className="text-xs text-destructive mt-1">{form.formState.errors.inventory_id.message}</p>}
                   </div>
+
+                  {/* Row: Qty + SP */}
                   <div className="grid grid-cols-2 gap-3">
-                    <div><Label>Quantity Sold</Label><Input type="number" {...form.register('quantity_sold', { valueAsNumber: true })} /></div>
-                    <div><Label>Selling Price (₹)</Label><Input type="number" step="0.01" {...form.register('average_selling_price', { valueAsNumber: true })} /></div>
+                    <div><Label className="text-xs font-semibold">Qty / Order</Label><Input type="number" className="mt-1" {...form.register('quantity_sold', { valueAsNumber: true })} /></div>
+                    <div><Label className="text-xs font-semibold">Selling Price (₹)</Label><Input type="number" step="0.01" className="mt-1" {...form.register('average_selling_price', { valueAsNumber: true })} /></div>
                   </div>
-                  <div>
-                    <Label>Courier Partner (Optional)</Label>
-                    <Controller name="courier_partner" control={form.control} render={({ field }) => (
-                      <Select value={field.value || '_none'} onValueChange={(v) => field.onChange(v === '_none' ? '' : v)}>
-                        <SelectTrigger><SelectValue placeholder="Select courier" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="_none">None</SelectItem>
-                          {COURIER_OPTIONS.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    )} />
-                  </div>
+
+                  {/* Row: Courier + Payment Method */}
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <Label>Payment Method</Label>
+                      <Label className="text-xs font-semibold">Courier</Label>
+                      <Controller name="courier_partner" control={form.control} render={({ field }) => (
+                        <Select value={field.value || '_none'} onValueChange={(v) => field.onChange(v === '_none' ? '' : v)}>
+                          <SelectTrigger className="mt-1"><SelectValue placeholder="Select courier" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="_none">None</SelectItem>
+                            {COURIER_OPTIONS.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      )} />
+                    </div>
+                    <div>
+                      <Label className="text-xs font-semibold">Payment Method</Label>
                       <Controller name="payment_method" control={form.control} render={({ field }) => (
                         <Select value={field.value ?? 'Prepaid'} onValueChange={field.onChange}>
-                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value="Prepaid">Prepaid</SelectItem>
                             <SelectItem value="COD">COD</SelectItem>
@@ -696,11 +706,15 @@ ${JSON.stringify(invSlim).slice(0, 4000)}`;
                         </Select>
                       )} />
                     </div>
+                  </div>
+
+                  {/* Row: Status + (Settlement Date if Settled) */}
+                  <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <Label>Payment Status</Label>
+                      <Label className="text-xs font-semibold">Payment Status</Label>
                       <Controller name="payment_status" control={form.control} render={({ field }) => (
                         <Select value={field.value} onValueChange={field.onChange}>
-                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value="Pending">Pending</SelectItem>
                             <SelectItem value="Packed">Packed</SelectItem>
@@ -714,45 +728,59 @@ ${JSON.stringify(invSlim).slice(0, 4000)}`;
                         </Select>
                       )} />
                     </div>
+                    {paymentStatus === 'Settled' && (
+                      <div><Label className="text-xs font-semibold">Settlement Date</Label><Input type="date" className="mt-1" {...form.register('settlement_date')} /></div>
+                    )}
                   </div>
-                  {paymentStatus === 'Settled' && (
-                    <div><Label>Settlement Date</Label><Input type="date" {...form.register('settlement_date')} /></div>
-                  )}
-                  <div>
-                    <Label>Order Number(s) (Optional)</Label>
-                    <Textarea 
-                      placeholder="e.g. AWB123, AWB124 (Enter multiple separated by commas or newlines for bulk logging)" 
-                      {...form.register('order_number')} 
-                      className="min-h-[80px]"
+
+                  {/* Bulk Order IDs — the key time-saver */}
+                  <div className="rounded-lg border-2 border-dashed border-indigo-200 dark:border-indigo-800 bg-indigo-50/30 dark:bg-indigo-950/10 p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-bold text-indigo-700 dark:text-indigo-300">⚡ Order ID(s) — Bulk Entry</Label>
+                      {(() => {
+                        const raw = form.watch('order_number') || '';
+                        const count = raw.split(/[\n,]+/).map((s: string) => s.trim()).filter(Boolean).length;
+                        return count > 1 ? (
+                          <span className="text-[10px] font-bold bg-indigo-600 text-white px-2 py-0.5 rounded-full animate-pulse">
+                            {count} orders
+                          </span>
+                        ) : <span className="text-[10px] text-muted-foreground">optional</span>;
+                      })()}
+                    </div>
+                    <Textarea
+                      placeholder={"Paste all Order IDs here (one per line or comma-separated):\n\nAWB001234\nAWB001235\nAWB001236\n\nEach ID = one separate sale row"}
+                      {...form.register('order_number')}
+                      className="min-h-[90px] font-mono text-xs bg-white dark:bg-background resize-none"
                     />
-                    <p className="text-[10px] text-muted-foreground mt-1">
-                      Pasting multiple Order IDs will automatically record one sale per Order ID (e.g. 5 AWBs = 5 separate sales).
+                    <p className="text-[10px] text-indigo-600 dark:text-indigo-400 font-medium">
+                      Same product, courier & price? Paste all AWBs at once — they'll each get their own row automatically.
                     </p>
                   </div>
+
                   {!editId && (
-                    <div className="space-y-3">
-                      <div className="flex items-start gap-2 rounded-md border bg-muted/40 p-3">
+                    <div className="space-y-2">
+                      <div className="flex items-start gap-2 rounded-md border bg-muted/40 p-2.5">
                         <Controller name="split_orders" control={form.control} render={({ field }) => (
-                          <Checkbox id="split_orders" checked={field.value ?? false} onCheckedChange={field.onChange} />
+                          <Checkbox id="split_orders" checked={field.value ?? false} onCheckedChange={field.onChange} className="mt-0.5" />
                         )} />
-                        <label htmlFor="split_orders" className="text-sm leading-tight cursor-pointer">
-                          <span className="flex items-center gap-1 font-medium"><SplitSquareHorizontal className="h-3.5 w-3.5" />Treat each unit as a separate order</span>
-                          <span className="text-xs text-muted-foreground">Recommended for bulk-entered units that are actually individual orders. Creates one row per unit.</span>
+                        <label htmlFor="split_orders" className="text-xs leading-tight cursor-pointer">
+                          <span className="flex items-center gap-1 font-semibold"><SplitSquareHorizontal className="h-3 w-3" />Split qty into individual orders</span>
+                          <span className="text-[10px] text-muted-foreground">Creates one row per unit (qty &gt; 1 → multiple rows).</span>
                         </label>
                       </div>
 
-                      <div className="flex items-center gap-2 rounded-md border border-indigo-100 bg-indigo-50/20 dark:border-indigo-950/40 dark:bg-indigo-950/10 p-3">
+                      <div className="flex items-center gap-2 rounded-md border border-indigo-100 bg-indigo-50/20 dark:border-indigo-950/40 dark:bg-indigo-950/10 p-2.5">
                         <Controller name="log_another" control={form.control} render={({ field }) => (
                           <Checkbox id="log_another" checked={field.value ?? false} onCheckedChange={field.onChange} />
                         )} />
-                        <label htmlFor="log_another" className="text-sm leading-tight cursor-pointer flex-1">
-                          <span className="flex items-center gap-1 font-medium text-indigo-700 dark:text-indigo-300">Log another sale (keep details)</span>
-                          <span className="text-xs text-muted-foreground block mt-0.5">Keeps this form open with all selections pre-filled after you log, clearing only the Order ID.</span>
+                        <label htmlFor="log_another" className="text-xs leading-tight cursor-pointer flex-1">
+                          <span className="font-semibold text-indigo-700 dark:text-indigo-300">Keep form open after logging</span>
+                          <span className="text-[10px] text-muted-foreground block">All fields stay — only Order ID is cleared. Great for different products, same day.</span>
                         </label>
                       </div>
                     </div>
                   )}
-                  <Button type="submit" className="w-full">{editId ? 'Update' : 'Log Sale'}</Button>
+                  <Button type="submit" className="w-full mt-1">{editId ? 'Update Sale' : 'Log Sale'}</Button>
                 </form>
               </DialogContent>
             </Dialog>
@@ -760,7 +788,6 @@ ${JSON.stringify(invSlim).slice(0, 4000)}`;
         </>}
       />
 
-      {/* Summary Cards */}
       <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
         <StatCard title="Total Revenue" value={fmt(totalRevenue)} icon={<DollarSign />} color="primary" />
         <StatCard title="Pending Settlement" value={fmt(pendingAmount)} icon={<Clock />} color="amber" />
@@ -823,6 +850,7 @@ ${JSON.stringify(invSlim).slice(0, 4000)}`;
               <TableRow className="bg-muted/30">
                 <TableHead className="font-semibold text-xs">Date</TableHead>
                 <TableHead className="font-semibold text-xs">Platform</TableHead>
+                <TableHead className="font-semibold text-xs">Order ID</TableHead>
                 <TableHead className="font-semibold text-xs">SKU</TableHead>
                 <TableHead className="font-semibold text-xs">Product</TableHead>
                 <TableHead className="text-right font-semibold text-xs">Qty</TableHead>
@@ -845,6 +873,7 @@ ${JSON.stringify(invSlim).slice(0, 4000)}`;
                   <TableRow key={s.id} className="hover:bg-primary/5 transition-colors group">
                     <TableCell className="text-sm font-medium text-muted-foreground">{s.dispatch_date}</TableCell>
                     <TableCell><Badge variant="outline" className="px-1.5 py-0 text-[10px] uppercase font-bold tracking-wider">{s.platform}</Badge></TableCell>
+                    <TableCell className="font-mono text-xs text-muted-foreground max-w-[120px] truncate" title={(s as any).order_number ?? ''}>{(s as any).order_number ?? <span className="text-muted-foreground/40">—</span>}</TableCell>
                     <TableCell className="font-mono text-xs text-primary font-medium">{inv?.sku}</TableCell>
                     <TableCell className="max-w-[200px] truncate font-medium">{inv?.product_name}</TableCell>
                     <TableCell className="text-right tabular-nums font-semibold">{qty}</TableCell>
@@ -916,7 +945,7 @@ ${JSON.stringify(invSlim).slice(0, 4000)}`;
               })}
               {filtered.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={admin ? 11 : 10} className="py-16">
+                  <TableCell colSpan={admin ? 12 : 11} className="py-16">
                     <EmptyState icon={<DollarSign className="h-8 w-8" />} title="No sales found" description="Adjust your filters or record a new sale." />
                   </TableCell>
                 </TableRow>

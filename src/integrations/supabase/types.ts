@@ -7,374 +7,204 @@ export type Json =
   | Json[]
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.5"
+  }
   public: {
     Tables: {
       ad_expenses: {
         Row: {
-          id: string
-          category: string | null
-          platform: string | null
           amount: number
-          expense_date: string
+          category: string
+          created_at: string
           description: string | null
-          created_at: string
-          updated_at: string | null
-        }
-        Insert: {
-          id?: string
-          category?: string | null
-          platform?: string | null
-          amount: number
           expense_date: string
-          description?: string | null
-          created_at?: string
-          updated_at?: string | null
-        }
-        Update: {
-          id?: string
-          category?: string | null
-          platform?: string | null
-          amount?: number
-          expense_date?: string
-          description?: string | null
-          created_at?: string
-          updated_at?: string | null
-        }
-        Relationships: []
-      }
-      disclosed_periods: {
-        Row: {
           id: string
-          period_name: string
-          sales_data: Json
-          returns_data: Json
-          ad_expenses_data: Json
-          inventory_snapshot: Json
-          notes: string | null
-          dividend_declared: number
-          created_at: string
+          platform: string
         }
         Insert: {
-          id?: string
-          period_name: string
-          sales_data?: Json
-          returns_data?: Json
-          ad_expenses_data?: Json
-          inventory_snapshot?: Json
-          notes?: string | null
-          dividend_declared?: number
+          amount?: number
+          category?: string
           created_at?: string
+          description?: string | null
+          expense_date?: string
+          id?: string
+          platform: string
         }
         Update: {
-          id?: string
-          period_name?: string
-          sales_data?: Json
-          returns_data?: Json
-          ad_expenses_data?: Json
-          inventory_snapshot?: Json
-          notes?: string | null
-          dividend_declared?: number
+          amount?: number
+          category?: string
           created_at?: string
+          description?: string | null
+          expense_date?: string
+          id?: string
+          platform?: string
         }
         Relationships: []
       }
       inventory: {
         Row: {
-          id: string
-          sku: string
-          product_name: string
-          aliases: string[] | null
-          category: string | null
-          total_bulk_stock_in: number
+          aliases: string[]
           average_cost_price: number
           average_selling_price: number
-          delivery_fee: number | null
-          stock_added_date: string
           created_at: string
-          updated_at: string | null
+          delivery_fee: number
+          id: string
+          product_name: string
+          sku: string
+          stock_added_date: string | null
+          total_bulk_stock_in: number
+          updated_at: string
         }
         Insert: {
-          id?: string
-          sku: string
-          product_name: string
-          aliases?: string[] | null
-          category?: string | null
-          total_bulk_stock_in: number
-          average_cost_price: number
-          average_selling_price: number
-          delivery_fee?: number | null
-          stock_added_date: string
-          created_at?: string
-          updated_at?: string | null
-        }
-        Update: {
-          id?: string
-          sku?: string
-          product_name?: string
-          aliases?: string[] | null
-          category?: string | null
-          total_bulk_stock_in?: number
+          aliases?: string[]
           average_cost_price?: number
           average_selling_price?: number
-          delivery_fee?: number | null
-          stock_added_date?: string
           created_at?: string
-          updated_at?: string | null
+          delivery_fee?: number
+          id?: string
+          product_name: string
+          sku: string
+          stock_added_date?: string | null
+          total_bulk_stock_in?: number
+          updated_at?: string
+        }
+        Update: {
+          aliases?: string[]
+          average_cost_price?: number
+          average_selling_price?: number
+          created_at?: string
+          delivery_fee?: number
+          id?: string
+          product_name?: string
+          sku?: string
+          stock_added_date?: string | null
+          total_bulk_stock_in?: number
+          updated_at?: string
         }
         Relationships: []
       }
-      investment_requests: {
-        Row: {
-          id: string
-          user_id: string
-          amount: number
-          stock_price_at_request: number
-          requested_shares: number
-          payment_method: string
-          transaction_id: string
-          status: string
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          user_id: string
-          amount: number
-          stock_price_at_request: number
-          requested_shares: number
-          payment_method: string
-          transaction_id: string
-          status?: string
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          user_id?: string
-          amount?: number
-          stock_price_at_request?: number
-          requested_shares?: number
-          payment_method?: string
-          transaction_id?: string
-          status?: string
-          created_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "investment_requests_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          }
-        ]
-      }
-      investments: {
-        Row: {
-          id: string
-          user_id: string
-          amount: number
-          purchase_date: string
-          utr_number: string | null
-          status: string
-          shares: number | null
-          share_price_at_buy: number | null
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          user_id: string
-          amount: number
-          purchase_date?: string
-          utr_number?: string | null
-          status?: string
-          shares?: number | null
-          share_price_at_buy?: number | null
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          user_id?: string
-          amount?: number
-          purchase_date?: string
-          utr_number?: string | null
-          status?: string
-          shares?: number | null
-          share_price_at_buy?: number | null
-          created_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "investments_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          }
-        ]
-      }
       profiles: {
         Row: {
-          id: string
-          user_id: string
-          full_name: string | null
-          email: string | null
-          aadhar_number: string | null
-          pan_number: string | null
-          bank_name: string | null
-          account_number: string | null
-          ifsc_code: string | null
-          phone: string | null
-          initial: string | null
-          dob: string | null
-          address: string | null
-          gender: string | null
+          avatar_url: string | null
           created_at: string
-          updated_at: string | null
+          email: string | null
+          full_name: string | null
+          id: string
+          updated_at: string
+          user_id: string
         }
         Insert: {
-          id?: string
-          user_id: string
-          full_name?: string | null
-          email?: string | null
-          aadhar_number?: string | null
-          pan_number?: string | null
-          bank_name?: string | null
-          account_number?: string | null
-          ifsc_code?: string | null
-          phone?: string | null
-          initial?: string | null
-          dob?: string | null
-          address?: string | null
-          gender?: string | null
+          avatar_url?: string | null
           created_at?: string
-          updated_at?: string | null
+          email?: string | null
+          full_name?: string | null
+          id?: string
+          updated_at?: string
+          user_id: string
         }
         Update: {
-          id?: string
-          user_id?: string
-          full_name?: string | null
-          email?: string | null
-          aadhar_number?: string | null
-          pan_number?: string | null
-          bank_name?: string | null
-          account_number?: string | null
-          ifsc_code?: string | null
-          phone?: string | null
-          initial?: string | null
-          dob?: string | null
-          address?: string | null
-          gender?: string | null
+          avatar_url?: string | null
           created_at?: string
-          updated_at?: string | null
+          email?: string | null
+          full_name?: string | null
+          id?: string
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
       returns: {
         Row: {
-          id: string
-          sales_id: string
-          inventory_id: string | null
-          return_date: string
-          quantity_returned: number
-          delivery_status: string
-          penalty_amount: number
-          reason: string | null
-          notes: string | null
-          return_type: string | null
-          delivered_date: string | null
           created_at: string
-          updated_at: string | null
+          delivered_date: string | null
+          delivery_status: Database["public"]["Enums"]["delivery_status_type"]
+          id: string
+          inventory_id: string | null
+          penalty_amount: number
+          quantity_returned: number
+          return_date: string
+          return_type: Database["public"]["Enums"]["return_type"]
+          sales_id: string | null
         }
         Insert: {
-          id?: string
-          sales_id: string
-          inventory_id?: string | null
-          return_date: string
-          quantity_returned: number
-          delivery_status?: string
-          penalty_amount?: number
-          reason?: string | null
-          notes?: string | null
-          return_type?: string | null
-          delivered_date?: string | null
           created_at?: string
-          updated_at?: string | null
+          delivered_date?: string | null
+          delivery_status?: Database["public"]["Enums"]["delivery_status_type"]
+          id?: string
+          inventory_id?: string | null
+          penalty_amount?: number
+          quantity_returned: number
+          return_date?: string
+          return_type: Database["public"]["Enums"]["return_type"]
+          sales_id?: string | null
         }
         Update: {
-          id?: string
-          sales_id?: string
-          inventory_id?: string | null
-          return_date?: string
-          quantity_returned?: number
-          delivery_status?: string
-          penalty_amount?: number
-          reason?: string | null
-          notes?: string | null
-          return_type?: string | null
-          delivered_date?: string | null
           created_at?: string
-          updated_at?: string | null
+          delivered_date?: string | null
+          delivery_status?: Database["public"]["Enums"]["delivery_status_type"]
+          id?: string
+          inventory_id?: string | null
+          penalty_amount?: number
+          quantity_returned?: number
+          return_date?: string
+          return_type?: Database["public"]["Enums"]["return_type"]
+          sales_id?: string | null
         }
         Relationships: [
           {
             foreignKeyName: "returns_sales_id_fkey"
             columns: ["sales_id"]
-            isOneToOne: false
+            isOneToOne: true
             referencedRelation: "sales"
             referencedColumns: ["id"]
-          }
+          },
         ]
       }
       sales: {
         Row: {
-          id: string
-          inventory_id: string
-          dispatch_date: string
-          platform: string
-          quantity_sold: number
           average_selling_price: number
           courier_partner: string | null
-          payment_status: string
-          payment_method: string | null
-          order_number: string | null
-          settlement_date: string | null
-          cost_price: number | null
-          bill_url: string | null
           created_at: string
-          updated_at: string | null
+          dispatch_date: string
+          id: string
+          inventory_id: string
+          order_number: string | null
+          payment_method: string | null
+          payment_status: Database["public"]["Enums"]["payment_status_type"]
+          platform: Database["public"]["Enums"]["platform_type"]
+          quantity_sold: number
+          settlement_date: string | null
         }
         Insert: {
-          id?: string
-          inventory_id: string
-          dispatch_date: string
-          platform: string
-          quantity_sold: number
           average_selling_price: number
           courier_partner?: string | null
-          payment_status?: string
-          payment_method?: string | null
-          order_number?: string | null
-          settlement_date?: string | null
-          cost_price?: number | null
-          bill_url?: string | null
           created_at?: string
-          updated_at?: string | null
+          dispatch_date: string
+          id?: string
+          inventory_id: string
+          order_number?: string | null
+          payment_method?: string | null
+          payment_status?: Database["public"]["Enums"]["payment_status_type"]
+          platform: Database["public"]["Enums"]["platform_type"]
+          quantity_sold: number
+          settlement_date?: string | null
         }
         Update: {
-          id?: string
-          inventory_id?: string
-          dispatch_date?: string
-          platform?: string
-          quantity_sold?: number
           average_selling_price?: number
           courier_partner?: string | null
-          payment_status?: string
-          payment_method?: string | null
-          order_number?: string | null
-          settlement_date?: string | null
-          cost_price?: number | null
-          bill_url?: string | null
           created_at?: string
-          updated_at?: string | null
+          dispatch_date?: string
+          id?: string
+          inventory_id?: string
+          order_number?: string | null
+          payment_method?: string | null
+          payment_status?: Database["public"]["Enums"]["payment_status_type"]
+          platform?: Database["public"]["Enums"]["platform_type"]
+          quantity_sold?: number
+          settlement_date?: string | null
         }
         Relationships: [
           {
@@ -383,63 +213,24 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "inventory"
             referencedColumns: ["id"]
-          }
+          },
         ]
-      }
-      sips: {
-        Row: {
-          id: string
-          user_id: string
-          amount: number
-          frequency: string
-          autopay_enabled: boolean
-          start_date: string
-          next_date: string
-          status: string
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          user_id: string
-          amount: number
-          frequency?: string
-          autopay_enabled?: boolean
-          start_date?: string
-          next_date: string
-          status?: string
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          user_id?: string
-          amount?: number
-          frequency?: string
-          autopay_enabled?: boolean
-          start_date?: string
-          next_date?: string
-          status?: string
-          created_at?: string
-        }
-        Relationships: []
       }
       user_roles: {
         Row: {
           id: string
-          user_id: string
           role: Database["public"]["Enums"]["app_role"]
-          created_at: string
+          user_id: string
         }
         Insert: {
           id?: string
+          role?: Database["public"]["Enums"]["app_role"]
           user_id: string
-          role: Database["public"]["Enums"]["app_role"]
-          created_at?: string
         }
         Update: {
           id?: string
-          user_id?: string
           role?: Database["public"]["Enums"]["app_role"]
-          created_at?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -448,59 +239,28 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      calculate_disclosed_period_profit: {
-        Args: { dp_id: string }
-        Returns: number
-      }
-      calculate_share_price_as_of: {
-        Args: { as_of_date: string }
-        Returns: number
-      }
-      calculate_share_price_sql: {
-        Args: Record<PropertyKey, never>
-        Returns: number
-      }
-      delete_user_account: {
-        Args: { _target_user_id: string }
-        Returns: boolean
-      }
-      execute_monthly_disclosure: {
-        Args: {
-          _period_name: string
-          _notes: string
-          _dividend_declared: number
-        }
-        Returns: boolean
-      }
-      get_current_stock: {
-        Args: { inv_id: string }
-        Returns: number
-      }
-      get_public_forecast_data: {
-        Args: Record<PropertyKey, never>
-        Returns: Json
-      }
-      get_public_price_history: {
-        Args: Record<PropertyKey, never>
-        Returns: {
-          time: string
-          price: number
-        }[]
-      }
-      get_public_share_price: {
-        Args: Record<PropertyKey, never>
-        Returns: number
-      }
+      get_current_stock: { Args: { inv_id: string }; Returns: number }
       has_role: {
         Args: {
-          _user_id: string
           _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
         }
         Returns: boolean
       }
     }
     Enums: {
-      app_role: "admin" | "investor"
+      app_role: "admin" | "user"
+      courier_type:
+        | "Valmo"
+        | "Delhivery"
+        | "Shadowfax"
+        | "XpressBees"
+        | "SAVS Trans X"
+        | "Other"
+      delivery_status_type: "In Transit" | "Received"
+      payment_status_type: "Pending" | "Settled"
+      platform_type: "Meesho" | "Flipkart" | "Amazon" | "Offline"
+      return_type: "Customer Return" | "RTO"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -508,27 +268,33 @@ export type Database = {
   }
 }
 
-type PublicSchema = Database[Extract<keyof Database, "public">]
+type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
+
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
 
 export type Tables<
-  PublicTableNameOrOptions extends
-    | keyof (PublicSchema["Tables"] & PublicSchema["Views"])
-    | { schema: keyof Database },
-  TableName extends PublicTableNameOrOptions extends { schema: keyof Database }
-    ? keyof (Database[PublicTableNameOrOptions["schema"]]["Tables"] &
-        Database[PublicTableNameOrOptions["schema"]]["Views"])
+  DefaultSchemaTableNameOrOptions extends
+    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
     : never = never,
-> = PublicTableNameOrOptions extends { schema: keyof Database }
-  ? (Database[PublicTableNameOrOptions["schema"]]["Tables"] &
-      Database[PublicTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
       Row: infer R
     }
     ? R
     : never
-  : PublicTableNameOrOptions extends keyof (PublicSchema["Tables"] &
-        PublicSchema["Views"])
-    ? (PublicSchema["Tables"] &
-        PublicSchema["Views"])[PublicTableNameOrOptions] extends {
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
         Row: infer R
       }
       ? R
@@ -536,20 +302,24 @@ export type Tables<
     : never
 
 export type TablesInsert<
-  PublicTableNameOrOptions extends
-    | keyof PublicSchema["Tables"]
-    | { schema: keyof Database },
-  TableName extends PublicTableNameOrOptions extends { schema: keyof Database }
-    ? keyof Database[PublicTableNameOrOptions["schema"]]["Tables"]
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
     : never = never,
-> = PublicTableNameOrOptions extends { schema: keyof Database }
-  ? Database[PublicTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
       Insert: infer I
     }
     ? I
     : never
-  : PublicTableNameOrOptions extends keyof PublicSchema["Tables"]
-    ? PublicSchema["Tables"][PublicTableNameOrOptions] extends {
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
         Insert: infer I
       }
       ? I
@@ -557,20 +327,24 @@ export type TablesInsert<
     : never
 
 export type TablesUpdate<
-  PublicTableNameOrOptions extends
-    | keyof PublicSchema["Tables"]
-    | { schema: keyof Database },
-  TableName extends PublicTableNameOrOptions extends { schema: keyof Database }
-    ? keyof Database[PublicTableNameOrOptions["schema"]]["Tables"]
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
     : never = never,
-> = PublicTableNameOrOptions extends { schema: keyof Database }
-  ? Database[PublicTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
       Update: infer U
     }
     ? U
     : never
-  : PublicTableNameOrOptions extends keyof PublicSchema["Tables"]
-    ? PublicSchema["Tables"][PublicTableNameOrOptions] extends {
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
         Update: infer U
       }
       ? U
@@ -578,29 +352,55 @@ export type TablesUpdate<
     : never
 
 export type Enums<
-  PublicEnumNameOrOptions extends
-    | keyof PublicSchema["Enums"]
-    | { schema: keyof Database },
-  EnumName extends PublicEnumNameOrOptions extends { schema: keyof Database }
-    ? keyof Database[PublicEnumNameOrOptions["schema"]]["Enums"]
+  DefaultSchemaEnumNameOrOptions extends
+    | keyof DefaultSchema["Enums"]
+    | { schema: keyof DatabaseWithoutInternals },
+  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
     : never = never,
-> = PublicEnumNameOrOptions extends { schema: keyof Database }
-  ? Database[PublicEnumNameOrOptions["schema"]]["Enums"][EnumName]
-  : PublicEnumNameOrOptions extends keyof PublicSchema["Enums"]
-    ? PublicSchema["Enums"][PublicEnumNameOrOptions]
+> = DefaultSchemaEnumNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
+  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
     : never
 
 export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
-    | keyof PublicSchema["CompositeTypes"]
-    | { schema: keyof Database },
+    | keyof DefaultSchema["CompositeTypes"]
+    | { schema: keyof DatabaseWithoutInternals },
   CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
-    schema: keyof Database
+    schema: keyof DatabaseWithoutInternals
   }
-    ? keyof Database[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
     : never = never,
-> = PublicCompositeTypeNameOrOptions extends { schema: keyof Database }
-  ? Database[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
-  : PublicCompositeTypeNameOrOptions extends keyof PublicSchema["CompositeTypes"]
-    ? PublicSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+> = PublicCompositeTypeNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
     : never
+
+export const Constants = {
+  public: {
+    Enums: {
+      app_role: ["admin", "user"],
+      courier_type: [
+        "Valmo",
+        "Delhivery",
+        "Shadowfax",
+        "XpressBees",
+        "SAVS Trans X",
+        "Other",
+      ],
+      delivery_status_type: ["In Transit", "Received"],
+      payment_status_type: ["Pending", "Settled"],
+      platform_type: ["Meesho", "Flipkart", "Amazon", "Offline"],
+      return_type: ["Customer Return", "RTO"],
+    },
+  },
+} as const

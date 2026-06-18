@@ -6,6 +6,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -14,7 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { exportToXlsx } from '@/lib/xlsx-export';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Plus, Download, Pencil, Trash2, Search, DollarSign, Clock, FileUp, Loader2, SplitSquareHorizontal, TrendingUp } from 'lucide-react';
+import { Plus, Download, Pencil, Trash2, Search, DollarSign, Clock, FileUp, Loader2, SplitSquareHorizontal, TrendingUp, Copy } from 'lucide-react';
 import { CsvImportButton } from '@/components/CsvImportButton';
 import { PageHeader, StatCard, SectionCard, EmptyState } from '@/components/PageHeader';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
@@ -36,6 +37,7 @@ const schema = z.object({
   order_number: z.string().optional(),
   settlement_date: z.string().optional(),
   split_orders: z.boolean().optional(), // if true, qty>1 -> one row per unit
+  log_another: z.boolean().optional(),
 });
 type FormData = z.infer<typeof schema>;
 
@@ -52,12 +54,15 @@ export default function Sales() {
   const [billUploading, setBillUploading] = useState(false);
   const [billPreview, setBillPreview] = useState<any[] | null>(null);
   const [billPreviewOpen, setBillPreviewOpen] = useState(false);
+  const [apiKeyDialogOpen, setApiKeyDialogOpen] = useState(false);
+  const [pendingBillFile, setPendingBillFile] = useState<File | null>(null);
+  const [geminiKeyInput, setGeminiKeyInput] = useState(() => localStorage.getItem('GEMINI_API_KEY') || '');
   const qc = useQueryClient();
   const { toast } = useToast();
 
   const form = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: { dispatch_date: new Date().toISOString().slice(0, 10), platform: 'Meesho', inventory_id: '', quantity_sold: 1, average_selling_price: 0, courier_partner: '', payment_status: 'Pending', payment_method: 'Prepaid', order_number: '', settlement_date: '', split_orders: true },
+    defaultValues: { dispatch_date: new Date().toISOString().slice(0, 10), platform: 'Meesho', inventory_id: '', quantity_sold: 1, average_selling_price: 0, courier_partner: '', payment_status: 'Pending', payment_method: 'Prepaid', order_number: '', settlement_date: '', split_orders: true, log_another: false },
   });
 
   const paymentStatus = form.watch('payment_status');
@@ -73,7 +78,7 @@ export default function Sales() {
   }, [selectedInvId]);
 
   const filtered = sales.filter(s => {
-    const inv = s.inventory as any;
+    const inv = (Array.isArray(s.inventory) ? s.inventory[0] : s.inventory) as any;
     const matchSearch = search === '' || inv?.sku?.toLowerCase().includes(search.toLowerCase()) || inv?.product_name?.toLowerCase().includes(search.toLowerCase()) || (s.courier_partner ?? '').toLowerCase().includes(search.toLowerCase()) || ((s as any).order_number ?? '').toLowerCase().includes(search.toLowerCase());
     const matchPlatform = platformFilter === 'all' || s.platform === platformFilter;
     const matchStatus = statusFilter === 'all' || s.payment_status === statusFilter;
@@ -84,7 +89,7 @@ export default function Sales() {
   const pendingAmount = filtered.filter(s => s.payment_status === 'Pending').reduce((sum, s) => sum + s.quantity_sold * s.average_selling_price, 0);
   const settledAmount = filtered.filter(s => s.payment_status === 'Settled').reduce((sum, s) => sum + s.quantity_sold * s.average_selling_price, 0);
   const totalCostPrice = filtered.filter(s => s.payment_status !== 'Cancelled').reduce((sum, s) => {
-    const inv = s.inventory as any;
+    const inv = (Array.isArray(s.inventory) ? s.inventory[0] : s.inventory) as any;
     const cp = s.cost_price ?? inv?.average_cost_price ?? 0;
     return sum + s.quantity_sold * cp;
   }, 0);
@@ -105,57 +110,132 @@ export default function Sales() {
 
   const onSubmit = async (values: FormData) => {
     try {
+      const orderNumbers = values.order_number
+        ? values.order_number.split(/[\n,]+/).map(s => s.trim()).filter(Boolean)
+        : [];
+      const numOrders = orderNumbers.length > 1 ? orderNumbers.length : 1;
+      const totalQty = values.quantity_sold * numOrders;
+
       if (!editId) {
         try {
           const { data: stock, error: rpcError } = await supabase.rpc('get_current_stock', { inv_id: values.inventory_id });
           
           if (rpcError) {
             console.warn('Stock validation RPC failed (likely schema cache issue). Proceeding with sale log anyway.');
-          } else if (stock !== null && values.quantity_sold > (stock as number)) {
-            toast({ title: 'Insufficient stock', description: `Only ${stock} units available`, variant: 'destructive' });
+          } else if (stock !== null && totalQty > (stock as number)) {
+            toast({ title: 'Insufficient stock', description: `Need ${totalQty} units but only ${stock} units available`, variant: 'destructive' });
             return;
           }
         } catch (e) {
           console.warn('Failed to check stock, continuing...');
         }
       }
-      const baseRow = {
-        dispatch_date: values.dispatch_date,
-        platform: values.platform,
-        inventory_id: values.inventory_id,
-        average_selling_price: values.average_selling_price,
-        cost_price: selectedInv?.average_cost_price ?? 0,
-        courier_partner: values.courier_partner || null,
-        payment_status: values.payment_status,
-        payment_method: values.payment_method ?? null,
-        order_number: values.order_number || null,
-        settlement_date: values.payment_status === 'Settled' && values.settlement_date ? values.settlement_date : null,
-      };
-      const performSave = async (payload: any) => {
+
+      const performSave = async (includeCostPrice = true) => {
+        const cp = includeCostPrice ? (selectedInv?.average_cost_price ?? 0) : undefined;
+        
         if (editId) {
+          const payload: any = {
+            dispatch_date: values.dispatch_date,
+            platform: values.platform,
+            inventory_id: values.inventory_id,
+            average_selling_price: values.average_selling_price,
+            courier_partner: values.courier_partner || null,
+            payment_status: values.payment_status,
+            payment_method: values.payment_method ?? null,
+            order_number: values.order_number || null,
+            settlement_date: values.payment_status === 'Settled' && values.settlement_date ? values.settlement_date : null,
+          };
+          if (includeCostPrice) {
+            payload.cost_price = cp;
+          }
           return await supabase.from('sales').update({ ...payload, quantity_sold: values.quantity_sold }).eq('id', editId);
-        } else if (values.split_orders && values.quantity_sold > 1) {
-          const rows = Array.from({ length: values.quantity_sold }, () => ({ ...payload, quantity_sold: 1 }));
-          return await supabase.from('sales').insert(rows as any);
-        } else {
-          return await supabase.from('sales').insert({ ...payload, quantity_sold: values.quantity_sold } as any);
         }
+
+        if (orderNumbers.length <= 1) {
+          const payload: any = {
+            dispatch_date: values.dispatch_date,
+            platform: values.platform,
+            inventory_id: values.inventory_id,
+            average_selling_price: values.average_selling_price,
+            courier_partner: values.courier_partner || null,
+            payment_status: values.payment_status,
+            payment_method: values.payment_method ?? null,
+            order_number: orderNumbers[0] || null,
+            settlement_date: values.payment_status === 'Settled' && values.settlement_date ? values.settlement_date : null,
+          };
+          if (includeCostPrice) {
+            payload.cost_price = cp;
+          }
+          if (values.split_orders && values.quantity_sold > 1) {
+            const rows = Array.from({ length: values.quantity_sold }, () => ({ ...payload, quantity_sold: 1 }));
+            return await supabase.from('sales').insert(rows as any);
+          } else {
+            return await supabase.from('sales').insert({ ...payload, quantity_sold: values.quantity_sold } as any);
+          }
+        }
+
+        // Multiple order numbers -> bulk log
+        const rows: any[] = [];
+        for (const orderNo of orderNumbers) {
+          const payload: any = {
+            dispatch_date: values.dispatch_date,
+            platform: values.platform,
+            inventory_id: values.inventory_id,
+            average_selling_price: values.average_selling_price,
+            courier_partner: values.courier_partner || null,
+            payment_status: values.payment_status,
+            payment_method: values.payment_method ?? null,
+            order_number: orderNo,
+            settlement_date: values.payment_status === 'Settled' && values.settlement_date ? values.settlement_date : null,
+          };
+          if (includeCostPrice) {
+            payload.cost_price = cp;
+          }
+          if (values.split_orders && values.quantity_sold > 1) {
+            for (let i = 0; i < values.quantity_sold; i++) {
+              rows.push({ ...payload, quantity_sold: 1 });
+            }
+          } else {
+            rows.push({ ...payload, quantity_sold: values.quantity_sold });
+          }
+        }
+        return await supabase.from('sales').insert(rows as any);
       };
 
-      let { error } = await performSave(baseRow);
+      let { error } = await performSave(true);
       if (error && (error.message?.includes('cost_price') || error.details?.includes('cost_price'))) {
-        const { cost_price, ...fallbackRow } = baseRow;
-        const retryResult = await performSave(fallbackRow);
+        const retryResult = await performSave(false);
         error = retryResult.error;
       }
       if (error) throw error;
-      toast({ title: editId ? 'Sale updated' : values.split_orders && values.quantity_sold > 1 ? `Logged ${values.quantity_sold} separate orders` : 'Sale recorded' });
+
+      const totalRowsCreated = values.split_orders && values.quantity_sold > 1
+        ? values.quantity_sold * numOrders
+        : numOrders;
+
+      toast({ 
+        title: editId 
+          ? 'Sale updated' 
+          : totalRowsCreated > 1 
+            ? `Logged ${totalRowsCreated} separate orders` 
+            : 'Sale recorded' 
+      });
 
       qc.invalidateQueries({ queryKey: ['sales'] });
       qc.invalidateQueries({ queryKey: ['inventory'] });
-      setDialogOpen(false);
-      setEditId(null);
-      form.reset();
+      
+      if (values.log_another) {
+        form.reset({
+          ...values,
+          order_number: '',
+          log_another: true,
+        });
+      } else {
+        setDialogOpen(false);
+        setEditId(null);
+        form.reset();
+      }
     } catch (err: any) {
       toast({ title: 'Error', description: err.message, variant: 'destructive' });
     }
@@ -171,6 +251,22 @@ export default function Sales() {
       order_number: s.order_number ?? '',
       settlement_date: s.settlement_date ?? '',
       split_orders: false,
+      log_another: false,
+    });
+    setDialogOpen(true);
+  };
+
+  const handleClone = (s: any) => {
+    setEditId(null);
+    form.reset({
+      dispatch_date: s.dispatch_date, platform: s.platform, inventory_id: s.inventory_id,
+      quantity_sold: s.quantity_sold, average_selling_price: s.average_selling_price,
+      courier_partner: s.courier_partner ?? '', payment_status: s.payment_status,
+      payment_method: s.payment_method ?? 'Prepaid',
+      order_number: '',
+      settlement_date: s.settlement_date ?? '',
+      split_orders: false,
+      log_another: false,
     });
     setDialogOpen(true);
   };
@@ -187,7 +283,8 @@ export default function Sales() {
     try {
       const geminiKey = localStorage.getItem('GEMINI_API_KEY');
       if (!geminiKey) {
-        toast({ title: 'Missing API Key', description: 'Please configure your Gemini API Key in Settings first.', variant: 'destructive' });
+        setPendingBillFile(file);
+        setApiKeyDialogOpen(true);
         return;
       }
       
@@ -367,6 +464,16 @@ ${JSON.stringify(invSlim).slice(0, 4000)}`;
     }
   };
 
+  const saveApiKey = () => {
+    localStorage.setItem('GEMINI_API_KEY', geminiKeyInput);
+    toast({ title: 'API Key Saved', description: 'Gemini API Key has been saved successfully.' });
+    setApiKeyDialogOpen(false);
+    if (pendingBillFile) {
+      handleBillUpload(pendingBillFile);
+      setPendingBillFile(null);
+    }
+  };
+
   const confirmBillImport = async () => {
     if (!billPreview) return;
     const today = new Date().toISOString().slice(0, 10);
@@ -454,7 +561,7 @@ ${JSON.stringify(invSlim).slice(0, 4000)}`;
       sheetName: 'Sales',
       title: 'SAVS BuyHub - Sales Report',
       rows: filtered.map(s => {
-        const inv = s.inventory as any;
+        const inv = (Array.isArray(s.inventory) ? s.inventory[0] : s.inventory) as any;
         const cp = s.cost_price ?? inv?.average_cost_price ?? 0;
         const sp = s.average_selling_price;
         const qty = s.quantity_sold;
@@ -577,7 +684,6 @@ ${JSON.stringify(invSlim).slice(0, 4000)}`;
                     )} />
                   </div>
                   <div className="grid grid-cols-2 gap-3">
-                    <div><Label>Order Number (Optional)</Label><Input placeholder="e.g. AWB / Order ID" {...form.register('order_number')} /></div>
                     <div>
                       <Label>Payment Method</Label>
                       <Controller name="payment_method" control={form.control} render={({ field }) => (
@@ -590,37 +696,60 @@ ${JSON.stringify(invSlim).slice(0, 4000)}`;
                         </Select>
                       )} />
                     </div>
-                  </div>
-                  <div>
-                    <Label>Payment Status</Label>
-                    <Controller name="payment_status" control={form.control} render={({ field }) => (
-                      <Select value={field.value} onValueChange={field.onChange}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Pending">Pending</SelectItem>
-                          <SelectItem value="Packed">Packed</SelectItem>
-                          <SelectItem value="Dispatched">Dispatched</SelectItem>
-                          <SelectItem value="In Transit">In Transit</SelectItem>
-                          <SelectItem value="Settled">Settled</SelectItem>
-                          <SelectItem value="Cancelled">Cancelled</SelectItem>
-                          <SelectItem value="Order RTO">Order RTO</SelectItem>
-                          <SelectItem value="Return">Return</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    )} />
+                    <div>
+                      <Label>Payment Status</Label>
+                      <Controller name="payment_status" control={form.control} render={({ field }) => (
+                        <Select value={field.value} onValueChange={field.onChange}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Pending">Pending</SelectItem>
+                            <SelectItem value="Packed">Packed</SelectItem>
+                            <SelectItem value="Dispatched">Dispatched</SelectItem>
+                            <SelectItem value="In Transit">In Transit</SelectItem>
+                            <SelectItem value="Settled">Settled</SelectItem>
+                            <SelectItem value="Cancelled">Cancelled</SelectItem>
+                            <SelectItem value="Order RTO">Order RTO</SelectItem>
+                            <SelectItem value="Return">Return</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      )} />
+                    </div>
                   </div>
                   {paymentStatus === 'Settled' && (
                     <div><Label>Settlement Date</Label><Input type="date" {...form.register('settlement_date')} /></div>
                   )}
+                  <div>
+                    <Label>Order Number(s) (Optional)</Label>
+                    <Textarea 
+                      placeholder="e.g. AWB123, AWB124 (Enter multiple separated by commas or newlines for bulk logging)" 
+                      {...form.register('order_number')} 
+                      className="min-h-[80px]"
+                    />
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      Pasting multiple Order IDs will automatically record one sale per Order ID (e.g. 5 AWBs = 5 separate sales).
+                    </p>
+                  </div>
                   {!editId && (
-                    <div className="flex items-start gap-2 rounded-md border bg-muted/40 p-3">
-                      <Controller name="split_orders" control={form.control} render={({ field }) => (
-                        <Checkbox id="split_orders" checked={field.value ?? false} onCheckedChange={field.onChange} />
-                      )} />
-                      <label htmlFor="split_orders" className="text-sm leading-tight cursor-pointer">
-                        <span className="flex items-center gap-1 font-medium"><SplitSquareHorizontal className="h-3.5 w-3.5" />Treat each unit as a separate order</span>
-                        <span className="text-xs text-muted-foreground">Recommended for bulk-entered units that are actually individual orders. Creates one row per unit.</span>
-                      </label>
+                    <div className="space-y-3">
+                      <div className="flex items-start gap-2 rounded-md border bg-muted/40 p-3">
+                        <Controller name="split_orders" control={form.control} render={({ field }) => (
+                          <Checkbox id="split_orders" checked={field.value ?? false} onCheckedChange={field.onChange} />
+                        )} />
+                        <label htmlFor="split_orders" className="text-sm leading-tight cursor-pointer">
+                          <span className="flex items-center gap-1 font-medium"><SplitSquareHorizontal className="h-3.5 w-3.5" />Treat each unit as a separate order</span>
+                          <span className="text-xs text-muted-foreground">Recommended for bulk-entered units that are actually individual orders. Creates one row per unit.</span>
+                        </label>
+                      </div>
+
+                      <div className="flex items-center gap-2 rounded-md border border-indigo-100 bg-indigo-50/20 dark:border-indigo-950/40 dark:bg-indigo-950/10 p-3">
+                        <Controller name="log_another" control={form.control} render={({ field }) => (
+                          <Checkbox id="log_another" checked={field.value ?? false} onCheckedChange={field.onChange} />
+                        )} />
+                        <label htmlFor="log_another" className="text-sm leading-tight cursor-pointer flex-1">
+                          <span className="flex items-center gap-1 font-medium text-indigo-700 dark:text-indigo-300">Log another sale (keep details)</span>
+                          <span className="text-xs text-muted-foreground block mt-0.5">Keeps this form open with all selections pre-filled after you log, clearing only the Order ID.</span>
+                        </label>
+                      </div>
                     </div>
                   )}
                   <Button type="submit" className="w-full">{editId ? 'Update' : 'Log Sale'}</Button>
@@ -707,7 +836,7 @@ ${JSON.stringify(invSlim).slice(0, 4000)}`;
             </TableHeader>
             <TableBody>
               {filtered.map(s => {
-                const inv = s.inventory as any;
+                const inv = (Array.isArray(s.inventory) ? s.inventory[0] : s.inventory) as any;
                 const cp = s.cost_price ?? inv?.average_cost_price ?? 0;
                 const sp = s.average_selling_price;
                 const qty = s.quantity_sold;
@@ -776,6 +905,7 @@ ${JSON.stringify(invSlim).slice(0, 4000)}`;
                               toast({ title: `Split into ${rows.length} orders` });
                             }}><SplitSquareHorizontal className="h-4 w-4" /></Button>
                           )}
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-indigo-500 hover:text-indigo-700 hover:bg-indigo-50" title="Clone / Duplicate" onClick={() => handleClone(s)}><Copy className="h-3.5 w-3.5" /></Button>
                           <Button variant="ghost" size="icon" className="h-8 w-8" title="Edit" onClick={() => handleEdit(s)}><Pencil className="h-3.5 w-3.5" /></Button>
                           <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10" title="Delete" onClick={() => handleDelete(s.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
                         </div>
@@ -825,6 +955,35 @@ ${JSON.stringify(invSlim).slice(0, 4000)}`;
           <div className="flex justify-end gap-2 mt-3">
             <Button variant="outline" onClick={() => setBillPreviewOpen(false)}>Cancel</Button>
             <Button onClick={confirmBillImport}>Import {billPreview?.filter(i => i.matched_inventory_id).length ?? 0} orders</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={apiKeyDialogOpen} onOpenChange={setApiKeyDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Configure Gemini API Key</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-muted-foreground">
+              To extract courier labels and invoices automatically, please enter your Gemini API Key.
+              You can get a free key from <a href="https://aistudio.google.com/" target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline" style={{ color: 'hsl(var(--primary))' }}>Google AI Studio</a>.
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="gemini-key-input">Gemini API Key</Label>
+              <Input
+                id="gemini-key-input"
+                type="password"
+                value={geminiKeyInput}
+                onChange={(e) => setGeminiKeyInput(e.target.value)}
+                placeholder="AIzaSy..."
+                className="font-mono"
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setApiKeyDialogOpen(false)}>Cancel</Button>
+              <Button onClick={saveApiKey} disabled={!geminiKeyInput.trim()}>Save & Parse</Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

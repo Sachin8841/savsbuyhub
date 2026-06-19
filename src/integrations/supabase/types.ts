@@ -380,6 +380,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      current_user_has_role: {
+        Args: { _role: Database["public"]["Enums"]["app_role"] }
+        Returns: boolean
+      }
       execute_monthly_disclosure: {
         Args: {
           _dividend_declared?: number

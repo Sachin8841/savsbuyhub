@@ -1,5 +1,6 @@
 // Parse courier bill PDF and extract sales line items via Lovable AI (Gemini, multimodal)
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
+import { extractText, getDocumentProxy } from 'npm:unpdf@1.2.0';
 
 interface ParsedItem {
   sku?: string;
@@ -11,6 +12,57 @@ interface ParsedItem {
   courier_partner?: string;
   platform?: string;
 }
+
+const decodeBase64 = (input: string) => {
+  const clean = input.includes(',') ? input.split(',').pop()! : input;
+  return Uint8Array.from(atob(clean), (char) => char.charCodeAt(0));
+};
+
+const normalize = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+
+const extractPdfText = async (pdfBase64: string, mimeType?: string) => {
+  if (!/pdf/i.test(mimeType ?? 'application/pdf')) return '';
+  try {
+    const bytes = decodeBase64(pdfBase64);
+    const pdf = await getDocumentProxy(bytes);
+    const result = await extractText(pdf, { mergePages: true });
+    return String(result.text ?? '').replace(/\s+/g, ' ').trim().slice(0, 24000);
+  } catch (err) {
+    console.warn('PDF text extraction failed, continuing with AI attachment:', err);
+    return '';
+  }
+};
+
+const parseTextFallback = (text: string, inventory: any[] = []): ParsedItem[] => {
+  if (!text) return [];
+  const normalizedText = normalize(text);
+  const matched = inventory.find((item: any) => {
+    const candidates = [item.sku, item.name, item.product_name, ...(item.aliases ?? [])].filter(Boolean).map(String);
+    return candidates.some((candidate) => {
+      const norm = normalize(candidate);
+      return norm.length > 2 && normalizedText.includes(norm);
+    });
+  });
+
+  const sku = matched?.sku || text.match(/(?:sku|seller sku|product code)\s*[:#-]?\s*([A-Z0-9_\-/ ]{3,40})/i)?.[1]?.trim();
+  const qtyMatch = text.match(/(?:qty|quantity)\s*[:#-]?\s*(\d+)/i) || text.match(/\b(\d+)\s*x\b/i) || text.match(/\bx\s*(\d+)\b/i);
+  const orderMatch = text.match(/(?:order(?:\s*id|\s*no|\s*number)?|awb|sub\s*order)\s*[:#-]?\s*([A-Z0-9_\-/]{5,40})/i);
+  const amountMatch = text.match(/(?:total|amount|cod|collect(?:ible)?)\s*(?:amount)?\s*[:₹#-]?\s*(\d+(?:\.\d{1,2})?)/i);
+  const courier = ['Delhivery', 'Valmo', 'Shadowfax', 'XpressBees', 'Xpressbees', 'Ecom', 'India Post'].find((name) => new RegExp(name, 'i').test(text));
+  const platform = ['Meesho', 'Flipkart', 'Amazon'].find((name) => new RegExp(name, 'i').test(text));
+
+  if (!sku && !matched?.name && !orderMatch) return [];
+  return [{
+    sku: sku || matched?.sku,
+    product_name: matched?.name || matched?.product_name || sku,
+    quantity: Math.max(1, parseInt(qtyMatch?.[1] ?? '1', 10)),
+    order_number: orderMatch?.[1],
+    total_amount: amountMatch ? parseFloat(amountMatch[1]) : undefined,
+    payment_method: /\bCOD\b|cash on delivery/i.test(text) ? 'COD' : /prepaid|paid/i.test(text) ? 'Prepaid' : undefined,
+    courier_partner: courier === 'Xpressbees' ? 'XpressBees' : courier,
+    platform,
+  }];
+};
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
@@ -29,6 +81,8 @@ Deno.serve(async (req) => {
     if (!apiKey && !geminiKey) {
       throw new Error('API Key missing. Please set GEMINI_API_KEY or LOVABLE_API_KEY in your Supabase secrets.');
     }
+
+    const extractedText = await extractPdfText(pdfBase64, mimeType);
 
     // Build a compact catalog hint so the model can match SKUs/aliases
     const catalog = (inventory ?? []).map((i: any) => ({
@@ -51,7 +105,10 @@ For EACH order on the document, return an item with:
 If multiple distinct orders exist, return one entry per order. If a single order has quantity N, return ONE entry with quantity=N (do not duplicate).
 
 Catalog for SKU/alias matching:
-${JSON.stringify(catalog).slice(0, 4000)}`;
+${JSON.stringify(catalog).slice(0, 4000)}
+
+OCR / extracted PDF text, if available:
+${extractedText || 'No embedded PDF text extracted. Use the attached document/image.'}`;
 
     let items: ParsedItem[] = [];
 
@@ -125,10 +182,12 @@ ${JSON.stringify(catalog).slice(0, 4000)}`;
               { role: 'system', content: systemPrompt },
               {
                 role: 'user',
-                content: [
-                  { type: 'text', text: 'Extract every order from this courier bill / shipping label document.' },
-                  { type: 'image_url', image_url: { url: `data:${mimeType ?? 'application/pdf'};base64,${pdfBase64}` } },
-                ],
+                content: extractedText
+                  ? `Extract every order from this courier bill / shipping label text:\n\n${extractedText}`
+                  : [
+                      { type: 'text', text: 'Extract every order from this courier bill / shipping label document.' },
+                      { type: 'image_url', image_url: { url: `data:${mimeType ?? 'application/pdf'};base64,${pdfBase64}` } },
+                    ],
               },
             ],
             tools: [{
@@ -187,6 +246,10 @@ ${JSON.stringify(catalog).slice(0, 4000)}`;
     } else {
       // Use Gemini API directly
       items = await callGemini();
+    }
+
+    if (!items.length && extractedText) {
+      items = parseTextFallback(extractedText, catalog);
     }
 
     return new Response(JSON.stringify({ items }), {

@@ -416,7 +416,15 @@ export type Database = {
         | "SAVS Trans X"
         | "Other"
       delivery_status_type: "In Transit" | "Received"
-      payment_status_type: "Pending" | "Settled" | "Cancelled"
+      payment_status_type:
+        | "Pending"
+        | "Settled"
+        | "Cancelled"
+        | "Packed"
+        | "Dispatched"
+        | "In Transit"
+        | "Order RTO"
+        | "Return"
       platform_type: "Meesho" | "Flipkart" | "Amazon" | "Offline"
       return_type: "Customer Return" | "RTO"
     }
@@ -556,7 +564,16 @@ export const Constants = {
         "Other",
       ],
       delivery_status_type: ["In Transit", "Received"],
-      payment_status_type: ["Pending", "Settled", "Cancelled"],
+      payment_status_type: [
+        "Pending",
+        "Settled",
+        "Cancelled",
+        "Packed",
+        "Dispatched",
+        "In Transit",
+        "Order RTO",
+        "Return",
+      ],
       platform_type: ["Meesho", "Flipkart", "Amazon", "Offline"],
       return_type: ["Customer Return", "RTO"],
     },

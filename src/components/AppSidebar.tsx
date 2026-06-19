@@ -16,20 +16,18 @@ import {
 import { Button } from '@/components/ui/button';
 
 const navItems = [
-  { title: 'Dashboard', url: '/', icon: LayoutDashboard, adminOnly: true },
-  { title: 'Inventory', url: '/inventory', icon: Package, adminOnly: true },
-  { title: 'Sales Ledger', url: '/sales', icon: Receipt, adminOnly: true },
-  { title: 'Returns', url: '/returns', icon: RotateCcw, adminOnly: true },
-  { title: 'P&L Statement', url: '/pnl', icon: FileText, adminOnly: true },
-  { title: 'Investor Portal', url: '/invest', icon: BarChart3, adminOnly: false },
-  { title: 'Settings', url: '/settings', icon: Settings, adminOnly: false },
+  { title: 'Dashboard', url: '/', icon: LayoutDashboard },
+  { title: 'Inventory', url: '/inventory', icon: Package },
+  { title: 'Sales Ledger', url: '/sales', icon: Receipt },
+  { title: 'Returns', url: '/returns', icon: RotateCcw },
+  { title: 'P&L Statement', url: '/pnl', icon: FileText },
+  { title: 'Settings', url: '/settings', icon: Settings },
 ];
 
 export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === 'collapsed';
-  const { isAdmin, signOut, user } = useAuthStore();
-  const admin = isAdmin();
+  const { signOut, user } = useAuthStore();
 
   return (
     <Sidebar collapsible="icon">
@@ -50,9 +48,9 @@ export function AppSidebar() {
         {/* Role badge */}
         {!collapsed && (
           <div className="px-4 pt-3 pb-1">
-            <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${admin ? 'bg-indigo-500/20 text-indigo-300' : 'bg-emerald-500/20 text-emerald-300'}`}>
+            <span className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300">
               <span className="w-1.5 h-1.5 rounded-full bg-current" />
-              {admin ? 'Admin' : 'Investor'}
+              Admin
             </span>
           </div>
         )}
@@ -62,8 +60,6 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               {navItems.map((item) => {
-                if (item.adminOnly && !admin) return null;
-
                 return (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton asChild>

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useSales, useReturns, useInventory, useAdExpenses, useInvestments } from '@/hooks/useData';
+import { useSales, useReturns, useInventory, useAdExpenses } from '@/hooks/useData';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuthStore } from '@/stores/authStore';
 import { useQueryClient } from '@tanstack/react-query';
@@ -23,7 +23,6 @@ export default function Dashboard() {
   const { data: returns = [] } = useReturns();
   const { data: inventory = [] } = useInventory();
   const { data: adExpenses = [] } = useAdExpenses();
-  const { data: investments = [] } = useInvestments();
   const { isAdmin } = useAuthStore();
   const admin = isAdmin();
   const qc = useQueryClient();
@@ -107,8 +106,6 @@ export default function Dashboard() {
     const stock = currentStocks[item.id] ?? 0;
     return sum + stock * (item.average_cost_price || 0);
   }, 0);
-
-  const totalInvestorCapital = investments.filter(i => i.status === 'Verified').reduce((sum, i) => sum + i.amount, 0);
 
   const platformData = useMemo(() => ['Meesho', 'Flipkart', 'Amazon', 'Offline'].map(p => {
     const platSales = filteredSales.filter(s => s.platform === p);
@@ -256,7 +253,6 @@ export default function Dashboard() {
   const kpis = [
     { title: 'Total Revenue', value: fmt(totalRevenue), icon: DollarSign, color: 'text-primary', bg: 'bg-primary/10' },
     { title: 'Total Investment', value: fmt(totalCost + stockHoldingValue + totalAdSpend + totalInventoryDeliveryFees), subtitle: 'COGS + Stock + Ads + Delivery', icon: Package, color: 'text-amber-600', bg: 'bg-amber-50 dark:bg-amber-950' },
-    { title: 'Investor Capital', value: fmt(totalInvestorCapital), subtitle: 'From Investors', icon: DollarSign, color: 'text-emerald-600', bg: 'bg-emerald-50 dark:bg-emerald-950' },
     { title: 'Net Profit', value: fmt(netProfit), subtitle: `${profitMargin}% margin`, icon: netProfit >= 0 ? ArrowUpRight : ArrowDownRight, color: netProfit >= 0 ? 'text-emerald-600' : 'text-destructive', bg: netProfit >= 0 ? 'bg-emerald-50 dark:bg-emerald-950' : 'bg-destructive/10' },
     { title: 'Total Orders', value: totalOrders.toLocaleString(), subtitle: `${totalUnits} units · Avg ${fmt(Math.round(avgUnitValue))}/unit`, icon: ShoppingCart, color: 'text-primary', bg: 'bg-primary/10' },
     { title: 'Profit/Unit', value: fmt(Math.round(profitPerUnit)), icon: TrendingUp, color: profitPerUnit >= 0 ? 'text-emerald-600' : 'text-destructive', bg: profitPerUnit >= 0 ? 'bg-emerald-50 dark:bg-emerald-950' : 'bg-destructive/10' },

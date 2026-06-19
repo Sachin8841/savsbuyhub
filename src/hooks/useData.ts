@@ -81,19 +81,3 @@ export function useCurrentStock(inventoryId: string) {
   });
 }
 
-export function useInvestments() {
-  const loading = useAuthStore((state) => state.loading);
-
-  return useQuery({
-    queryKey: ['investments'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('investments')
-        .select('*, profiles:user_id(full_name, email, pan_number, aadhar_number, bank_name, account_number, ifsc_code)')
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      return data;
-    },
-    enabled: !loading,
-  });
-}

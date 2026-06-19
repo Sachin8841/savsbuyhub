@@ -24,7 +24,11 @@ Deno.serve(async (req) => {
     }
 
     const apiKey = Deno.env.get('LOVABLE_API_KEY');
-    if (!apiKey) throw new Error('LOVABLE_API_KEY missing');
+    const geminiKey = Deno.env.get('GEMINI_API_KEY');
+
+    if (!apiKey && !geminiKey) {
+      throw new Error('API Key missing. Please set GEMINI_API_KEY or LOVABLE_API_KEY in your Supabase secrets.');
+    }
 
     // Build a compact catalog hint so the model can match SKUs/aliases
     const catalog = (inventory ?? []).map((i: any) => ({
@@ -49,66 +53,141 @@ If multiple distinct orders exist, return one entry per order. If a single order
 Catalog for SKU/alias matching:
 ${JSON.stringify(catalog).slice(0, 4000)}`;
 
-    const resp = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          {
-            role: 'user',
-            content: [
-              { type: 'text', text: 'Extract every order from this courier bill / shipping label document.' },
-              { type: 'image_url', image_url: { url: `data:${mimeType ?? 'application/pdf'};base64,${pdfBase64}` } },
-            ],
-          },
-        ],
-        tools: [{
-          type: 'function',
-          function: {
-            name: 'return_orders',
-            description: 'Return parsed orders',
-            parameters: {
-              type: 'object',
-              properties: {
-                items: {
-                  type: 'array',
+    let items: ParsedItem[] = [];
+
+    // Helper function to call Gemini directly
+    const callGemini = async () => {
+      if (!geminiKey) throw new Error('GEMINI_API_KEY is not set for fallback.');
+      const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          system_instruction: { parts: [{ text: systemPrompt }] },
+          contents: [{
+            parts: [
+              { text: 'Extract every order from this courier bill / shipping label document.' },
+              { inline_data: { mime_type: mimeType || 'application/pdf', data: pdfBase64 } }
+            ]
+          }],
+          tools: [{
+            function_declarations: [{
+              name: 'return_orders',
+              description: 'Return parsed orders',
+              parameters: {
+                type: 'object',
+                properties: {
                   items: {
-                    type: 'object',
-                    properties: {
-                      sku: { type: 'string' },
-                      product_name: { type: 'string' },
-                      quantity: { type: 'integer' },
-                      order_number: { type: 'string' },
-                      total_amount: { type: 'number' },
-                      payment_method: { type: 'string', enum: ['Prepaid', 'COD'] },
-                      courier_partner: { type: 'string' },
-                      platform: { type: 'string' },
+                    type: 'array',
+                    items: {
+                      type: 'object',
+                      properties: {
+                        sku: { type: 'string' },
+                        product_name: { type: 'string' },
+                        quantity: { type: 'integer' },
+                        order_number: { type: 'string' },
+                        total_amount: { type: 'number' },
+                        payment_method: { type: 'string', enum: ['Prepaid', 'COD'] },
+                        courier_partner: { type: 'string' },
+                        platform: { type: 'string' }
+                      },
+                      required: ['quantity']
+                    }
+                  }
+                },
+                required: ['items']
+              }
+            }]
+          }],
+          tool_config: { function_calling_config: { mode: 'ANY', allowed_function_names: ['return_orders'] } }
+        })
+      });
+
+      if (!resp.ok) {
+        const text = await resp.text();
+        throw new Error(`Gemini API Error: ${resp.status} ${text.slice(0, 200)}`);
+      }
+
+      const data = await resp.json();
+      const toolCall = data?.candidates?.[0]?.content?.parts?.[0]?.functionCall;
+      const args = toolCall?.args;
+      return args?.items ?? [];
+    };
+
+    if (apiKey) {
+      try {
+        // Use Lovable AI Gateway
+        const resp = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+          body: JSON.stringify({
+            model: 'google/gemini-2.5-flash',
+            messages: [
+              { role: 'system', content: systemPrompt },
+              {
+                role: 'user',
+                content: [
+                  { type: 'text', text: 'Extract every order from this courier bill / shipping label document.' },
+                  { type: 'image_url', image_url: { url: `data:${mimeType ?? 'application/pdf'};base64,${pdfBase64}` } },
+                ],
+              },
+            ],
+            tools: [{
+              type: 'function',
+              function: {
+                name: 'return_orders',
+                description: 'Return parsed orders',
+                parameters: {
+                  type: 'object',
+                  properties: {
+                    items: {
+                      type: 'array',
+                      items: {
+                        type: 'object',
+                        properties: {
+                          sku: { type: 'string' },
+                          product_name: { type: 'string' },
+                          quantity: { type: 'integer' },
+                          order_number: { type: 'string' },
+                          total_amount: { type: 'number' },
+                          payment_method: { type: 'string', enum: ['Prepaid', 'COD'] },
+                          courier_partner: { type: 'string' },
+                          platform: { type: 'string' },
+                        },
+                        required: ['quantity'],
+                      },
                     },
-                    required: ['quantity'],
                   },
+                  required: ['items'],
                 },
               },
-              required: ['items'],
-            },
-          },
-        }],
-        tool_choice: { type: 'function', function: { name: 'return_orders' } },
-      }),
-    });
+            }],
+            tool_choice: { type: 'function', function: { name: 'return_orders' } },
+          }),
+        });
 
-    if (!resp.ok) {
-      const text = await resp.text();
-      if (resp.status === 429) return new Response(JSON.stringify({ error: 'Rate limit. Please retry shortly.' }), { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-      if (resp.status === 402) return new Response(JSON.stringify({ error: 'AI credits exhausted. Add credits in Workspace settings.' }), { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-      throw new Error(`AI gateway: ${resp.status} ${text.slice(0, 200)}`);
+        if (!resp.ok) {
+          const text = await resp.text();
+          if (resp.status === 429) throw new Error('Rate limit. Please retry shortly.');
+          if (resp.status === 402) throw new Error('AI credits exhausted. Add credits in Workspace settings.');
+          throw new Error(`AI gateway: ${resp.status} ${text.slice(0, 200)}`);
+        }
+
+        const data = await resp.json();
+        const toolCall = data?.choices?.[0]?.message?.tool_calls?.[0];
+        const args = toolCall?.function?.arguments ? JSON.parse(toolCall.function.arguments) : { items: [] };
+        items = args.items ?? [];
+      } catch (err: any) {
+        console.warn('Lovable gateway failed, attempting fallback to Gemini:', err.message);
+        if (geminiKey) {
+          items = await callGemini();
+        } else {
+          throw err;
+        }
+      }
+    } else {
+      // Use Gemini API directly
+      items = await callGemini();
     }
-
-    const data = await resp.json();
-    const toolCall = data?.choices?.[0]?.message?.tool_calls?.[0];
-    const args = toolCall?.function?.arguments ? JSON.parse(toolCall.function.arguments) : { items: [] };
-    const items: ParsedItem[] = args.items ?? [];
 
     return new Response(JSON.stringify({ items }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

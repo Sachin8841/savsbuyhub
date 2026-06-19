@@ -14,12 +14,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       isBootstrapped = true;
       setUser(user);
-      setLoading(false);
 
       if (user) {
-        void fetchRole(user.id);
+        setLoading(true);
+        void fetchRole(user.id).finally(() => {
+          if (isActive && useAuthStore.getState().user?.id === user.id) {
+            setLoading(false);
+          }
+        });
       } else {
         setRole(null);
+        setLoading(false);
       }
     };
 

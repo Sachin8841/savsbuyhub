@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,6 +16,21 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const [searchParams] = useSearchParams();
+
+  useEffect(() => {
+    const errorParam = searchParams.get('error');
+    if (errorParam === 'unauthorized') {
+      const t = setTimeout(() => {
+        toast({
+          title: 'Access Denied',
+          description: 'Only administrators are authorized to access this ERP system.',
+          variant: 'destructive',
+        });
+      }, 100);
+      return () => clearTimeout(t);
+    }
+  }, [searchParams, toast]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,8 +54,8 @@ export default function Login() {
 
   const features = [
     { icon: TrendingUp, label: 'Real-time P&L tracking' },
-    { icon: BarChart3, label: 'Investor portal & analytics' },
-    { icon: ShieldCheck, label: 'Secure role-based access' },
+    { icon: BarChart3, label: 'Advanced ledger controls' },
+    { icon: ShieldCheck, label: 'Secure administrative access' },
   ];
 
   return (

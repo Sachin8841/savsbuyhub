@@ -8,7 +8,6 @@ const PAGE_TITLES: Record<string, string> = {
   '/sales': 'Sales Ledger',
   '/returns': 'Returns',
   '/pnl': 'P&L Statement',
-  '/invest': 'Investor Portal',
   '/settings': 'Settings',
 };
 

@@ -54,9 +54,6 @@ export default function Sales() {
   const [billUploading, setBillUploading] = useState(false);
   const [billPreview, setBillPreview] = useState<any[] | null>(null);
   const [billPreviewOpen, setBillPreviewOpen] = useState(false);
-  const [apiKeyDialogOpen, setApiKeyDialogOpen] = useState(false);
-  const [pendingBillFile, setPendingBillFile] = useState<File | null>(null);
-  const [geminiKeyInput, setGeminiKeyInput] = useState(() => localStorage.getItem('GEMINI_API_KEY') || '');
   const qc = useQueryClient();
   const { toast } = useToast();
 
@@ -237,7 +234,11 @@ export default function Sales() {
         form.reset();
       }
     } catch (err: any) {
-      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+      console.error("Sales log error:", err);
+      const errMsg = typeof err === 'object'
+        ? `${err.message || ''} | Details: ${err.details || ''} | Hint: ${err.hint || ''} | Code: ${err.code || ''}`
+        : String(err);
+      toast({ title: 'Error logging sale', description: errMsg, variant: 'destructive' });
     }
   };
 
@@ -281,13 +282,6 @@ export default function Sales() {
 
   const handleBillUpload = async (file: File) => {
     try {
-      const geminiKey = localStorage.getItem('GEMINI_API_KEY');
-      if (!geminiKey) {
-        setPendingBillFile(file);
-        setApiKeyDialogOpen(true);
-        return;
-      }
-      
       setBillUploading(true);
       const reader = new FileReader();
       const base64: string = await new Promise((res, rej) => {
@@ -298,75 +292,13 @@ export default function Sales() {
       
       const invSlim = inventory.map((i: any) => ({ sku: i.sku, name: i.product_name, aliases: i.aliases ?? [] }));
       
-      const systemPrompt = `You extract sales line items from courier shipping labels / e-commerce invoices (Meesho, Flipkart, Amazon, Shiprocket, Delhivery, etc.) PDFs or Images.
-Return STRICT JSON matching the schema. Do NOT wrap in markdown.
-For EACH order on the document, return an item with:
-- sku: product SKU if visible (match against catalog SKU or aliases)
-- product_name: product title as printed
-- quantity: integer parsed from patterns like "1x", "2x", "Qty: 3", "x4", default 1
-- order_number: order id / AWB / sub-order id
-- total_amount: numeric total (price), no currency symbol
-- payment_method: "Prepaid" or "COD" (look for COD, Cash on Delivery, Prepaid)
-- courier_partner: e.g. Delhivery, Valmo, Xpressbees, Ecom, Shadowfax, India Post
-- platform: Meesho / Flipkart / Amazon / Other
-
-Catalog for SKU/alias matching:
-${JSON.stringify(invSlim).slice(0, 4000)}`;
-
-      const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          system_instruction: { parts: [{ text: systemPrompt }] },
-          contents: [{
-            parts: [
-              { text: 'Extract every order from this courier bill / shipping label document.' },
-              { inline_data: { mime_type: file.type || 'application/pdf', data: base64 } }
-            ]
-          }],
-          tools: [{
-            function_declarations: [{
-              name: 'return_orders',
-              description: 'Return parsed orders',
-              parameters: {
-                type: 'object',
-                properties: {
-                  items: {
-                    type: 'array',
-                    items: {
-                      type: 'object',
-                      properties: {
-                        sku: { type: 'string' },
-                        product_name: { type: 'string' },
-                        quantity: { type: 'integer' },
-                        order_number: { type: 'string' },
-                        total_amount: { type: 'number' },
-                        payment_method: { type: 'string', enum: ['Prepaid', 'COD'] },
-                        courier_partner: { type: 'string' },
-                        platform: { type: 'string' }
-                      },
-                      required: ['quantity']
-                    }
-                  }
-                },
-                required: ['items']
-              }
-            }]
-          }],
-          tool_config: { function_calling_config: { mode: 'ANY', allowed_function_names: ['return_orders'] } }
-        })
+      const { data, error } = await supabase.functions.invoke('parse-bill', {
+        body: { pdfBase64: base64, mimeType: file.type, inventory: invSlim }
       });
-
-      if (!resp.ok) {
-        const text = await resp.text();
-        throw new Error(`Gemini API Error: ${resp.status} ${text}`);
-      }
-
-      const data = await resp.json();
-      const toolCall = data?.candidates?.[0]?.content?.parts?.[0]?.functionCall;
-      const args = toolCall?.args;
-      const parsedItems = args?.items ?? [];
-
+      
+      if (error) throw error;
+      const parsedItems = data?.items ?? [];
+      
       const cleanSkuAndExtractQty = (s: string, parsedQty: number) => {
         if (!s) return { qty: parsedQty || 1, baseSku: '' };
         const trimmed = s.trim();
@@ -386,6 +318,18 @@ ${JSON.stringify(invSlim).slice(0, 4000)}`;
         const invoiceName = it.product_name || '';
         
         const { qty, baseSku } = cleanSkuAndExtractQty(invoiceSku, it.quantity);
+
+        const rawPlatform = (it.platform || '').trim();
+        let mappedPlatform: 'Meesho' | 'Flipkart' | 'Amazon' | 'Offline' = 'Meesho';
+        if (/meesho/i.test(rawPlatform)) {
+          mappedPlatform = 'Meesho';
+        } else if (/flipkart/i.test(rawPlatform)) {
+          mappedPlatform = 'Flipkart';
+        } else if (/amazon/i.test(rawPlatform)) {
+          mappedPlatform = 'Amazon';
+        } else if (/offline/i.test(rawPlatform)) {
+          mappedPlatform = 'Offline';
+        }
 
         let bestMatch = null;
         let bestScore = 0;
@@ -447,6 +391,7 @@ ${JSON.stringify(invSlim).slice(0, 4000)}`;
         
         return { 
           ...it, 
+          platform: mappedPlatform,
           quantity: qty,
           matched_inventory_id: matchedInv?.id ?? '', 
           matched_sku: matchedInv?.sku ?? '', 
@@ -461,16 +406,6 @@ ${JSON.stringify(invSlim).slice(0, 4000)}`;
       toast({ title: 'Bill parsing failed', description: err.message, variant: 'destructive' });
     } finally {
       setBillUploading(false);
-    }
-  };
-
-  const saveApiKey = () => {
-    localStorage.setItem('GEMINI_API_KEY', geminiKeyInput);
-    toast({ title: 'API Key Saved', description: 'Gemini API Key has been saved successfully.' });
-    setApiKeyDialogOpen(false);
-    if (pendingBillFile) {
-      handleBillUpload(pendingBillFile);
-      setPendingBillFile(null);
     }
   };
 
@@ -537,13 +472,15 @@ ${JSON.stringify(invSlim).slice(0, 4000)}`;
           delivery_status: 'In Transit'
         };
         
-        const { error: retError } = await supabase.from('returns').insert(row as any);
+        const { error: retError } = await supabase.from('returns').upsert(row as any, { onConflict: 'sales_id' });
         if (retError) {
           toast({ title: 'Status updated, but failed to log return', description: retError.message, variant: 'destructive' });
         } else {
           toast({ title: `Status marked as ${newStatus} & Return logged` });
         }
       } else {
+        // Clean up returns record if status changed away from return/RTO
+        await supabase.from('returns').delete().eq('sales_id', sale.id);
         toast({ title: `Status marked as ${newStatus}` });
       }
 
@@ -988,34 +925,7 @@ ${JSON.stringify(invSlim).slice(0, 4000)}`;
         </DialogContent>
       </Dialog>
 
-      <Dialog open={apiKeyDialogOpen} onOpenChange={setApiKeyDialogOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Configure Gemini API Key</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <p className="text-sm text-muted-foreground">
-              To extract courier labels and invoices automatically, please enter your Gemini API Key.
-              You can get a free key from <a href="https://aistudio.google.com/" target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline" style={{ color: 'hsl(var(--primary))' }}>Google AI Studio</a>.
-            </p>
-            <div className="space-y-2">
-              <Label htmlFor="gemini-key-input">Gemini API Key</Label>
-              <Input
-                id="gemini-key-input"
-                type="password"
-                value={geminiKeyInput}
-                onChange={(e) => setGeminiKeyInput(e.target.value)}
-                placeholder="AIzaSy..."
-                className="font-mono"
-              />
-            </div>
-            <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" onClick={() => setApiKeyDialogOpen(false)}>Cancel</Button>
-              <Button onClick={saveApiKey} disabled={!geminiKeyInput.trim()}>Save & Parse</Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+
     </div>
   );
 }

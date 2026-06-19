@@ -138,7 +138,7 @@ export default function Forecast() {
             </div>
             <div className="flex items-center gap-3 flex-wrap">
               <Button onClick={() => navigate('/login')} className="bg-white/10 hover:bg-white/20 text-white border-none gap-2 rounded-full px-6">
-                <LogIn className="h-4 w-4" /> Investor & Staff Login
+                <LogIn className="h-4 w-4" /> Admin Login
               </Button>
             </div>
           </div>
@@ -188,8 +188,7 @@ export default function Forecast() {
             </p>
           </div>
         )}
-        
-        {/* Investor CTA & Live Market */}
+           {/* Live Market Share Price & History */}
         <div className="grid gap-6 lg:grid-cols-3">
           <Card className="lg:col-span-1 bg-gradient-to-b from-indigo-950 to-slate-900 border-none shadow-xl text-white">
             <CardContent className="p-8 flex flex-col justify-center h-full space-y-6">
@@ -202,11 +201,8 @@ export default function Forecast() {
                 </div>
               </div>
               <p className="text-slate-300 leading-relaxed text-sm">
-                Invest in our growth. Our share price is dynamically calculated based on real-time net assets, revenue, and profit margins. Every sale increases your equity value.
+                Our share price is dynamically calculated based on real-time net assets, revenue, and profit margins. Every sale increases our equity value.
               </p>
-              <Button size="lg" className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold h-12" onClick={() => navigate('/login')}>
-                Start Investing Now <ArrowUpRight className="ml-2 h-5 w-5" />
-              </Button>
             </CardContent>
           </Card>
           

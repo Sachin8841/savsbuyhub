@@ -43,26 +43,6 @@ export default function SettingsPage() {
   const { data: inventory = [] } = useInventory();
   const { data: returns = [] } = useReturns();
   const { data: adExpenses = [] } = useAdExpenses();
-  const [investmentRequests, setInvestmentRequests] = useState<any[]>([]);
-  const [geminiKey, setGeminiKey] = useState(() => localStorage.getItem('GEMINI_API_KEY') || '');
-  
-  // User Profile State
-  const [profile, setProfile] = useState<any>(null);
-  const [fullName, setFullName] = useState('');
-  const [pan, setPan] = useState('');
-  const [initial, setInitial] = useState('');
-  const [phone, setPhone] = useState('');
-  const [dob, setDob] = useState('');
-  const [address, setAddress] = useState('');
-  const [gender, setGender] = useState('');
-  const [bankName, setBankName] = useState('');
-  const [accountNumber, setAccountNumber] = useState('');
-  const [ifsc, setIfsc] = useState('');
-  const [aadhar, setAadhar] = useState('');
-  const [mobileVerified, setMobileVerified] = useState(false);
-  const [otpSent, setOtpSent] = useState(false);
-  const [otp, setOtp] = useState('');
-
   const admin = isAdmin();
 
   // Low Stock & Current Stocks state
@@ -312,25 +292,7 @@ export default function SettingsPage() {
     }).filter(p => p.units > 0);
   }, [sales, inventory, returns]);
 
-  // Compute Active Investor stats
-  const investorCapitalStats = useMemo(() => {
-    const verifiedInvestments = investmentRequests.filter(i => i.status === 'Verified');
-    const totalCap = verifiedInvestments.reduce((sum, i) => sum + (i.amount || 0), 0);
-    const totalShrs = verifiedInvestments.reduce((sum, i) => sum + (i.shares || 0), 0);
-    const currentPrice = diagResults.rpcs.find(r => r.name === 'get_public_share_price')?.val ?? 100;
-    const valuation = totalShrs * currentPrice;
-    const netGain = valuation - totalCap;
-    
-    return {
-      totalCapital: totalCap,
-      totalShares: totalShrs,
-      currentPrice,
-      currentValuation: valuation,
-      netGain,
-      gainPercent: totalCap > 0 ? (netGain / totalCap) * 100 : 0,
-      activeInvestorsCount: new Set(verifiedInvestments.map(i => i.user_id)).size
-    };
-  }, [investmentRequests, diagResults]);
+
 
   // Compute Simulated Share Price components
   const simValuation = useMemo(() => {
@@ -358,74 +320,44 @@ export default function SettingsPage() {
   }, [simBaseVal, simStockValue, simActiveProfit, simHistoricalProfit, simTotalShares, simDaysSinceSale]);
 
   useEffect(() => {
-    if (admin) {
-      const fetchUsers = async () => {
-        setLoading(true);
-        const { data: roles } = await supabase.from('user_roles').select('user_id, role');
-        const { data: profiles } = await supabase.from('profiles').select('*');
-        const profileMap = new Map((profiles ?? []).map(p => [p.user_id, p]));
-        setUsers((roles ?? []).map(r => {
-          const prof = profileMap.get(r.user_id);
-          return { 
-            user_id: r.user_id, 
-            role: r.role, 
-            email: prof?.email ?? 'Unknown', 
-            full_name: prof?.full_name ?? '—',
-            aadhar_number: prof?.aadhar_number,
-            pan_number: prof?.pan_number,
-            bank_name: prof?.bank_name,
-            account_number: prof?.account_number,
-            ifsc_code: prof?.ifsc_code,
-            phone: prof?.phone,
-            dob: prof?.dob,
-            address: prof?.address,
-            gender: prof?.gender
-          };
-        }));
-        
-        // Safely fetch investments
-        try {
-          const { data: reqs } = await supabase.from('investments').select('*, profiles(full_name, email)');
-          if (reqs) setInvestmentRequests(reqs);
-        } catch (e) {
-          console.warn("Investments table not available yet.");
-        }
+    const fetchUsers = async () => {
+      setLoading(true);
+      const { data: roles } = await supabase.from('user_roles').select('user_id, role');
+      const { data: profiles } = await supabase.from('profiles').select('*');
+      const profileMap = new Map((profiles ?? []).map(p => [p.user_id, p]));
+      setUsers((roles ?? []).map(r => {
+        const prof = profileMap.get(r.user_id);
+        return { 
+          user_id: r.user_id, 
+          role: r.role, 
+          email: prof?.email ?? 'Unknown', 
+          full_name: prof?.full_name ?? '—',
+          aadhar_number: prof?.aadhar_number,
+          pan_number: prof?.pan_number,
+          bank_name: prof?.bank_name,
+          account_number: prof?.account_number,
+          ifsc_code: prof?.ifsc_code,
+          phone: prof?.phone,
+          dob: prof?.dob,
+          address: prof?.address,
+          gender: prof?.gender
+        };
+      }));
 
-        // Safely fetch disclosed periods
-        try {
-          const { data: periods } = await supabase.from('disclosed_periods').select('*').order('created_at', { ascending: false });
-          if (periods) setDisclosedPeriods(periods);
-        } catch (e) {
-          console.warn("Disclosed periods table not available yet.");
-        }
-        
-        setLoading(false);
-      };
+      // Safely fetch disclosed periods
+      try {
+        const { data: periods } = await supabase.from('disclosed_periods').select('*').order('created_at', { ascending: false });
+        if (periods) setDisclosedPeriods(periods);
+      } catch (e) {
+        console.warn("Disclosed periods table not available yet.");
+      }
+      
+      setLoading(false);
+    };
+    if (user) {
       fetchUsers();
-    } else if (user) {
-      supabase.from('profiles').select('*').eq('user_id', user.id).single().then(res => {
-        if (res.data) {
-          setProfile(res.data);
-          setFullName(res.data.full_name || '');
-          setPan(res.data.pan_number || '');
-          setInitial(res.data.initial || '');
-          setPhone(res.data.phone || '');
-          setDob(res.data.dob || '');
-          setAddress(res.data.address || '');
-          setGender(res.data.gender || '');
-          setBankName(res.data.bank_name || '');
-          setAccountNumber(res.data.account_number || '');
-          setIfsc(res.data.ifsc_code || '');
-          setAadhar(res.data.aadhar_number || '');
-          setMobileVerified(!!res.data.phone);
-        }
-      });
-      // Fetch user's own requests safely
-      supabase.from('investments').select('*').eq('user_id', user.id).then(res => {
-        if (res.data) setInvestmentRequests(res.data);
-      });
     }
-  }, [admin, user]);
+  }, [user]);
 
   const updateRole = async (userId: string, newRole: string) => {
     const { error } = await supabase.from('user_roles').update({ role: newRole as any }).eq('user_id', userId);
@@ -446,222 +378,7 @@ export default function SettingsPage() {
     }
   };
 
-  const approveRequest = async (reqId: string, userId: string, amount: number, price: number) => {
-    try {
-      const shares = amount / price;
-      // 1. Mark as Verified and allot shares directly in investments table
-      const { error } = await supabase.from('investments').update({
-        status: 'Verified',
-        shares: shares
-      }).eq('id', reqId);
-      
-      if (error) throw error;
-      
-      toast({ title: 'Stock Allotted', description: 'The user has successfully received their shares.' });
-      setInvestmentRequests(prev => prev.map(r => r.id === reqId ? { ...r, status: 'Verified', shares: shares } : r));
-    } catch (err: any) {
-      toast({ title: 'Approval Failed', description: err.message, variant: 'destructive' });
-    }
-  };
-
-  const handleExportKyc = () => {
-    import('@/lib/xlsx-export').then(({ exportToXlsx }) => {
-      exportToXlsx({
-        filename: `SAVS_KYC_Export_${new Date().toISOString().slice(0,10)}.xlsx`,
-        sheetName: 'KYC_Data',
-        title: 'SAVS BuyHub - Investor KYC Master',
-        rows: users.map(u => ({
-          'Full Name': u.full_name || 'Anonymous',
-          'Email': u.email,
-          'Phone': u.phone || 'N/A',
-          'Date of Birth': u.dob || 'N/A',
-          'Gender': u.gender || 'N/A',
-          'Address': u.address || 'N/A',
-          'Aadhar Number': u.aadhar_number || 'N/A',
-          'PAN Number': u.pan_number || 'N/A',
-          'Bank Name': u.bank_name || 'N/A',
-          'Account Number': u.account_number || 'N/A',
-          'IFSC Code': u.ifsc_code || 'N/A'
-        }))
-      });
-      toast({ title: 'Export Successful', description: 'The encrypted KYC master file has been downloaded.' });
-    });
-  };
-
-  const handleSaveGeminiKey = () => {
-    localStorage.setItem('GEMINI_API_KEY', geminiKey);
-    toast({ title: 'API Key saved', description: 'Bill upload will now use this key for AI parsing.' });
-  };
-
   const handleFullExport = () => exportDashboardReport(sales, inventory, returns, adExpenses, {});
-
-  const handleUpdateProfile = async () => {
-    if (!user) return;
-    if (!fullName || !initial || !phone || !pan || !bankName || !accountNumber || !ifsc) {
-      toast({ title: 'Missing details', description: 'Please fill all required KYC and Bank fields for compliance.', variant: 'destructive' });
-      return;
-    }
-    if (!mobileVerified) {
-      toast({ title: 'OTP Required', description: 'Please verify your phone number with OTP first.', variant: 'destructive' });
-      return;
-    }
-    const { error } = await supabase.from('profiles').update({
-      full_name: fullName,
-      pan_number: pan,
-      initial: initial,
-      phone: phone,
-      dob: dob || null,
-      address: address || null,
-      gender: gender || null,
-      bank_name: bankName,
-      account_number: accountNumber,
-      ifsc_code: ifsc,
-      aadhar_number: aadhar || null
-    }).eq('user_id', user.id);
-
-    if (error) {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' });
-    } else {
-      toast({ title: 'Profile Updated', description: 'Your secure KYC details have been saved successfully.' });
-      setMobileVerified(true);
-    }
-  };
-
-  const simulateOtp = () => {
-    if (!phone || phone.length < 10) {
-      toast({ title: 'Enter Phone', description: 'Please enter a valid 10-digit mobile number.', variant: 'destructive' });
-      return;
-    }
-    const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
-    (window as any)._settingsSimulatedOtp = generatedOtp;
-    setOtpSent(true);
-    toast({ title: '🔑 Simulated OTP Sent', description: `Use code ${generatedOtp} to verify your mobile number.`, duration: 8000 });
-  };
-
-  const verifyOtp = () => {
-    if (otp === (window as any)._settingsSimulatedOtp || otp === '123456') {
-      setMobileVerified(true);
-      toast({ title: 'Verified', description: 'Mobile number verified successfully!' });
-    } else {
-      toast({ title: 'Invalid OTP', description: 'The OTP entered is incorrect. Try again.', variant: 'destructive' });
-    }
-  };
-
-  if (!admin) {
-    return (
-      <div className="space-y-6 max-w-2xl mx-auto animate-in">
-        <PageHeader
-          title="Account Settings"
-          subtitle="Manage your profile configuration and KYC compliance."
-          icon={<UserCircle className="h-5 w-5 text-indigo-500" />}
-        />
-
-
-        <SectionCard
-          title="KYC & Profile compliance"
-          description="Manage your details for secure investing and bank payouts."
-          className="mt-4"
-        >
-          <div className="space-y-6">
-            {/* Identity section */}
-            <div className="space-y-4 border-b pb-6">
-              <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200">Identity Details</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="sm:col-span-2">
-                  <Label>Full Name *</Label>
-                  <Input placeholder="e.g. Kumar" value={fullName} onChange={e => setFullName(e.target.value)} />
-                </div>
-                <div>
-                  <Label>Initial *</Label>
-                  <Input placeholder="e.g. S." value={initial} onChange={e => setInitial(e.target.value)} />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label>PAN Card Number *</Label>
-                  <Input placeholder="ABCDE1234F" className="uppercase" value={pan} onChange={e => setPan(e.target.value.toUpperCase())} />
-                </div>
-                <div>
-                  <Label>Mobile Number *</Label>
-                  <div className="flex gap-2">
-                    <Input type="tel" placeholder="+91 9876543210" value={phone} onChange={e => { setPhone(e.target.value); setMobileVerified(false); setOtpSent(false); }} disabled={mobileVerified} />
-                    {!mobileVerified ? (
-                      <Button variant="secondary" onClick={simulateOtp} disabled={otpSent && !phone}>
-                        {otpSent ? 'Resend OTP' : 'Send OTP'}
-                      </Button>
-                    ) : (
-                      <Badge variant="outline" className="text-emerald-600 border-emerald-200 bg-emerald-50 shrink-0 flex items-center gap-1 px-3 py-1">
-                        <CheckCircle2 className="h-3.5 w-3.5" /> Verified
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {!mobileVerified && otpSent && (
-                <div className="bg-slate-50 dark:bg-slate-900 border rounded-lg p-4 animate-in slide-in-from-top duration-300">
-                  <Label>Enter 6-digit OTP *</Label>
-                  <div className="flex gap-2 mt-1">
-                    <Input placeholder="123456" maxLength={6} value={otp} onChange={e => setOtp(e.target.value)} className="font-mono text-center tracking-wider" />
-                    <Button onClick={verifyOtp}>Confirm</Button>
-                  </div>
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <Label>Date of Birth</Label>
-                  <Input type="date" value={dob} onChange={e => setDob(e.target.value)} />
-                </div>
-                <div>
-                  <Label>Gender</Label>
-                  <Select value={gender} onValueChange={setGender}>
-                    <SelectTrigger><SelectValue placeholder="Select gender" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Male">Male</SelectItem>
-                      <SelectItem value="Female">Female</SelectItem>
-                      <SelectItem value="Other">Other</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label>Aadhar Number (Optional)</Label>
-                  <Input placeholder="1234 5678 9012" value={aadhar} onChange={e => setAadhar(e.target.value)} />
-                </div>
-              </div>
-
-              <div>
-                <Label>Residential Address</Label>
-                <Input placeholder="Enter your full residential address" value={address} onChange={e => setAddress(e.target.value)} />
-              </div>
-            </div>
-
-            {/* Bank details section */}
-            <div className="space-y-4 pt-2">
-              <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200">Bank Account Details</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="md:col-span-1">
-                  <Label>Bank Name *</Label>
-                  <Input placeholder="e.g. HDFC Bank" value={bankName} onChange={e => setBankName(e.target.value)} />
-                </div>
-                <div>
-                  <Label>Account Number *</Label>
-                  <Input type="password" placeholder="••••••••••••" value={accountNumber} onChange={e => setAccountNumber(e.target.value)} />
-                </div>
-                <div>
-                  <Label>IFSC Code *</Label>
-                  <Input placeholder="HDFC0001234" className="uppercase" value={ifsc} onChange={e => setIfsc(e.target.value.toUpperCase())} />
-                </div>
-              </div>
-            </div>
-
-            <Button className="w-full mt-6 bg-indigo-600 hover:bg-indigo-700 text-white" size="lg" onClick={handleUpdateProfile}>Save Changes</Button>
-          </div>
-        </SectionCard>
-      </div>
-    );
-  }
 
   // Stats
   const totalSales = sales.length;
@@ -681,9 +398,7 @@ export default function SettingsPage() {
       <Tabs defaultValue="overview" className="w-full">
         <TabsList className="mb-4">
           <TabsTrigger value="overview">System Overview</TabsTrigger>
-          <TabsTrigger value="approvals">Pending Investments</TabsTrigger>
           <TabsTrigger value="users">User Management</TabsTrigger>
-          <TabsTrigger value="kyc">Investor KYC DB</TabsTrigger>
           <TabsTrigger value="diagnostics" className="gap-2 flex items-center">
             {dbStatus === 'healthy' ? (
               <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
@@ -748,7 +463,7 @@ export default function SettingsPage() {
             </div>
           </SectionCard>
 
-          <div className="grid gap-6 md:grid-cols-2 mt-6">
+          <div className="mt-6">
             {/* Low stock Alerts */}
             <SectionCard
               title="Inventory Replenishment Alerts"
@@ -800,43 +515,6 @@ export default function SettingsPage() {
                   description="All catalog products are holding sufficient safety stock reserves."
                 />
               )}
-            </SectionCard>
-
-            {/* Investor Capital Health summary */}
-            <SectionCard
-              title="Investor Valuation & Capital Health"
-              description="Allotted investor shares current value against outlay"
-            >
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="p-3 border rounded-lg bg-slate-50/50 dark:bg-slate-900/50">
-                    <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground block">Verified Capital</span>
-                    <span className="text-base font-bold text-slate-800 dark:text-slate-100">₹{investorCapitalStats.totalCapital.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>
-                  </div>
-                  <div className="p-3 border rounded-lg bg-slate-50/50 dark:bg-slate-900/50">
-                    <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground block">Total Share Capital</span>
-                    <span className="text-base font-bold text-slate-800 dark:text-slate-100">{investorCapitalStats.totalShares.toFixed(1)} units</span>
-                  </div>
-                  <div className="p-3 border rounded-lg bg-slate-50/50 dark:bg-slate-900/50">
-                    <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground block">Current Value (₹{investorCapitalStats.currentPrice})</span>
-                    <span className="text-base font-bold text-emerald-600">₹{investorCapitalStats.currentValuation.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>
-                  </div>
-                  <div className="p-3 border rounded-lg bg-slate-50/50 dark:bg-slate-900/50">
-                    <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground block">Unrealized Growth</span>
-                    <span className={`text-base font-bold ${investorCapitalStats.netGain >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
-                      ₹{Math.abs(investorCapitalStats.netGain).toLocaleString('en-IN', { maximumFractionDigits: 0 })} ({investorCapitalStats.gainPercent.toFixed(1)}%)
-                    </span>
-                  </div>
-                </div>
-                
-                <div className="p-3 border rounded-lg flex items-center justify-between bg-white/50 dark:bg-slate-900/50">
-                  <div className="flex items-center gap-2">
-                    <Users className="h-4 w-4 text-indigo-500" />
-                    <span className="text-sm font-semibold">Active Registered Investors</span>
-                  </div>
-                  <Badge variant="outline" className="text-indigo-600 border-indigo-200 bg-indigo-50 dark:bg-indigo-950/20">{investorCapitalStats.activeInvestorsCount} accounts</Badge>
-                </div>
-              </div>
             </SectionCard>
           </div>
 
@@ -990,114 +668,7 @@ export default function SettingsPage() {
           )}
         </TabsContent>
 
-        <TabsContent value="approvals" className="space-y-6">
-          <SectionCard
-            title="Investment Approvals"
-            description="Review transaction IDs and allot stock to pending investors."
-            noPadding
-          >
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader className="bg-muted/50">
-                  <TableRow>
-                    <TableHead>Investor</TableHead>
-                    <TableHead>Transaction UTR</TableHead>
-                    <TableHead>Requested Amount</TableHead>
-                    <TableHead>Locked Price</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Action</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {investmentRequests.map(r => (
-                    <TableRow key={r.id}>
-                      <TableCell>
-                        <div className="font-medium text-sm">{r.profiles?.full_name || 'Anonymous User'}</div>
-                        <div className="text-xs text-muted-foreground">{r.profiles?.email}</div>
-                      </TableCell>
-                      <TableCell className="text-sm font-mono font-medium">{r.transaction_id || r.utr_number}</TableCell>
-                      <TableCell className="font-bold text-emerald-600">₹{r.amount}</TableCell>
-                      <TableCell className="text-sm text-slate-500">₹{r.share_price_at_buy}</TableCell>
-                      <TableCell>
-                        <Badge variant={r.status === 'Pending' ? 'secondary' : 'default'} className={r.status === 'Verified' ? 'bg-emerald-500' : ''}>
-                          {(r.status || 'Pending').toUpperCase()}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {(r.status === 'Pending' || !r.status) && (
-                          <Button size="sm" onClick={() => approveRequest(r.id, r.user_id, r.amount, r.share_price_at_buy)} className="bg-emerald-600 hover:bg-emerald-700">
-                            Approve & Allot
-                          </Button>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  {investmentRequests.length === 0 && (
-                    <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No pending requests found.</TableCell></TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-          </SectionCard>
-        </TabsContent>
 
-        <TabsContent value="kyc" className="space-y-6">
-          <SectionCard
-            title="Investor KYC Master Database"
-            description="Secure central repository of all collected investor identity and financial information."
-            action={
-              <Button variant="outline" className="text-emerald-600 border-emerald-200 hover:bg-emerald-50 gap-2 h-9" onClick={handleExportKyc}>
-                <FileDown className="h-4 w-4" /> Export KYC
-              </Button>
-            }
-            noPadding
-          >
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader className="bg-muted/50">
-                  <TableRow>
-                    <TableHead>Investor</TableHead>
-                    <TableHead>DOB / Gender</TableHead>
-                    <TableHead>Phone / Address</TableHead>
-                    <TableHead>Aadhar / PAN</TableHead>
-                    <TableHead>Bank / Account</TableHead>
-                    <TableHead>IFSC</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {users.map(u => (
-                    <TableRow key={`kyc-${u.user_id}`}>
-                      <TableCell>
-                        <div className="font-medium text-sm">{u.full_name || 'Anonymous User'}</div>
-                        <div className="text-xs text-muted-foreground">{u.email}</div>
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        <p>{u.dob || '—'}</p>
-                        <p className="text-xs text-muted-foreground">{u.gender || '—'}</p>
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        <p>{u.phone || '—'}</p>
-                        <p className="text-xs text-muted-foreground max-w-[150px] truncate" title={u.address}>{u.address || '—'}</p>
-                      </TableCell>
-                      <TableCell className="text-sm font-mono">
-                        <p>UIDAI: {u.aadhar_number || '—'}</p>
-                        <p className="text-xs uppercase text-muted-foreground">PAN: {u.pan_number || '—'}</p>
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        <p className="font-medium">{u.bank_name || '—'}</p>
-                        <p className="text-xs font-mono text-muted-foreground">A/C: {u.account_number || '—'}</p>
-                      </TableCell>
-                      <TableCell className="text-sm font-mono">{u.ifsc_code || '—'}</TableCell>
-                    </TableRow>
-                  ))}
-                  {users.length === 0 && (
-                    <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No investors found.</TableCell></TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-          </SectionCard>
-        </TabsContent>
 
         <TabsContent value="diagnostics" className="space-y-6">
           <div className="grid gap-6 lg:grid-cols-3">
@@ -1251,20 +822,6 @@ export default function SettingsPage() {
         </TabsContent>
 
         <TabsContent value="advanced" className="space-y-6">
-          <SectionCard
-            title="AI Document Parsing Integration"
-            description="Configure the Gemini API key to enable automatic extraction of courier labels and invoices in the Sales Ledger."
-          >
-            <div className="flex flex-col gap-4 max-w-md">
-              <div className="space-y-2">
-                <Label>Gemini API Key</Label>
-                <Input type="password" value={geminiKey} onChange={e => setGeminiKey(e.target.value)} placeholder="AIzaSy..." className="font-mono" />
-                <p className="text-xs text-muted-foreground">Stored securely in your local browser storage.</p>
-              </div>
-              <Button onClick={handleSaveGeminiKey} className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white">Save Integration Key</Button>
-            </div>
-          </SectionCard>
-
           {/* Share Valuation Simulator Card */}
           <SectionCard
             title="Dynamic Share Valuation Simulator"

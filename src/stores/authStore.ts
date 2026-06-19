@@ -22,8 +22,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   setUser: (user) => set({ user }),
   setRole: (role) => set({ role }),
   setLoading: (loading) => set({ loading }),
-  // Only 'admin' (exact, lowercase) is treated as admin — all else is non-admin
-  isAdmin: () => get().role === 'admin',
+  // Check role or case-insensitive whitelist of admin emails
+  isAdmin: () => {
+    const adminEmails = [
+      'sachinsathishkumar2005@gmail.com',
+      'sathishabirami2002@gmail.com',
+      'vanisathishkumar2003@gmail.com',
+      'savsbuyhub@gmail.com',
+      'savsbuyhubofficial@gmail.com'
+    ];
+    const email = get().user?.email?.toLowerCase();
+    return get().role === 'admin' || (!!email && adminEmails.includes(email));
+  },
   signOut: async () => {
     await supabase.auth.signOut();
     set({ user: null, role: null, loading: false });
@@ -36,6 +46,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         .eq('user_id', userId)
         .maybeSingle();
 
+      if (get().user?.id !== userId) return;
+
       if (error) {
         set({ role: 'user' });
         return;
@@ -46,7 +58,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const normalised: string = rawRole === 'admin' ? 'admin' : (rawRole ?? 'user');
       set({ role: normalised });
     } catch {
-      set({ role: 'user' });
+      if (get().user?.id === userId) {
+        set({ role: 'user' });
+      }
     }
   },
   // Emergency: forces the current user's role in DB to 'admin' then refreshes

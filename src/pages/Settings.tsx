@@ -574,34 +574,68 @@ export default function SettingsPage() {
         <TabsContent value="users" className="space-y-6">
           <SectionCard
             title="User Directory & Permissions"
-            description={`Assign roles and manage access. Currently ${users.length} registered users.`}
+            description={`Assign roles, view profile KYC, and manage access. ${users.length} registered users.`}
             noPadding
           >
+            <div className="flex flex-col sm:flex-row gap-2 p-3 border-b bg-muted/30">
+              <div className="relative flex-1">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search name or email…"
+                  value={userSearch}
+                  onChange={(e) => setUserSearch(e.target.value)}
+                  className="pl-8 h-9 text-sm"
+                />
+              </div>
+              <Select value={roleFilter} onValueChange={(v: any) => setRoleFilter(v)}>
+                <SelectTrigger className="w-full sm:w-36 h-9 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All roles</SelectItem>
+                  <SelectItem value="admin">Admin only</SelectItem>
+                  <SelectItem value="user">User only</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button variant="outline" size="sm" className="h-9 gap-2" onClick={fetchUsers} disabled={loading}>
+                <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh
+              </Button>
+            </div>
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader className="bg-muted/50">
                   <TableRow>
                     <TableHead>User Profile</TableHead>
-                    <TableHead>Email Address</TableHead>
-                    <TableHead>Current Role</TableHead>
-                    <TableHead className="text-right">Manage Access</TableHead>
+                    <TableHead className="hidden md:table-cell">Email</TableHead>
+                    <TableHead className="hidden sm:table-cell">Phone</TableHead>
+                    <TableHead>Role</TableHead>
+                    <TableHead className="text-right">Manage</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {users.map(u => (
+                  {users
+                    .filter(u => roleFilter === 'all' || u.role === roleFilter)
+                    .filter(u => {
+                      const q = userSearch.trim().toLowerCase();
+                      if (!q) return true;
+                      return (u.full_name ?? '').toLowerCase().includes(q) || (u.email ?? '').toLowerCase().includes(q);
+                    })
+                    .map(u => (
                     <TableRow key={u.user_id} className={u.role !== 'admin' && u.role !== 'user' ? 'bg-rose-50/50 dark:bg-rose-950/10' : ''}>
                       <TableCell>
-                        <div className="flex items-center gap-3">
-                          <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold text-xs">
-                            {u.full_name ? u.full_name.substring(0, 2).toUpperCase() : 'U'}
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold text-xs shrink-0">
+                            {u.full_name && u.full_name !== '—' ? u.full_name.substring(0, 2).toUpperCase() : 'U'}
                           </div>
-                          <div>
-                            <span className="font-medium text-sm">{u.full_name || 'Anonymous User'}</span>
-                            {u.user_id === user?.id && <Badge variant="outline" className="ml-2 text-[9px] px-1 py-0">You</Badge>}
+                          <div className="min-w-0">
+                            <div className="font-medium text-sm truncate flex items-center gap-1.5">
+                              {u.full_name || 'Anonymous User'}
+                              {u.user_id === user?.id && <Badge variant="outline" className="text-[9px] px-1 py-0">You</Badge>}
+                            </div>
+                            <div className="text-[11px] text-muted-foreground truncate md:hidden">{u.email}</div>
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell className="text-muted-foreground text-sm">{u.email}</TableCell>
+                      <TableCell className="text-muted-foreground text-sm hidden md:table-cell">{u.email}</TableCell>
+                      <TableCell className="text-muted-foreground text-xs hidden sm:table-cell font-mono">{u.phone || '—'}</TableCell>
                       <TableCell>
                         <Badge
                           variant={u.role === 'admin' ? 'default' : u.role === 'user' ? 'secondary' : 'destructive'}
@@ -611,12 +645,15 @@ export default function SettingsPage() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-2">
+                        <div className="flex items-center justify-end gap-1">
+                          <Button variant="ghost" size="icon" className="h-8 w-8" title="View KYC details" onClick={() => setDetailsUser(u)}>
+                            <Eye className="h-3.5 w-3.5" />
+                          </Button>
                           <Select
                             value={u.role === 'admin' || u.role === 'user' ? u.role : ''}
                             onValueChange={(v) => updateRole(u.user_id, v)}
                           >
-                            <SelectTrigger className="w-32 h-8 text-xs"><SelectValue placeholder="Set role…" /></SelectTrigger>
+                            <SelectTrigger className="w-28 h-8 text-xs"><SelectValue placeholder="Role…" /></SelectTrigger>
                             <SelectContent>
                               <SelectItem value="admin">Admin</SelectItem>
                               <SelectItem value="user">User</SelectItem>
@@ -632,12 +669,48 @@ export default function SettingsPage() {
                     </TableRow>
                   ))}
                   {users.length === 0 && !loading && (
-                    <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-8">No users found</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">No users found</TableCell></TableRow>
+                  )}
+                  {loading && (
+                    <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">Loading users…</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>
             </div>
           </SectionCard>
+
+          <Dialog open={!!detailsUser} onOpenChange={(o) => !o && setDetailsUser(null)}>
+            <DialogContent className="max-w-lg">
+              <DialogHeader>
+                <DialogTitle>{detailsUser?.full_name || 'User'}</DialogTitle>
+                <DialogDescription>{detailsUser?.email}</DialogDescription>
+              </DialogHeader>
+              {detailsUser && (
+                <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+                  {[
+                    ['Role', detailsUser.role?.toUpperCase()],
+                    ['Phone', detailsUser.phone],
+                    ['Date of Birth', detailsUser.dob],
+                    ['Gender', detailsUser.gender],
+                    ['Aadhar Number', detailsUser.aadhar_number],
+                    ['PAN Number', detailsUser.pan_number],
+                    ['Bank Name', detailsUser.bank_name],
+                    ['Account Number', detailsUser.account_number],
+                    ['IFSC Code', detailsUser.ifsc_code],
+                  ].map(([label, val]) => (
+                    <div key={label as string} className="min-w-0">
+                      <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">{label}</div>
+                      <div className="font-mono text-xs truncate">{val || <span className="text-muted-foreground/60">—</span>}</div>
+                    </div>
+                  ))}
+                  <div className="col-span-2 min-w-0">
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Address</div>
+                    <div className="text-xs">{detailsUser.address || <span className="text-muted-foreground/60">—</span>}</div>
+                  </div>
+                </div>
+              )}
+            </DialogContent>
+          </Dialog>
 
           {/* Bulk recovery panel — shown automatically when any user has an unexpected role */}
           {users.some(u => u.role !== 'admin' && u.role !== 'user') && (

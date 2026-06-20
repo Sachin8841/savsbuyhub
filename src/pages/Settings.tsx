@@ -324,40 +324,41 @@ export default function SettingsPage() {
   }, [simBaseVal, simStockValue, simActiveProfit, simHistoricalProfit, simTotalShares, simDaysSinceSale]);
 
   useEffect(() => {
-    const fetchUsers = async () => {
-      setLoading(true);
-      const { data: roles } = await supabase.from('user_roles').select('user_id, role');
-      const { data: profiles } = await supabase.from('profiles').select('*');
-      const profileMap = new Map((profiles ?? []).map(p => [p.user_id, p]));
-      setUsers((roles ?? []).map(r => {
-        const prof = profileMap.get(r.user_id);
-        return { 
-          user_id: r.user_id, 
-          role: r.role, 
-          email: prof?.email ?? 'Unknown', 
-          full_name: prof?.full_name ?? '—',
-          aadhar_number: prof?.aadhar_number,
-          pan_number: prof?.pan_number,
-          bank_name: prof?.bank_name,
-          account_number: prof?.account_number,
-          ifsc_code: prof?.ifsc_code,
-          phone: prof?.phone,
-          dob: prof?.dob,
-          address: prof?.address,
-          gender: prof?.gender
-        };
-      }));
+  const fetchUsers = async () => {
+    setLoading(true);
+    const { data: roles } = await supabase.from('user_roles').select('user_id, role');
+    const { data: profiles } = await supabase.from('profiles').select('*');
+    const profileMap = new Map((profiles ?? []).map(p => [p.user_id, p]));
+    setUsers((roles ?? []).map(r => {
+      const prof: any = profileMap.get(r.user_id);
+      return {
+        user_id: r.user_id,
+        role: r.role,
+        email: prof?.email ?? 'Unknown',
+        full_name: prof?.full_name ?? '—',
+        aadhar_number: prof?.aadhar_number,
+        pan_number: prof?.pan_number,
+        bank_name: prof?.bank_name,
+        account_number: prof?.account_number,
+        ifsc_code: prof?.ifsc_code,
+        phone: prof?.phone,
+        dob: prof?.dob,
+        address: prof?.address,
+        gender: prof?.gender
+      };
+    }));
 
-      // Safely fetch disclosed periods
-      try {
-        const { data: periods } = await supabase.from('disclosed_periods').select('*').order('created_at', { ascending: false });
-        if (periods) setDisclosedPeriods(periods);
-      } catch (e) {
-        console.warn("Disclosed periods table not available yet.");
-      }
-      
-      setLoading(false);
-    };
+    try {
+      const { data: periods } = await supabase.from('disclosed_periods').select('*').order('created_at', { ascending: false });
+      if (periods) setDisclosedPeriods(periods);
+    } catch (e) {
+      console.warn("Disclosed periods table not available yet.");
+    }
+
+    setLoading(false);
+  };
+
+  useEffect(() => {
     if (user) {
       fetchUsers();
     }

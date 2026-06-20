@@ -38,6 +38,9 @@ export default function SettingsPage() {
   const { user, isAdmin } = useAuthStore();
   const [users, setUsers] = useState<UserWithProfile[]>([]);
   const [loading, setLoading] = useState(true);
+  const [userSearch, setUserSearch] = useState('');
+  const [roleFilter, setRoleFilter] = useState<'all' | 'admin' | 'user'>('all');
+  const [detailsUser, setDetailsUser] = useState<UserWithProfile | null>(null);
   const { toast } = useToast();
   const qc = useQueryClient();
   const { data: sales = [] } = useSales();

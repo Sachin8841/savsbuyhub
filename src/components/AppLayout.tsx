@@ -1,6 +1,7 @@
 import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/AppSidebar';
 import { Outlet, useLocation } from 'react-router-dom';
+import { useScrollRestoration } from '@/hooks/useScrollRestoration';
 
 const PAGE_TITLES: Record<string, string> = {
   '/': 'Dashboard',
@@ -14,6 +15,7 @@ const PAGE_TITLES: Record<string, string> = {
 export function AppLayout() {
   const location = useLocation();
   const pageTitle = PAGE_TITLES[location.pathname] ?? 'SAVS ERP';
+  const mainRef = useScrollRestoration<HTMLElement>();
 
   return (
     <SidebarProvider>
@@ -38,7 +40,7 @@ export function AppLayout() {
               <span className="hidden sm:block">Live</span>
             </div>
           </header>
-          <main className="flex-1 overflow-auto p-4 md:p-6 pb-24">
+          <main ref={mainRef} className="flex-1 overflow-auto p-4 md:p-6 pb-24">
             <Outlet />
           </main>
         </div>

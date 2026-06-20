@@ -10,8 +10,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { Shield, Users, FileDown, Database, Palette, UserCircle, CheckCircle2, Settings as SettingsIcon, Trash2, ShieldCheck, ShieldAlert, Terminal, RefreshCw, Sparkles, ArrowRightLeft, TrendingUp, AlertTriangle, AlertCircle, Play, Warehouse, Sliders } from 'lucide-react';
+import { Shield, Users, FileDown, Database, Palette, UserCircle, CheckCircle2, Settings as SettingsIcon, Trash2, ShieldCheck, ShieldAlert, Terminal, RefreshCw, Sparkles, ArrowRightLeft, TrendingUp, AlertTriangle, AlertCircle, Play, Warehouse, Sliders, Eye, Search } from 'lucide-react';
 import { exportDashboardReport } from '@/lib/xlsx-export';
 import { PageHeader, StatCard, SectionCard, EmptyState } from '@/components/PageHeader';
 import { useSales, useInventory, useReturns, useAdExpenses } from '@/hooks/useData';
@@ -37,6 +38,9 @@ export default function SettingsPage() {
   const { user, isAdmin } = useAuthStore();
   const [users, setUsers] = useState<UserWithProfile[]>([]);
   const [loading, setLoading] = useState(true);
+  const [userSearch, setUserSearch] = useState('');
+  const [roleFilter, setRoleFilter] = useState<'all' | 'admin' | 'user'>('all');
+  const [detailsUser, setDetailsUser] = useState<UserWithProfile | null>(null);
   const { toast } = useToast();
   const qc = useQueryClient();
   const { data: sales = [] } = useSales();
@@ -319,41 +323,41 @@ export default function SettingsPage() {
     };
   }, [simBaseVal, simStockValue, simActiveProfit, simHistoricalProfit, simTotalShares, simDaysSinceSale]);
 
-  useEffect(() => {
-    const fetchUsers = async () => {
-      setLoading(true);
-      const { data: roles } = await supabase.from('user_roles').select('user_id, role');
-      const { data: profiles } = await supabase.from('profiles').select('*');
-      const profileMap = new Map((profiles ?? []).map(p => [p.user_id, p]));
-      setUsers((roles ?? []).map(r => {
-        const prof = profileMap.get(r.user_id);
-        return { 
-          user_id: r.user_id, 
-          role: r.role, 
-          email: prof?.email ?? 'Unknown', 
-          full_name: prof?.full_name ?? '—',
-          aadhar_number: prof?.aadhar_number,
-          pan_number: prof?.pan_number,
-          bank_name: prof?.bank_name,
-          account_number: prof?.account_number,
-          ifsc_code: prof?.ifsc_code,
-          phone: prof?.phone,
-          dob: prof?.dob,
-          address: prof?.address,
-          gender: prof?.gender
-        };
-      }));
+  const fetchUsers = async () => {
+    setLoading(true);
+    const { data: roles } = await supabase.from('user_roles').select('user_id, role');
+    const { data: profiles } = await supabase.from('profiles').select('*');
+    const profileMap = new Map((profiles ?? []).map(p => [p.user_id, p]));
+    setUsers((roles ?? []).map(r => {
+      const prof: any = profileMap.get(r.user_id);
+      return {
+        user_id: r.user_id,
+        role: r.role,
+        email: prof?.email ?? 'Unknown',
+        full_name: prof?.full_name ?? '—',
+        aadhar_number: prof?.aadhar_number,
+        pan_number: prof?.pan_number,
+        bank_name: prof?.bank_name,
+        account_number: prof?.account_number,
+        ifsc_code: prof?.ifsc_code,
+        phone: prof?.phone,
+        dob: prof?.dob,
+        address: prof?.address,
+        gender: prof?.gender
+      };
+    }));
 
-      // Safely fetch disclosed periods
-      try {
-        const { data: periods } = await supabase.from('disclosed_periods').select('*').order('created_at', { ascending: false });
-        if (periods) setDisclosedPeriods(periods);
-      } catch (e) {
-        console.warn("Disclosed periods table not available yet.");
-      }
-      
-      setLoading(false);
-    };
+    try {
+      const { data: periods } = await supabase.from('disclosed_periods').select('*').order('created_at', { ascending: false });
+      if (periods) setDisclosedPeriods(periods);
+    } catch (e) {
+      console.warn("Disclosed periods table not available yet.");
+    }
+
+    setLoading(false);
+  };
+
+  useEffect(() => {
     if (user) {
       fetchUsers();
     }
@@ -570,34 +574,68 @@ export default function SettingsPage() {
         <TabsContent value="users" className="space-y-6">
           <SectionCard
             title="User Directory & Permissions"
-            description={`Assign roles and manage access. Currently ${users.length} registered users.`}
+            description={`Assign roles, view profile KYC, and manage access. ${users.length} registered users.`}
             noPadding
           >
+            <div className="flex flex-col sm:flex-row gap-2 p-3 border-b bg-muted/30">
+              <div className="relative flex-1">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search name or email…"
+                  value={userSearch}
+                  onChange={(e) => setUserSearch(e.target.value)}
+                  className="pl-8 h-9 text-sm"
+                />
+              </div>
+              <Select value={roleFilter} onValueChange={(v: any) => setRoleFilter(v)}>
+                <SelectTrigger className="w-full sm:w-36 h-9 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All roles</SelectItem>
+                  <SelectItem value="admin">Admin only</SelectItem>
+                  <SelectItem value="user">User only</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button variant="outline" size="sm" className="h-9 gap-2" onClick={fetchUsers} disabled={loading}>
+                <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh
+              </Button>
+            </div>
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader className="bg-muted/50">
                   <TableRow>
                     <TableHead>User Profile</TableHead>
-                    <TableHead>Email Address</TableHead>
-                    <TableHead>Current Role</TableHead>
-                    <TableHead className="text-right">Manage Access</TableHead>
+                    <TableHead className="hidden md:table-cell">Email</TableHead>
+                    <TableHead className="hidden sm:table-cell">Phone</TableHead>
+                    <TableHead>Role</TableHead>
+                    <TableHead className="text-right">Manage</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {users.map(u => (
+                  {users
+                    .filter(u => roleFilter === 'all' || u.role === roleFilter)
+                    .filter(u => {
+                      const q = userSearch.trim().toLowerCase();
+                      if (!q) return true;
+                      return (u.full_name ?? '').toLowerCase().includes(q) || (u.email ?? '').toLowerCase().includes(q);
+                    })
+                    .map(u => (
                     <TableRow key={u.user_id} className={u.role !== 'admin' && u.role !== 'user' ? 'bg-rose-50/50 dark:bg-rose-950/10' : ''}>
                       <TableCell>
-                        <div className="flex items-center gap-3">
-                          <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold text-xs">
-                            {u.full_name ? u.full_name.substring(0, 2).toUpperCase() : 'U'}
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold text-xs shrink-0">
+                            {u.full_name && u.full_name !== '—' ? u.full_name.substring(0, 2).toUpperCase() : 'U'}
                           </div>
-                          <div>
-                            <span className="font-medium text-sm">{u.full_name || 'Anonymous User'}</span>
-                            {u.user_id === user?.id && <Badge variant="outline" className="ml-2 text-[9px] px-1 py-0">You</Badge>}
+                          <div className="min-w-0">
+                            <div className="font-medium text-sm truncate flex items-center gap-1.5">
+                              {u.full_name || 'Anonymous User'}
+                              {u.user_id === user?.id && <Badge variant="outline" className="text-[9px] px-1 py-0">You</Badge>}
+                            </div>
+                            <div className="text-[11px] text-muted-foreground truncate md:hidden">{u.email}</div>
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell className="text-muted-foreground text-sm">{u.email}</TableCell>
+                      <TableCell className="text-muted-foreground text-sm hidden md:table-cell">{u.email}</TableCell>
+                      <TableCell className="text-muted-foreground text-xs hidden sm:table-cell font-mono">{u.phone || '—'}</TableCell>
                       <TableCell>
                         <Badge
                           variant={u.role === 'admin' ? 'default' : u.role === 'user' ? 'secondary' : 'destructive'}
@@ -607,12 +645,15 @@ export default function SettingsPage() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-2">
+                        <div className="flex items-center justify-end gap-1">
+                          <Button variant="ghost" size="icon" className="h-8 w-8" title="View KYC details" onClick={() => setDetailsUser(u)}>
+                            <Eye className="h-3.5 w-3.5" />
+                          </Button>
                           <Select
                             value={u.role === 'admin' || u.role === 'user' ? u.role : ''}
                             onValueChange={(v) => updateRole(u.user_id, v)}
                           >
-                            <SelectTrigger className="w-32 h-8 text-xs"><SelectValue placeholder="Set role…" /></SelectTrigger>
+                            <SelectTrigger className="w-28 h-8 text-xs"><SelectValue placeholder="Role…" /></SelectTrigger>
                             <SelectContent>
                               <SelectItem value="admin">Admin</SelectItem>
                               <SelectItem value="user">User</SelectItem>
@@ -628,12 +669,48 @@ export default function SettingsPage() {
                     </TableRow>
                   ))}
                   {users.length === 0 && !loading && (
-                    <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-8">No users found</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">No users found</TableCell></TableRow>
+                  )}
+                  {loading && (
+                    <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">Loading users…</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>
             </div>
           </SectionCard>
+
+          <Dialog open={!!detailsUser} onOpenChange={(o) => !o && setDetailsUser(null)}>
+            <DialogContent className="max-w-lg">
+              <DialogHeader>
+                <DialogTitle>{detailsUser?.full_name || 'User'}</DialogTitle>
+                <DialogDescription>{detailsUser?.email}</DialogDescription>
+              </DialogHeader>
+              {detailsUser && (
+                <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+                  {[
+                    ['Role', detailsUser.role?.toUpperCase()],
+                    ['Phone', detailsUser.phone],
+                    ['Date of Birth', detailsUser.dob],
+                    ['Gender', detailsUser.gender],
+                    ['Aadhar Number', detailsUser.aadhar_number],
+                    ['PAN Number', detailsUser.pan_number],
+                    ['Bank Name', detailsUser.bank_name],
+                    ['Account Number', detailsUser.account_number],
+                    ['IFSC Code', detailsUser.ifsc_code],
+                  ].map(([label, val]) => (
+                    <div key={label as string} className="min-w-0">
+                      <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">{label}</div>
+                      <div className="font-mono text-xs truncate">{val || <span className="text-muted-foreground/60">—</span>}</div>
+                    </div>
+                  ))}
+                  <div className="col-span-2 min-w-0">
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Address</div>
+                    <div className="text-xs">{detailsUser.address || <span className="text-muted-foreground/60">—</span>}</div>
+                  </div>
+                </div>
+              )}
+            </DialogContent>
+          </Dialog>
 
           {/* Bulk recovery panel — shown automatically when any user has an unexpected role */}
           {users.some(u => u.role !== 'admin' && u.role !== 'user') && (

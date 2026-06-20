@@ -323,7 +323,6 @@ export default function SettingsPage() {
     };
   }, [simBaseVal, simStockValue, simActiveProfit, simHistoricalProfit, simTotalShares, simDaysSinceSale]);
 
-  useEffect(() => {
   const fetchUsers = async () => {
     setLoading(true);
     const { data: roles } = await supabase.from('user_roles').select('user_id, role');

@@ -736,7 +736,7 @@ export default function SettingsPage() {
                 <div>
                   <p className="font-bold text-rose-800 dark:text-rose-300 text-sm">⚠ {users.filter(u => u.role !== 'admin' && u.role !== 'user').length} account(s) have an invalid role</p>
                   <p className="text-xs text-rose-600 dark:text-rose-400 mt-1">
-                    Accounts with roles other than <code className="font-mono bg-rose-100 dark:bg-rose-900/30 px-1 rounded">admin</code> or <code className="font-mono bg-rose-100 dark:bg-rose-900/30 px-1 rounded">user</code> cannot access the ERP. Click below to reset them all to Admin immediately.
+                    Accounts with roles other than <code className="font-mono bg-rose-100 dark:bg-rose-900/30 px-1 rounded">admin</code> or <code className="font-mono bg-rose-100 dark:bg-rose-900/30 px-1 rounded">user</code> cannot access the ERP. Click below to reset them to User safely.
                   </p>
                 </div>
               </div>
@@ -747,15 +747,15 @@ export default function SettingsPage() {
                   const badUsers = users.filter(u => u.role !== 'admin' && u.role !== 'user');
                   let fixed = 0;
                   for (const u of badUsers) {
-                    const { error } = await supabase.from('user_roles').update({ role: 'admin' as any }).eq('user_id', u.user_id);
+                    const { error } = await supabase.from('user_roles').upsert({ user_id: u.user_id, role: 'user' as any }, { onConflict: 'user_id' });
                     if (!error) fixed++;
                   }
-                  setUsers(prev => prev.map(u => (u.role !== 'admin' && u.role !== 'user') ? { ...u, role: 'admin' } : u));
-                  toast({ title: `✅ Fixed ${fixed} account(s)`, description: 'All invalid-role accounts have been reset to Admin.' });
+                  setUsers(prev => prev.map(u => (u.role !== 'admin' && u.role !== 'user') ? { ...u, role: 'user' } : u));
+                  toast({ title: `✅ Fixed ${fixed} account(s)`, description: 'All invalid-role accounts have been reset to User.' });
                 }}
               >
                 <ShieldCheck className="mr-2 h-4 w-4" />
-                Reset All Invalid Roles → Admin
+                Reset All Invalid Roles → User
               </Button>
             </div>
           )}

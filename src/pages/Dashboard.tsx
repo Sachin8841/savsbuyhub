@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { DollarSign, Clock, AlertTriangle, Package, ShoppingCart, ArrowUpRight, ArrowDownRight, Megaphone, Warehouse, Download, TrendingUp, Trash2, Pencil, Percent, Banknote, Landmark, ArrowRightLeft } from 'lucide-react';
+import { DollarSign, Clock, AlertTriangle, Package, ShoppingCart, ArrowUpRight, ArrowDownRight, Megaphone, Warehouse, Download, TrendingUp, Trash2, Pencil, Percent, Truck, Banknote, Landmark, ArrowRightLeft } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Line, PieChart, Pie, Cell, Legend, ComposedChart, Area } from 'recharts';
 import { exportDashboardReport } from '@/lib/xlsx-export';
 import { AlertNotifications } from '@/components/AlertNotifications';

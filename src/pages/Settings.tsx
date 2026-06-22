@@ -100,13 +100,11 @@ export default function SettingsPage() {
       const tablesToCheck = [
         { name: 'profiles', key: 'profiles' },
         { name: 'user_roles', key: 'user_roles' },
-        { name: 'investments', key: 'investments' },
         { name: 'sales', key: 'sales' },
         { name: 'returns', key: 'returns' },
         { name: 'inventory', key: 'inventory' },
         { name: 'ad_expenses', key: 'ad_expenses' },
-        { name: 'disclosed_periods', key: 'disclosed_periods' },
-        { name: 'sips', key: 'sips' }
+        { name: 'disclosed_periods', key: 'disclosed_periods' }
       ];
       
       const tablesResults: any[] = [];

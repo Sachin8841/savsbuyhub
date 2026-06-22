@@ -255,7 +255,7 @@ export default function Dashboard() {
     const { error } = await supabase.rpc('set_capital_accounts', {
       _hot_cash: hotCash,
       _account_holding_value: accountValue,
-      _notes: capitalForm.notes || null,
+      _notes: capitalForm.notes || undefined,
     });
     if (error) return;
     qc.invalidateQueries({ queryKey: ['capital_accounts'] });
@@ -272,8 +272,8 @@ export default function Dashboard() {
       _hot_cash_delta: isCashToAccount ? -amount : amount,
       _account_delta: isCashToAccount ? amount : -amount,
       _notes: movementForm.notes || (isCashToAccount ? 'Cash deposited to account' : 'Cash withdrawn from account'),
-      _reference_table: null,
-      _reference_id: null,
+      _reference_table: undefined,
+      _reference_id: undefined,
     });
     if (error) return;
     setMovementForm({ type: movementForm.type, amount: '', notes: '' });

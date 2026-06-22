@@ -325,10 +325,10 @@ export default function Inventory() {
 
       {/* KPI Row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <StatCard title="Locked Capital" value={fmt(totalStockValue)} icon={<Package />} color="primary" subtitle={`${totalSkus} SKUs`} />
+        <StatCard title="Locked Capital" value={fmt(totalStockValue)} icon={<Package />} color="primary" subtitle={`${totalSkus} unique SKUs`} />
         <StatCard title="Total Stock In" value={totalBulk.toLocaleString()} icon={<Boxes />} color="slate" subtitle="All batches" />
         <StatCard title="Low Stock" value={lowStockCount} icon={<AlertTriangle />} color={lowStockCount > 0 ? 'amber' : 'emerald'} subtitle="≤ 5 units remaining" />
-        <StatCard title="Unique SKUs" value={totalSkus} icon={<BarChart2 />} color="slate" subtitle="Tracked products" />
+        <StatCard title="Unique SKUs" value={totalSkus} icon={<BarChart2 />} color="slate" subtitle={`${inventory.length - totalSkus} child batches`} />
       </div>
 
       {/* Chart */}
@@ -363,6 +363,7 @@ export default function Inventory() {
             <TableHeader>
               <TableRow className="bg-muted/30">
                 <TableHead className="font-semibold">SKU</TableHead>
+                <TableHead className="font-semibold">Type</TableHead>
                 <TableHead className="font-semibold">Product Name</TableHead>
                 <TableHead className="text-right font-semibold">Cost Price</TableHead>
                 <TableHead className="text-right font-semibold">Selling Price</TableHead>
@@ -379,6 +380,9 @@ export default function Inventory() {
                 return (
                   <TableRow key={item.id} className="hover:bg-primary/5 transition-colors group">
                     <TableCell className="font-mono text-xs font-medium text-primary">{item.sku}</TableCell>
+                    <TableCell>
+                      {(item as any).parent_inventory_id ? <Badge variant="secondary" className="text-[10px]">Child</Badge> : <Badge variant="outline" className="text-[10px]">Unique</Badge>}
+                    </TableCell>
                     <TableCell className="font-medium">{item.product_name}</TableCell>
                     <TableCell className="text-right text-muted-foreground">{fmt(item.average_cost_price)}</TableCell>
                     <TableCell className="text-right text-muted-foreground">{fmt(item.average_selling_price ?? 0)}</TableCell>
@@ -408,7 +412,7 @@ export default function Inventory() {
               })}
               {filtered.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={admin ? 8 : 7} className="py-16">
+                    <TableCell colSpan={admin ? 9 : 8} className="py-16">
                     <EmptyState icon={<Package className="h-8 w-8" />} title="No inventory items found" description="Add your first product or adjust your search." />
                   </TableCell>
                 </TableRow>

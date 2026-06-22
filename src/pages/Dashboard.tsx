@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useSales, useReturns, useInventory, useAdExpenses } from '@/hooks/useData';
+import { useSales, useReturns, useInventory, useAdExpenses, useCapitalAccounts, useCashMovements } from '@/hooks/useData';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuthStore } from '@/stores/authStore';
 import { useQueryClient } from '@tanstack/react-query';
@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { DollarSign, Clock, AlertTriangle, Package, ShoppingCart, ArrowUpRight, ArrowDownRight, Megaphone, Warehouse, Download, TrendingUp, Trash2, Pencil, Percent, Truck } from 'lucide-react';
+import { DollarSign, Clock, AlertTriangle, Package, ShoppingCart, ArrowUpRight, ArrowDownRight, Megaphone, Warehouse, Download, TrendingUp, Trash2, Pencil, Percent, Banknote, Landmark, ArrowRightLeft } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Line, PieChart, Pie, Cell, Legend, ComposedChart, Area } from 'recharts';
 import { exportDashboardReport } from '@/lib/xlsx-export';
 import { AlertNotifications } from '@/components/AlertNotifications';
@@ -23,6 +23,8 @@ export default function Dashboard() {
   const { data: returns = [] } = useReturns();
   const { data: inventory = [] } = useInventory();
   const { data: adExpenses = [] } = useAdExpenses();
+  const { data: capitalAccounts } = useCapitalAccounts();
+  const { data: cashMovements = [] } = useCashMovements();
   const { isAdmin } = useAuthStore();
   const admin = isAdmin();
   const qc = useQueryClient();
@@ -35,6 +37,9 @@ export default function Dashboard() {
   const [adDialogOpen, setAdDialogOpen] = useState(false);
   const [adForm, setAdForm] = useState({ category: 'Ads', platform: '', amount: '', expense_date: new Date().toISOString().slice(0, 10), description: '' });
   const [adEditId, setAdEditId] = useState<string | null>(null);
+  const [capitalDialogOpen, setCapitalDialogOpen] = useState(false);
+  const [capitalForm, setCapitalForm] = useState({ hot_cash: '', account_holding_value: '', notes: '' });
+  const [movementForm, setMovementForm] = useState({ type: 'cash_to_account', amount: '', notes: '' });
   const [currentStocks, setCurrentStocks] = useState<Record<string, number>>({});
 
   useEffect(() => {

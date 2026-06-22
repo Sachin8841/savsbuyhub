@@ -719,7 +719,7 @@ export default function Sales() {
                     <div className="space-y-2">
                       <div className="flex items-start gap-2 rounded-md border bg-muted/40 p-2.5">
                         <Controller name="split_orders" control={form.control} render={({ field }) => (
-                          <Checkbox id="split_orders" checked={field.value ?? false} onCheckedChange={field.onChange} className="mt-0.5" />
+                          <Checkbox id="split_orders" checked={field.value ?? false} onCheckedChange={requestSplitOrders} className="mt-0.5" />
                         )} />
                         <label htmlFor="split_orders" className="text-xs leading-tight cursor-pointer">
                           <span className="flex items-center gap-1 font-semibold"><SplitSquareHorizontal className="h-3 w-3" />Split qty into individual orders</span>
@@ -740,6 +740,20 @@ export default function Sales() {
                   )}
                   <Button type="submit" className="w-full mt-1">{editId ? 'Update Sale' : 'Log Sale'}</Button>
                 </form>
+                <AlertDialog open={splitConfirmOpen} onOpenChange={setSplitConfirmOpen}>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Split quantity into individual rows?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This creates one separate sales ledger row for each unit. Keep it off if this is one order with multiple units.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Keep Off</AlertDialogCancel>
+                      <AlertDialogAction onClick={confirmSplitOrders}>Confirm Split</AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </DialogContent>
             </Dialog>
           )}

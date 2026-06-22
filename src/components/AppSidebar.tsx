@@ -25,9 +25,12 @@ const navItems = [
 ];
 
 export function AppSidebar() {
-  const { state } = useSidebar();
+  const { state, isMobile, setOpenMobile } = useSidebar();
   const collapsed = state === 'collapsed';
   const { signOut, user } = useAuthStore();
+  const closeMobileMenu = () => {
+    if (isMobile) setOpenMobile(false);
+  };
 
   return (
     <Sidebar collapsible="icon">
@@ -68,6 +71,7 @@ export function AppSidebar() {
                         end={item.url === '/'}
                         className="group flex items-center gap-2.5 px-3 py-2 rounded-lg transition-all duration-200 hover:bg-sidebar-accent/50 text-sidebar-foreground/70 hover:text-sidebar-foreground"
                         activeClassName="bg-gradient-to-r from-indigo-600/30 to-emerald-600/20 text-sidebar-foreground font-semibold border border-indigo-500/20 shadow-sm"
+                        onClick={closeMobileMenu}
                       >
                         <item.icon className="h-4 w-4 shrink-0 transition-transform duration-200 group-hover:scale-110" />
                         {!collapsed && <span className="text-sm">{item.title}</span>}
@@ -91,7 +95,10 @@ export function AppSidebar() {
           variant="ghost"
           size="sm"
           className="w-full justify-start text-sidebar-foreground/60 hover:text-destructive hover:bg-destructive/10 transition-colors gap-2"
-          onClick={signOut}
+          onClick={() => {
+            closeMobileMenu();
+            void signOut();
+          }}
         >
           <LogOut className="h-4 w-4 shrink-0" />
           {!collapsed && <span className="text-sm">Sign Out</span>}

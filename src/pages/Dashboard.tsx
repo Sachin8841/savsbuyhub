@@ -444,7 +444,7 @@ export default function Dashboard() {
                   {cashMovements.slice(0, 8).map(m => (
                     <div key={m.id} className="flex items-center justify-between gap-3 rounded-md border bg-muted/30 p-2 text-xs">
                       <div className="min-w-0">
-                        <p className="font-medium capitalize">{m.movement_type.replaceAll('_', ' ')}</p>
+                        <p className="font-medium capitalize">{m.movement_type.replace(/_/g, ' ')}</p>
                         <p className="truncate text-muted-foreground">{m.notes || '—'} · {new Date(m.created_at).toLocaleString()}</p>
                       </div>
                       <div className="shrink-0 text-right font-mono">

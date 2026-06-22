@@ -659,9 +659,15 @@ export default function SettingsPage() {
                           <Button variant="ghost" size="icon" className="h-8 w-8" title="View KYC details" onClick={() => setDetailsUser(u)}>
                             <Eye className="h-3.5 w-3.5" />
                           </Button>
+                          {u.role !== 'admin' && u.role !== 'user' && (
+                            <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => resetInvalidRole(u.user_id)}>
+                              Reset
+                            </Button>
+                          )}
                           <Select
                             value={u.role === 'admin' || u.role === 'user' ? u.role : ''}
                             onValueChange={(v) => updateRole(u.user_id, v)}
+                            disabled={u.user_id === user?.id}
                           >
                             <SelectTrigger className="w-28 h-8 text-xs"><SelectValue placeholder="Role…" /></SelectTrigger>
                             <SelectContent>

@@ -98,6 +98,7 @@ export default function Inventory() {
       const payload = {
         sku: values.sku,
         product_name: values.product_name,
+        parent_inventory_id: restockItem?.parent_inventory_id ?? restockItem?.id ?? null,
         aliases,
         average_cost_price: values.average_cost_price,
         average_selling_price: values.average_selling_price,
@@ -107,7 +108,7 @@ export default function Inventory() {
       };
       const { error } = await supabase.from('inventory').insert(payload);
       if (error) throw error;
-      toast({ title: 'New batch restocked successfully' });
+      toast({ title: 'Child batch restocked successfully' });
       qc.invalidateQueries({ queryKey: ['inventory'] });
       setRestockDialogOpen(false);
       setRestockItem(null);
@@ -219,7 +220,8 @@ export default function Inventory() {
     return { success, errors };
   };
 
-  const totalSkus = inventory.length;
+  const rootItems = inventory.filter(i => !(i as any).parent_inventory_id);
+  const totalSkus = rootItems.length;
   const lowStockCount = inventory.filter(i => (currentStocks[i.id] ?? 0) <= 5).length;
   const totalBulk = inventory.reduce((s, i) => s + i.total_bulk_stock_in, 0);
 
@@ -227,7 +229,7 @@ export default function Inventory() {
     <div className="space-y-5 animate-in">
       <PageHeader
         title="Inventory"
-        subtitle={`${totalSkus} SKUs · Stock Holding Value: ${fmt(totalStockValue)}`}
+        subtitle={`${totalSkus} unique SKUs · ${inventory.length - totalSkus} child batches · Stock Holding Value: ${fmt(totalStockValue)}`}
         icon={<Package className="h-5 w-5 text-indigo-500" />}
         actions={<>
           <Button variant="outline" size="sm" onClick={handleExport}><Download className="mr-1 h-4 w-4" />Export Excel</Button>
@@ -267,7 +269,7 @@ export default function Inventory() {
                     Restock Item (New Batch)
                   </DialogTitle>
                   <div className="text-xs text-muted-foreground mt-1">
-                    Adding new stock for "{restockItem?.product_name}" at a different price point. This creates a new batch SKU to preserve history.
+                    Adding stock under "{restockItem?.product_name}" as a child batch. It is not counted as a new unique SKU.
                   </div>
                 </DialogHeader>
                 <form onSubmit={restockForm.handleSubmit(onRestockSubmit)} className="space-y-4 pt-2">

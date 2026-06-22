@@ -98,6 +98,8 @@ export default function Returns() {
       toast({ title: `Logged return of ${values.quantity_returned} unit(s)` });
       qc.invalidateQueries({ queryKey: ['returns'] });
       qc.invalidateQueries({ queryKey: ['inventory'] });
+      qc.invalidateQueries({ queryKey: ['capital_accounts'] });
+      qc.invalidateQueries({ queryKey: ['cash_movements'] });
       setDialogOpen(false);
       form.reset();
     } catch (err: any) {
@@ -111,6 +113,8 @@ export default function Returns() {
     if (error) { toast({ title: 'Error', description: error.message, variant: 'destructive' }); return; }
     qc.invalidateQueries({ queryKey: ['returns'] });
     qc.invalidateQueries({ queryKey: ['inventory'] });
+    qc.invalidateQueries({ queryKey: ['capital_accounts'] });
+    qc.invalidateQueries({ queryKey: ['cash_movements'] });
     toast({ title: 'Return deleted' });
   };
 
@@ -121,6 +125,8 @@ export default function Returns() {
     if (error) { toast({ title: 'Error', description: error.message, variant: 'destructive' }); return; }
     qc.invalidateQueries({ queryKey: ['returns'] });
     qc.invalidateQueries({ queryKey: ['inventory'] });
+    qc.invalidateQueries({ queryKey: ['capital_accounts'] });
+    qc.invalidateQueries({ queryKey: ['cash_movements'] });
     toast({ title: `Marked as ${newStatus}` });
   };
 
@@ -177,6 +183,8 @@ export default function Returns() {
     }
     qc.invalidateQueries({ queryKey: ['returns'] });
     qc.invalidateQueries({ queryKey: ['inventory'] });
+    qc.invalidateQueries({ queryKey: ['capital_accounts'] });
+    qc.invalidateQueries({ queryKey: ['cash_movements'] });
     return { success, errors };
   };
 

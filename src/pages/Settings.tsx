@@ -100,13 +100,11 @@ export default function SettingsPage() {
       const tablesToCheck = [
         { name: 'profiles', key: 'profiles' },
         { name: 'user_roles', key: 'user_roles' },
-        { name: 'investments', key: 'investments' },
         { name: 'sales', key: 'sales' },
         { name: 'returns', key: 'returns' },
         { name: 'inventory', key: 'inventory' },
         { name: 'ad_expenses', key: 'ad_expenses' },
-        { name: 'disclosed_periods', key: 'disclosed_periods' },
-        { name: 'sips', key: 'sips' }
+        { name: 'disclosed_periods', key: 'disclosed_periods' }
       ];
       
       const tablesResults: any[] = [];
@@ -328,11 +326,13 @@ export default function SettingsPage() {
     const { data: roles } = await supabase.from('user_roles').select('user_id, role');
     const { data: profiles } = await supabase.from('profiles').select('*');
     const profileMap = new Map((profiles ?? []).map(p => [p.user_id, p]));
-    setUsers((roles ?? []).map(r => {
-      const prof: any = profileMap.get(r.user_id);
+    const roleMap = new Map((roles ?? []).map(r => [r.user_id, r.role]));
+    const userIds = Array.from(new Set([...(roles ?? []).map(r => r.user_id), ...(profiles ?? []).map(p => p.user_id)]));
+    setUsers(userIds.map(userId => {
+      const prof: any = profileMap.get(userId);
       return {
-        user_id: r.user_id,
-        role: r.role,
+        user_id: userId,
+        role: roleMap.get(userId) ?? 'missing',
         email: prof?.email ?? 'Unknown',
         full_name: prof?.full_name ?? '—',
         aadhar_number: prof?.aadhar_number,
@@ -364,18 +364,28 @@ export default function SettingsPage() {
   }, [user]);
 
   const updateRole = async (userId: string, newRole: string) => {
-    const { error } = await supabase.from('user_roles').update({ role: newRole as any }).eq('user_id', userId);
+    if (userId === user?.id && newRole !== 'admin') {
+      toast({ title: 'Cannot change your own admin role', description: 'Ask another admin to change your role if needed.', variant: 'destructive' });
+      return;
+    }
+    if (newRole !== 'admin' && users.filter(u => u.role === 'admin').length <= 1 && users.find(u => u.user_id === userId)?.role === 'admin') {
+      toast({ title: 'At least one admin is required', variant: 'destructive' });
+      return;
+    }
+    const { error } = await supabase.from('user_roles').upsert({ user_id: userId, role: newRole as any }, { onConflict: 'user_id' });
     if (error) { toast({ title: 'Error', description: error.message, variant: 'destructive' }); return; }
     toast({ title: 'Role updated' });
     setUsers(prev => prev.map(u => u.user_id === userId ? { ...u, role: newRole } : u));
   };
 
+  const resetInvalidRole = async (userId: string) => updateRole(userId, 'user');
+
   const deleteUser = async (userId: string) => {
     if (!confirm('WARNING: This will permanently delete this user profile and revoke all access. Proceed?')) return;
     try {
-      const { error } = await (supabase.rpc as any)('delete_user_account', { _target_user_id: userId });
+      const { error } = await supabase.rpc('revoke_user_access', { _target_user_id: userId });
       if (error) throw error;
-      toast({ title: 'User Deleted', description: 'The user account has been successfully scrubbed.' });
+      toast({ title: 'Access revoked', description: 'The user role and profile were removed from the ERP.' });
       setUsers(prev => prev.filter(u => u.user_id !== userId));
     } catch (err: any) {
       toast({ title: 'Error deleting user', description: err.message, variant: 'destructive' });
@@ -649,9 +659,15 @@ export default function SettingsPage() {
                           <Button variant="ghost" size="icon" className="h-8 w-8" title="View KYC details" onClick={() => setDetailsUser(u)}>
                             <Eye className="h-3.5 w-3.5" />
                           </Button>
+                          {u.role !== 'admin' && u.role !== 'user' && (
+                            <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => resetInvalidRole(u.user_id)}>
+                              Reset
+                            </Button>
+                          )}
                           <Select
                             value={u.role === 'admin' || u.role === 'user' ? u.role : ''}
                             onValueChange={(v) => updateRole(u.user_id, v)}
+                            disabled={u.user_id === user?.id}
                           >
                             <SelectTrigger className="w-28 h-8 text-xs"><SelectValue placeholder="Role…" /></SelectTrigger>
                             <SelectContent>
@@ -720,7 +736,7 @@ export default function SettingsPage() {
                 <div>
                   <p className="font-bold text-rose-800 dark:text-rose-300 text-sm">⚠ {users.filter(u => u.role !== 'admin' && u.role !== 'user').length} account(s) have an invalid role</p>
                   <p className="text-xs text-rose-600 dark:text-rose-400 mt-1">
-                    Accounts with roles other than <code className="font-mono bg-rose-100 dark:bg-rose-900/30 px-1 rounded">admin</code> or <code className="font-mono bg-rose-100 dark:bg-rose-900/30 px-1 rounded">user</code> cannot access the ERP. Click below to reset them all to Admin immediately.
+                    Accounts with roles other than <code className="font-mono bg-rose-100 dark:bg-rose-900/30 px-1 rounded">admin</code> or <code className="font-mono bg-rose-100 dark:bg-rose-900/30 px-1 rounded">user</code> cannot access the ERP. Click below to reset them to User safely.
                   </p>
                 </div>
               </div>
@@ -731,15 +747,15 @@ export default function SettingsPage() {
                   const badUsers = users.filter(u => u.role !== 'admin' && u.role !== 'user');
                   let fixed = 0;
                   for (const u of badUsers) {
-                    const { error } = await supabase.from('user_roles').update({ role: 'admin' as any }).eq('user_id', u.user_id);
+                    const { error } = await supabase.from('user_roles').upsert({ user_id: u.user_id, role: 'user' as any }, { onConflict: 'user_id' });
                     if (!error) fixed++;
                   }
-                  setUsers(prev => prev.map(u => (u.role !== 'admin' && u.role !== 'user') ? { ...u, role: 'admin' } : u));
-                  toast({ title: `✅ Fixed ${fixed} account(s)`, description: 'All invalid-role accounts have been reset to Admin.' });
+                  setUsers(prev => prev.map(u => (u.role !== 'admin' && u.role !== 'user') ? { ...u, role: 'user' } : u));
+                  toast({ title: `✅ Fixed ${fixed} account(s)`, description: 'All invalid-role accounts have been reset to User.' });
                 }}
               >
                 <ShieldCheck className="mr-2 h-4 w-4" />
-                Reset All Invalid Roles → Admin
+                Reset All Invalid Roles → User
               </Button>
             </div>
           )}

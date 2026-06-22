@@ -4,6 +4,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -98,6 +99,7 @@ export default function Inventory() {
       const payload = {
         sku: values.sku,
         product_name: values.product_name,
+        parent_inventory_id: restockItem?.parent_inventory_id ?? restockItem?.id ?? null,
         aliases,
         average_cost_price: values.average_cost_price,
         average_selling_price: values.average_selling_price,
@@ -107,7 +109,7 @@ export default function Inventory() {
       };
       const { error } = await supabase.from('inventory').insert(payload);
       if (error) throw error;
-      toast({ title: 'New batch restocked successfully' });
+      toast({ title: 'Child batch restocked successfully' });
       qc.invalidateQueries({ queryKey: ['inventory'] });
       setRestockDialogOpen(false);
       setRestockItem(null);
@@ -219,7 +221,8 @@ export default function Inventory() {
     return { success, errors };
   };
 
-  const totalSkus = inventory.length;
+  const rootItems = inventory.filter(i => !(i as any).parent_inventory_id);
+  const totalSkus = rootItems.length;
   const lowStockCount = inventory.filter(i => (currentStocks[i.id] ?? 0) <= 5).length;
   const totalBulk = inventory.reduce((s, i) => s + i.total_bulk_stock_in, 0);
 
@@ -227,7 +230,7 @@ export default function Inventory() {
     <div className="space-y-5 animate-in">
       <PageHeader
         title="Inventory"
-        subtitle={`${totalSkus} SKUs · Stock Holding Value: ${fmt(totalStockValue)}`}
+        subtitle={`${totalSkus} unique SKUs · ${inventory.length - totalSkus} child batches · Stock Holding Value: ${fmt(totalStockValue)}`}
         icon={<Package className="h-5 w-5 text-indigo-500" />}
         actions={<>
           <Button variant="outline" size="sm" onClick={handleExport}><Download className="mr-1 h-4 w-4" />Export Excel</Button>
@@ -267,7 +270,7 @@ export default function Inventory() {
                     Restock Item (New Batch)
                   </DialogTitle>
                   <div className="text-xs text-muted-foreground mt-1">
-                    Adding new stock for "{restockItem?.product_name}" at a different price point. This creates a new batch SKU to preserve history.
+                    Adding stock under "{restockItem?.product_name}" as a child batch. It is not counted as a new unique SKU.
                   </div>
                 </DialogHeader>
                 <form onSubmit={restockForm.handleSubmit(onRestockSubmit)} className="space-y-4 pt-2">
@@ -323,10 +326,10 @@ export default function Inventory() {
 
       {/* KPI Row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <StatCard title="Locked Capital" value={fmt(totalStockValue)} icon={<Package />} color="primary" subtitle={`${totalSkus} SKUs`} />
+        <StatCard title="Locked Capital" value={fmt(totalStockValue)} icon={<Package />} color="primary" subtitle={`${totalSkus} unique SKUs`} />
         <StatCard title="Total Stock In" value={totalBulk.toLocaleString()} icon={<Boxes />} color="slate" subtitle="All batches" />
         <StatCard title="Low Stock" value={lowStockCount} icon={<AlertTriangle />} color={lowStockCount > 0 ? 'amber' : 'emerald'} subtitle="≤ 5 units remaining" />
-        <StatCard title="Unique SKUs" value={totalSkus} icon={<BarChart2 />} color="slate" subtitle="Tracked products" />
+        <StatCard title="Unique SKUs" value={totalSkus} icon={<BarChart2 />} color="slate" subtitle={`${inventory.length - totalSkus} child batches`} />
       </div>
 
       {/* Chart */}
@@ -361,6 +364,7 @@ export default function Inventory() {
             <TableHeader>
               <TableRow className="bg-muted/30">
                 <TableHead className="font-semibold">SKU</TableHead>
+                <TableHead className="font-semibold">Type</TableHead>
                 <TableHead className="font-semibold">Product Name</TableHead>
                 <TableHead className="text-right font-semibold">Cost Price</TableHead>
                 <TableHead className="text-right font-semibold">Selling Price</TableHead>
@@ -377,6 +381,9 @@ export default function Inventory() {
                 return (
                   <TableRow key={item.id} className="hover:bg-primary/5 transition-colors group">
                     <TableCell className="font-mono text-xs font-medium text-primary">{item.sku}</TableCell>
+                    <TableCell>
+                      {(item as any).parent_inventory_id ? <Badge variant="secondary" className="text-[10px]">Child</Badge> : <Badge variant="outline" className="text-[10px]">Unique</Badge>}
+                    </TableCell>
                     <TableCell className="font-medium">{item.product_name}</TableCell>
                     <TableCell className="text-right text-muted-foreground">{fmt(item.average_cost_price)}</TableCell>
                     <TableCell className="text-right text-muted-foreground">{fmt(item.average_selling_price ?? 0)}</TableCell>
@@ -406,7 +413,7 @@ export default function Inventory() {
               })}
               {filtered.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={admin ? 8 : 7} className="py-16">
+                    <TableCell colSpan={admin ? 9 : 8} className="py-16">
                     <EmptyState icon={<Package className="h-8 w-8" />} title="No inventory items found" description="Add your first product or adjust your search." />
                   </TableCell>
                 </TableRow>

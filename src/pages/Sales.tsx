@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -54,12 +55,13 @@ export default function Sales() {
   const [billUploading, setBillUploading] = useState(false);
   const [billPreview, setBillPreview] = useState<any[] | null>(null);
   const [billPreviewOpen, setBillPreviewOpen] = useState(false);
+  const [splitConfirmOpen, setSplitConfirmOpen] = useState(false);
   const qc = useQueryClient();
   const { toast } = useToast();
 
   const form = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: { dispatch_date: new Date().toISOString().slice(0, 10), platform: 'Meesho', inventory_id: '', quantity_sold: 1, average_selling_price: 0, courier_partner: '', payment_status: 'Pending', payment_method: 'Prepaid', order_number: '', settlement_date: '', split_orders: true, log_another: false },
+    defaultValues: { dispatch_date: new Date().toISOString().slice(0, 10), platform: 'Meesho', inventory_id: '', quantity_sold: 1, average_selling_price: 0, courier_partner: '', payment_status: 'Pending', payment_method: 'Prepaid', order_number: '', settlement_date: '', split_orders: false, log_another: false },
   });
 
   const paymentStatus = form.watch('payment_status');
@@ -221,6 +223,8 @@ export default function Sales() {
 
       qc.invalidateQueries({ queryKey: ['sales'] });
       qc.invalidateQueries({ queryKey: ['inventory'] });
+      qc.invalidateQueries({ queryKey: ['capital_accounts'] });
+      qc.invalidateQueries({ queryKey: ['cash_movements'] });
       
       if (values.log_another) {
         form.reset({
@@ -277,6 +281,8 @@ export default function Sales() {
     const { error } = await supabase.from('sales').delete().eq('id', id);
     if (error) { toast({ title: 'Error', description: error.message, variant: 'destructive' }); return; }
     qc.invalidateQueries({ queryKey: ['sales'] });
+    qc.invalidateQueries({ queryKey: ['capital_accounts'] });
+    qc.invalidateQueries({ queryKey: ['cash_movements'] });
     toast({ title: 'Sale deleted' });
   };
 
@@ -444,9 +450,24 @@ export default function Sales() {
     }
     qc.invalidateQueries({ queryKey: ['sales'] });
     qc.invalidateQueries({ queryKey: ['inventory'] });
+    qc.invalidateQueries({ queryKey: ['capital_accounts'] });
+    qc.invalidateQueries({ queryKey: ['cash_movements'] });
     toast({ title: `Imported ${rows.length} order${rows.length !== 1 ? 's' : ''}`, description: skipped.length ? `Skipped (no SKU match): ${skipped.join(', ')}` : undefined });
     setBillPreviewOpen(false);
     setBillPreview(null);
+  };
+
+  const requestSplitOrders = (checked: boolean | 'indeterminate') => {
+    if (checked === true) {
+      setSplitConfirmOpen(true);
+      return;
+    }
+    form.setValue('split_orders', false, { shouldDirty: true });
+  };
+
+  const confirmSplitOrders = () => {
+    form.setValue('split_orders', true, { shouldDirty: true });
+    setSplitConfirmOpen(false);
   };
 
   // Quick payment status toggle / selection
@@ -487,6 +508,8 @@ export default function Sales() {
       qc.invalidateQueries({ queryKey: ['sales'] });
       qc.invalidateQueries({ queryKey: ['returns'] });
       qc.invalidateQueries({ queryKey: ['inventory'] });
+      qc.invalidateQueries({ queryKey: ['capital_accounts'] });
+      qc.invalidateQueries({ queryKey: ['cash_movements'] });
     } catch (err: any) {
       toast({ title: 'Error updating status', description: err.message, variant: 'destructive' });
     }
@@ -555,6 +578,8 @@ export default function Sales() {
     }
     qc.invalidateQueries({ queryKey: ['sales'] });
     qc.invalidateQueries({ queryKey: ['inventory'] });
+    qc.invalidateQueries({ queryKey: ['capital_accounts'] });
+    qc.invalidateQueries({ queryKey: ['cash_movements'] });
     return { success, errors };
   };
 
@@ -578,7 +603,7 @@ export default function Sales() {
           {admin && (
             <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) { setEditId(null); form.reset(); } }}>
               <DialogTrigger asChild><Button size="sm"><Plus className="mr-1 h-4 w-4" />Log Sale</Button></DialogTrigger>
-              <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+              <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg" onCloseAutoFocus={(event) => event.preventDefault()}>
                 <DialogHeader><DialogTitle>{editId ? 'Edit Sale' : 'Log New Sale'}</DialogTitle></DialogHeader>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3 pt-1">
                   {/* Row 1: Date + Platform */}
@@ -698,7 +723,7 @@ export default function Sales() {
                     <div className="space-y-2">
                       <div className="flex items-start gap-2 rounded-md border bg-muted/40 p-2.5">
                         <Controller name="split_orders" control={form.control} render={({ field }) => (
-                          <Checkbox id="split_orders" checked={field.value ?? false} onCheckedChange={field.onChange} className="mt-0.5" />
+                          <Checkbox id="split_orders" checked={field.value ?? false} onCheckedChange={requestSplitOrders} className="mt-0.5" />
                         )} />
                         <label htmlFor="split_orders" className="text-xs leading-tight cursor-pointer">
                           <span className="flex items-center gap-1 font-semibold"><SplitSquareHorizontal className="h-3 w-3" />Split qty into individual orders</span>
@@ -719,6 +744,20 @@ export default function Sales() {
                   )}
                   <Button type="submit" className="w-full mt-1">{editId ? 'Update Sale' : 'Log Sale'}</Button>
                 </form>
+                <AlertDialog open={splitConfirmOpen} onOpenChange={setSplitConfirmOpen}>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Split quantity into individual rows?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This creates one separate sales ledger row for each unit. Keep it off if this is one order with multiple units.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Keep Off</AlertDialogCancel>
+                      <AlertDialogAction onClick={confirmSplitOrders}>Confirm Split</AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </DialogContent>
             </Dialog>
           )}
@@ -868,6 +907,8 @@ export default function Sales() {
                               if (e1) { toast({ title: 'Split failed', description: e1.message, variant: 'destructive' }); return; }
                               await supabase.from('sales').delete().eq('id', s.id);
                               qc.invalidateQueries({ queryKey: ['sales'] });
+                              qc.invalidateQueries({ queryKey: ['capital_accounts'] });
+                              qc.invalidateQueries({ queryKey: ['cash_movements'] });
                               toast({ title: `Split into ${rows.length} orders` });
                             }}><SplitSquareHorizontal className="h-4 w-4" /></Button>
                           )}

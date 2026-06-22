@@ -16,6 +16,38 @@ export function useInventory() {
   });
 }
 
+export function useCapitalAccounts() {
+  const loading = useAuthStore((state) => state.loading);
+
+  return useQuery({
+    queryKey: ['capital_accounts'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('capital_accounts').select('*').single();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !loading,
+  });
+}
+
+export function useCashMovements() {
+  const loading = useAuthStore((state) => state.loading);
+
+  return useQuery({
+    queryKey: ['cash_movements'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('cash_movements')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(25);
+      if (error) throw error;
+      return data;
+    },
+    enabled: !loading,
+  });
+}
+
 export function useSales() {
   const loading = useAuthStore((state) => state.loading);
 

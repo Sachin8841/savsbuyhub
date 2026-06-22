@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useSales, useReturns, useInventory, useAdExpenses } from '@/hooks/useData';
+import { useSales, useReturns, useInventory, useAdExpenses, useCapitalAccounts, useCashMovements } from '@/hooks/useData';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuthStore } from '@/stores/authStore';
 import { useQueryClient } from '@tanstack/react-query';
@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { DollarSign, Clock, AlertTriangle, Package, ShoppingCart, ArrowUpRight, ArrowDownRight, Megaphone, Warehouse, Download, TrendingUp, Trash2, Pencil, Percent, Truck } from 'lucide-react';
+import { DollarSign, Clock, AlertTriangle, Package, ShoppingCart, ArrowUpRight, ArrowDownRight, Megaphone, Warehouse, Download, TrendingUp, Trash2, Pencil, Percent, Truck, Banknote, Landmark, ArrowRightLeft } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Line, PieChart, Pie, Cell, Legend, ComposedChart, Area } from 'recharts';
 import { exportDashboardReport } from '@/lib/xlsx-export';
 import { AlertNotifications } from '@/components/AlertNotifications';
@@ -23,6 +23,8 @@ export default function Dashboard() {
   const { data: returns = [] } = useReturns();
   const { data: inventory = [] } = useInventory();
   const { data: adExpenses = [] } = useAdExpenses();
+  const { data: capitalAccounts } = useCapitalAccounts();
+  const { data: cashMovements = [] } = useCashMovements();
   const { isAdmin } = useAuthStore();
   const admin = isAdmin();
   const qc = useQueryClient();
@@ -35,6 +37,9 @@ export default function Dashboard() {
   const [adDialogOpen, setAdDialogOpen] = useState(false);
   const [adForm, setAdForm] = useState({ category: 'Ads', platform: '', amount: '', expense_date: new Date().toISOString().slice(0, 10), description: '' });
   const [adEditId, setAdEditId] = useState<string | null>(null);
+  const [capitalDialogOpen, setCapitalDialogOpen] = useState(false);
+  const [capitalForm, setCapitalForm] = useState({ hot_cash: '', account_holding_value: '', notes: '' });
+  const [movementForm, setMovementForm] = useState({ type: 'cash_to_account', amount: '', notes: '' });
   const [currentStocks, setCurrentStocks] = useState<Record<string, number>>({});
 
   useEffect(() => {
@@ -235,6 +240,47 @@ export default function Dashboard() {
     if (!error) qc.invalidateQueries({ queryKey: ['ad_expenses'] });
   };
 
+  useEffect(() => {
+    if (!capitalAccounts) return;
+    setCapitalForm({
+      hot_cash: String(capitalAccounts.hot_cash ?? 0),
+      account_holding_value: String(capitalAccounts.account_holding_value ?? 0),
+      notes: capitalAccounts.notes ?? '',
+    });
+  }, [capitalAccounts]);
+
+  const handleCapitalSet = async () => {
+    const hotCash = Number(capitalForm.hot_cash || 0);
+    const accountValue = Number(capitalForm.account_holding_value || 0);
+    const { error } = await supabase.rpc('set_capital_accounts', {
+      _hot_cash: hotCash,
+      _account_holding_value: accountValue,
+      _notes: capitalForm.notes || undefined,
+    });
+    if (error) return;
+    qc.invalidateQueries({ queryKey: ['capital_accounts'] });
+    qc.invalidateQueries({ queryKey: ['cash_movements'] });
+  };
+
+  const handleCapitalTransfer = async () => {
+    const amount = Number(movementForm.amount || 0);
+    if (amount <= 0) return;
+    const isCashToAccount = movementForm.type === 'cash_to_account';
+    const { error } = await supabase.rpc('record_cash_movement', {
+      _movement_type: movementForm.type,
+      _amount: amount,
+      _hot_cash_delta: isCashToAccount ? -amount : amount,
+      _account_delta: isCashToAccount ? amount : -amount,
+      _notes: movementForm.notes || (isCashToAccount ? 'Cash deposited to account' : 'Cash withdrawn from account'),
+      _reference_table: undefined,
+      _reference_id: undefined,
+    });
+    if (error) return;
+    setMovementForm({ type: movementForm.type, amount: '', notes: '' });
+    qc.invalidateQueries({ queryKey: ['capital_accounts'] });
+    qc.invalidateQueries({ queryKey: ['cash_movements'] });
+  };
+
   const handleAdEdit = (exp: any) => {
     setAdEditId(exp.id);
     setAdForm({
@@ -249,9 +295,15 @@ export default function Dashboard() {
   const handleDownload = () => exportDashboardReport(sales, inventory, returns, adExpenses, currentStocks);
 
   const roi = totalCost > 0 ? ((netProfit / totalCost) * 100).toFixed(1) : '0';
+  const hotCash = capitalAccounts?.hot_cash ?? 0;
+  const accountHoldingValue = capitalAccounts?.account_holding_value ?? 0;
+  const availableCapital = hotCash + accountHoldingValue;
 
   const kpis = [
     { title: 'Total Revenue', value: fmt(totalRevenue), icon: DollarSign, color: 'text-primary', bg: 'bg-primary/10' },
+    { title: 'Hot Cash', value: fmt(hotCash), subtitle: 'COD / cash on hand', icon: Banknote, color: 'text-emerald-600', bg: 'bg-emerald-50 dark:bg-emerald-950' },
+    { title: 'Account Value', value: fmt(accountHoldingValue), subtitle: 'Bank / account holding', icon: Landmark, color: 'text-primary', bg: 'bg-primary/10' },
+    { title: 'Available Capital', value: fmt(availableCapital), subtitle: 'Cash + account', icon: ArrowRightLeft, color: 'text-emerald-600', bg: 'bg-emerald-50 dark:bg-emerald-950' },
     { title: 'Total Investment', value: fmt(totalCost + stockHoldingValue + totalAdSpend + totalInventoryDeliveryFees), subtitle: 'COGS + Stock + Ads + Delivery', icon: Package, color: 'text-amber-600', bg: 'bg-amber-50 dark:bg-amber-950' },
     { title: 'Net Profit', value: fmt(netProfit), subtitle: `${profitMargin}% margin`, icon: netProfit >= 0 ? ArrowUpRight : ArrowDownRight, color: netProfit >= 0 ? 'text-emerald-600' : 'text-destructive', bg: netProfit >= 0 ? 'bg-emerald-50 dark:bg-emerald-950' : 'bg-destructive/10' },
     { title: 'Total Orders', value: totalOrders.toLocaleString(), subtitle: `${totalUnits} units · Avg ${fmt(Math.round(avgUnitValue))}/unit`, icon: ShoppingCart, color: 'text-primary', bg: 'bg-primary/10' },
@@ -356,6 +408,52 @@ export default function Dashboard() {
                     ))}
                     {adExpenses.length === 0 && <p className="text-xs text-muted-foreground text-center">No expenses logged yet.</p>}
                   </div>
+                </div>
+              </DialogContent>
+            </Dialog>
+          )}
+          {admin && (
+            <Dialog open={capitalDialogOpen} onOpenChange={setCapitalDialogOpen}>
+              <DialogTrigger asChild><Button variant="outline" size="sm"><Landmark className="mr-1 h-4 w-4" />Cash Monitor</Button></DialogTrigger>
+              <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+                <DialogHeader><DialogTitle>Cash & Account Monitor</DialogTitle></DialogHeader>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-3 rounded-lg border p-3">
+                    <div><Label>Hot Cash (₹)</Label><Input type="number" step="0.01" value={capitalForm.hot_cash} onChange={e => setCapitalForm(p => ({ ...p, hot_cash: e.target.value }))} /></div>
+                    <div><Label>Account Holding Value (₹)</Label><Input type="number" step="0.01" value={capitalForm.account_holding_value} onChange={e => setCapitalForm(p => ({ ...p, account_holding_value: e.target.value }))} /></div>
+                    <div><Label>Notes</Label><Input value={capitalForm.notes} onChange={e => setCapitalForm(p => ({ ...p, notes: e.target.value }))} /></div>
+                    <Button onClick={handleCapitalSet} className="w-full">Update Balances</Button>
+                  </div>
+                  <div className="space-y-3 rounded-lg border p-3">
+                    <div><Label>Conversion</Label>
+                      <Select value={movementForm.type} onValueChange={v => setMovementForm(p => ({ ...p, type: v }))}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="cash_to_account">Cash → Account</SelectItem>
+                          <SelectItem value="account_to_cash">Account → Cash</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div><Label>Amount (₹)</Label><Input type="number" step="0.01" value={movementForm.amount} onChange={e => setMovementForm(p => ({ ...p, amount: e.target.value }))} /></div>
+                    <div><Label>Notes</Label><Input value={movementForm.notes} onChange={e => setMovementForm(p => ({ ...p, notes: e.target.value }))} /></div>
+                    <Button variant="secondary" onClick={handleCapitalTransfer} className="w-full">Record Conversion</Button>
+                  </div>
+                </div>
+                <div className="mt-4 space-y-2">
+                  <h4 className="text-sm font-semibold">Recent Cash Movements</h4>
+                  {cashMovements.slice(0, 8).map(m => (
+                    <div key={m.id} className="flex items-center justify-between gap-3 rounded-md border bg-muted/30 p-2 text-xs">
+                      <div className="min-w-0">
+                        <p className="font-medium capitalize">{m.movement_type.replace(/_/g, ' ')}</p>
+                        <p className="truncate text-muted-foreground">{m.notes || '—'} · {new Date(m.created_at).toLocaleString()}</p>
+                      </div>
+                      <div className="shrink-0 text-right font-mono">
+                        <p className={m.hot_cash_delta >= 0 ? 'text-emerald-600' : 'text-destructive'}>Cash {m.hot_cash_delta >= 0 ? '+' : ''}{fmt(m.hot_cash_delta)}</p>
+                        <p className={m.account_delta >= 0 ? 'text-emerald-600' : 'text-destructive'}>A/C {m.account_delta >= 0 ? '+' : ''}{fmt(m.account_delta)}</p>
+                      </div>
+                    </div>
+                  ))}
+                  {cashMovements.length === 0 && <p className="text-center text-xs text-muted-foreground">No cash movement history yet.</p>}
                 </div>
               </DialogContent>
             </Dialog>

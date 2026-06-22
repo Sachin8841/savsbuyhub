@@ -281,6 +281,8 @@ export default function Sales() {
     const { error } = await supabase.from('sales').delete().eq('id', id);
     if (error) { toast({ title: 'Error', description: error.message, variant: 'destructive' }); return; }
     qc.invalidateQueries({ queryKey: ['sales'] });
+    qc.invalidateQueries({ queryKey: ['capital_accounts'] });
+    qc.invalidateQueries({ queryKey: ['cash_movements'] });
     toast({ title: 'Sale deleted' });
   };
 
@@ -903,6 +905,8 @@ export default function Sales() {
                               if (e1) { toast({ title: 'Split failed', description: e1.message, variant: 'destructive' }); return; }
                               await supabase.from('sales').delete().eq('id', s.id);
                               qc.invalidateQueries({ queryKey: ['sales'] });
+                              qc.invalidateQueries({ queryKey: ['capital_accounts'] });
+                              qc.invalidateQueries({ queryKey: ['cash_movements'] });
                               toast({ title: `Split into ${rows.length} orders` });
                             }}><SplitSquareHorizontal className="h-4 w-4" /></Button>
                           )}

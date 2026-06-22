@@ -240,6 +240,47 @@ export default function Dashboard() {
     if (!error) qc.invalidateQueries({ queryKey: ['ad_expenses'] });
   };
 
+  useEffect(() => {
+    if (!capitalAccounts) return;
+    setCapitalForm({
+      hot_cash: String(capitalAccounts.hot_cash ?? 0),
+      account_holding_value: String(capitalAccounts.account_holding_value ?? 0),
+      notes: capitalAccounts.notes ?? '',
+    });
+  }, [capitalAccounts]);
+
+  const handleCapitalSet = async () => {
+    const hotCash = Number(capitalForm.hot_cash || 0);
+    const accountValue = Number(capitalForm.account_holding_value || 0);
+    const { error } = await supabase.rpc('set_capital_accounts', {
+      _hot_cash: hotCash,
+      _account_holding_value: accountValue,
+      _notes: capitalForm.notes || null,
+    });
+    if (error) return;
+    qc.invalidateQueries({ queryKey: ['capital_accounts'] });
+    qc.invalidateQueries({ queryKey: ['cash_movements'] });
+  };
+
+  const handleCapitalTransfer = async () => {
+    const amount = Number(movementForm.amount || 0);
+    if (amount <= 0) return;
+    const isCashToAccount = movementForm.type === 'cash_to_account';
+    const { error } = await supabase.rpc('record_cash_movement', {
+      _movement_type: movementForm.type,
+      _amount: amount,
+      _hot_cash_delta: isCashToAccount ? -amount : amount,
+      _account_delta: isCashToAccount ? amount : -amount,
+      _notes: movementForm.notes || (isCashToAccount ? 'Cash deposited to account' : 'Cash withdrawn from account'),
+      _reference_table: null,
+      _reference_id: null,
+    });
+    if (error) return;
+    setMovementForm({ type: movementForm.type, amount: '', notes: '' });
+    qc.invalidateQueries({ queryKey: ['capital_accounts'] });
+    qc.invalidateQueries({ queryKey: ['cash_movements'] });
+  };
+
   const handleAdEdit = (exp: any) => {
     setAdEditId(exp.id);
     setAdForm({
@@ -254,9 +295,15 @@ export default function Dashboard() {
   const handleDownload = () => exportDashboardReport(sales, inventory, returns, adExpenses, currentStocks);
 
   const roi = totalCost > 0 ? ((netProfit / totalCost) * 100).toFixed(1) : '0';
+  const hotCash = capitalAccounts?.hot_cash ?? 0;
+  const accountHoldingValue = capitalAccounts?.account_holding_value ?? 0;
+  const availableCapital = hotCash + accountHoldingValue;
 
   const kpis = [
     { title: 'Total Revenue', value: fmt(totalRevenue), icon: DollarSign, color: 'text-primary', bg: 'bg-primary/10' },
+    { title: 'Hot Cash', value: fmt(hotCash), subtitle: 'COD / cash on hand', icon: Banknote, color: 'text-emerald-600', bg: 'bg-emerald-50 dark:bg-emerald-950' },
+    { title: 'Account Value', value: fmt(accountHoldingValue), subtitle: 'Bank / account holding', icon: Landmark, color: 'text-primary', bg: 'bg-primary/10' },
+    { title: 'Available Capital', value: fmt(availableCapital), subtitle: 'Cash + account', icon: ArrowRightLeft, color: 'text-emerald-600', bg: 'bg-emerald-50 dark:bg-emerald-950' },
     { title: 'Total Investment', value: fmt(totalCost + stockHoldingValue + totalAdSpend + totalInventoryDeliveryFees), subtitle: 'COGS + Stock + Ads + Delivery', icon: Package, color: 'text-amber-600', bg: 'bg-amber-50 dark:bg-amber-950' },
     { title: 'Net Profit', value: fmt(netProfit), subtitle: `${profitMargin}% margin`, icon: netProfit >= 0 ? ArrowUpRight : ArrowDownRight, color: netProfit >= 0 ? 'text-emerald-600' : 'text-destructive', bg: netProfit >= 0 ? 'bg-emerald-50 dark:bg-emerald-950' : 'bg-destructive/10' },
     { title: 'Total Orders', value: totalOrders.toLocaleString(), subtitle: `${totalUnits} units · Avg ${fmt(Math.round(avgUnitValue))}/unit`, icon: ShoppingCart, color: 'text-primary', bg: 'bg-primary/10' },

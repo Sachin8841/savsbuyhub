@@ -364,11 +364,21 @@ export default function SettingsPage() {
   }, [user]);
 
   const updateRole = async (userId: string, newRole: string) => {
-    const { error } = await supabase.from('user_roles').update({ role: newRole as any }).eq('user_id', userId);
+    if (userId === user?.id && newRole !== 'admin') {
+      toast({ title: 'Cannot change your own admin role', description: 'Ask another admin to change your role if needed.', variant: 'destructive' });
+      return;
+    }
+    if (newRole !== 'admin' && users.filter(u => u.role === 'admin').length <= 1 && users.find(u => u.user_id === userId)?.role === 'admin') {
+      toast({ title: 'At least one admin is required', variant: 'destructive' });
+      return;
+    }
+    const { error } = await supabase.from('user_roles').upsert({ user_id: userId, role: newRole as any }, { onConflict: 'user_id' });
     if (error) { toast({ title: 'Error', description: error.message, variant: 'destructive' }); return; }
     toast({ title: 'Role updated' });
     setUsers(prev => prev.map(u => u.user_id === userId ? { ...u, role: newRole } : u));
   };
+
+  const resetInvalidRole = async (userId: string) => updateRole(userId, 'user');
 
   const deleteUser = async (userId: string) => {
     if (!confirm('WARNING: This will permanently delete this user profile and revoke all access. Proceed?')) return;

@@ -19,9 +19,9 @@ export function AppLayout() {
 
   return (
     <SidebarProvider>
-      <div className="min-h-screen flex w-full animated-gradient-bg">
+      <div className="h-screen overflow-hidden flex w-full animated-gradient-bg">
         <AppSidebar />
-        <div className="flex-1 flex flex-col min-w-0 z-10 backdrop-blur-sm bg-background/40">
+        <div className="flex-1 flex flex-col min-w-0 min-h-0 z-10 backdrop-blur-sm bg-background/40">
           <header className="h-14 flex items-center justify-between border-b border-white/20 dark:border-slate-800/40 glass px-4 sticky top-0 z-30 shadow-sm">
             <div className="flex items-center gap-3">
               <SidebarTrigger className="mr-1 hover:scale-110 transition-transform" />
@@ -38,7 +38,7 @@ export function AppLayout() {
               <span className="hidden sm:block">Live</span>
             </div>
           </header>
-          <main ref={mainRef} className="flex-1 overflow-auto p-4 md:p-6 pb-24">
+          <main ref={mainRef} className="flex-1 min-h-0 overflow-auto p-4 md:p-6 pb-24">
             <Outlet />
           </main>
         </div>

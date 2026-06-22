@@ -448,9 +448,24 @@ export default function Sales() {
     }
     qc.invalidateQueries({ queryKey: ['sales'] });
     qc.invalidateQueries({ queryKey: ['inventory'] });
+    qc.invalidateQueries({ queryKey: ['capital_accounts'] });
+    qc.invalidateQueries({ queryKey: ['cash_movements'] });
     toast({ title: `Imported ${rows.length} order${rows.length !== 1 ? 's' : ''}`, description: skipped.length ? `Skipped (no SKU match): ${skipped.join(', ')}` : undefined });
     setBillPreviewOpen(false);
     setBillPreview(null);
+  };
+
+  const requestSplitOrders = (checked: boolean | 'indeterminate') => {
+    if (checked === true) {
+      setSplitConfirmOpen(true);
+      return;
+    }
+    form.setValue('split_orders', false, { shouldDirty: true });
+  };
+
+  const confirmSplitOrders = () => {
+    form.setValue('split_orders', true, { shouldDirty: true });
+    setSplitConfirmOpen(false);
   };
 
   // Quick payment status toggle / selection
@@ -491,6 +506,8 @@ export default function Sales() {
       qc.invalidateQueries({ queryKey: ['sales'] });
       qc.invalidateQueries({ queryKey: ['returns'] });
       qc.invalidateQueries({ queryKey: ['inventory'] });
+      qc.invalidateQueries({ queryKey: ['capital_accounts'] });
+      qc.invalidateQueries({ queryKey: ['cash_movements'] });
     } catch (err: any) {
       toast({ title: 'Error updating status', description: err.message, variant: 'destructive' });
     }

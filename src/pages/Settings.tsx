@@ -328,11 +328,13 @@ export default function SettingsPage() {
     const { data: roles } = await supabase.from('user_roles').select('user_id, role');
     const { data: profiles } = await supabase.from('profiles').select('*');
     const profileMap = new Map((profiles ?? []).map(p => [p.user_id, p]));
-    setUsers((roles ?? []).map(r => {
-      const prof: any = profileMap.get(r.user_id);
+    const roleMap = new Map((roles ?? []).map(r => [r.user_id, r.role]));
+    const userIds = Array.from(new Set([...(roles ?? []).map(r => r.user_id), ...(profiles ?? []).map(p => p.user_id)]));
+    setUsers(userIds.map(userId => {
+      const prof: any = profileMap.get(userId);
       return {
-        user_id: r.user_id,
-        role: r.role,
+        user_id: userId,
+        role: roleMap.get(userId) ?? 'missing',
         email: prof?.email ?? 'Unknown',
         full_name: prof?.full_name ?? '—',
         aadhar_number: prof?.aadhar_number,

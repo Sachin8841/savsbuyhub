@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -54,12 +55,13 @@ export default function Sales() {
   const [billUploading, setBillUploading] = useState(false);
   const [billPreview, setBillPreview] = useState<any[] | null>(null);
   const [billPreviewOpen, setBillPreviewOpen] = useState(false);
+  const [splitConfirmOpen, setSplitConfirmOpen] = useState(false);
   const qc = useQueryClient();
   const { toast } = useToast();
 
   const form = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: { dispatch_date: new Date().toISOString().slice(0, 10), platform: 'Meesho', inventory_id: '', quantity_sold: 1, average_selling_price: 0, courier_partner: '', payment_status: 'Pending', payment_method: 'Prepaid', order_number: '', settlement_date: '', split_orders: true, log_another: false },
+    defaultValues: { dispatch_date: new Date().toISOString().slice(0, 10), platform: 'Meesho', inventory_id: '', quantity_sold: 1, average_selling_price: 0, courier_partner: '', payment_status: 'Pending', payment_method: 'Prepaid', order_number: '', settlement_date: '', split_orders: false, log_another: false },
   });
 
   const paymentStatus = form.watch('payment_status');
@@ -221,6 +223,8 @@ export default function Sales() {
 
       qc.invalidateQueries({ queryKey: ['sales'] });
       qc.invalidateQueries({ queryKey: ['inventory'] });
+      qc.invalidateQueries({ queryKey: ['capital_accounts'] });
+      qc.invalidateQueries({ queryKey: ['cash_movements'] });
       
       if (values.log_another) {
         form.reset({
@@ -578,7 +582,7 @@ export default function Sales() {
           {admin && (
             <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) { setEditId(null); form.reset(); } }}>
               <DialogTrigger asChild><Button size="sm"><Plus className="mr-1 h-4 w-4" />Log Sale</Button></DialogTrigger>
-              <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+              <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg" onCloseAutoFocus={(event) => event.preventDefault()}>
                 <DialogHeader><DialogTitle>{editId ? 'Edit Sale' : 'Log New Sale'}</DialogTitle></DialogHeader>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3 pt-1">
                   {/* Row 1: Date + Platform */}

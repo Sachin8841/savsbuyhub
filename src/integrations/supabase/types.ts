@@ -503,6 +503,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      revoke_user_access: {
+        Args: { _target_user_id: string }
+        Returns: boolean
+      }
       set_capital_accounts: {
         Args: {
           _account_holding_value: number

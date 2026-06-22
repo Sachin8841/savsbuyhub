@@ -44,6 +44,72 @@ export type Database = {
         }
         Relationships: []
       }
+      capital_accounts: {
+        Row: {
+          account_holding_value: number
+          created_at: string
+          hot_cash: number
+          id: boolean
+          notes: string | null
+          updated_at: string
+        }
+        Insert: {
+          account_holding_value?: number
+          created_at?: string
+          hot_cash?: number
+          id?: boolean
+          notes?: string | null
+          updated_at?: string
+        }
+        Update: {
+          account_holding_value?: number
+          created_at?: string
+          hot_cash?: number
+          id?: boolean
+          notes?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      cash_movements: {
+        Row: {
+          account_delta: number
+          amount: number
+          created_at: string
+          created_by: string | null
+          hot_cash_delta: number
+          id: string
+          movement_type: string
+          notes: string | null
+          reference_id: string | null
+          reference_table: string | null
+        }
+        Insert: {
+          account_delta?: number
+          amount?: number
+          created_at?: string
+          created_by?: string | null
+          hot_cash_delta?: number
+          id?: string
+          movement_type: string
+          notes?: string | null
+          reference_id?: string | null
+          reference_table?: string | null
+        }
+        Update: {
+          account_delta?: number
+          amount?: number
+          created_at?: string
+          created_by?: string | null
+          hot_cash_delta?: number
+          id?: string
+          movement_type?: string
+          notes?: string | null
+          reference_id?: string | null
+          reference_table?: string | null
+        }
+        Relationships: []
+      }
       disclosed_periods: {
         Row: {
           ad_expenses_data: Json
@@ -88,6 +154,7 @@ export type Database = {
           created_at: string
           delivery_fee: number
           id: string
+          parent_inventory_id: string | null
           product_name: string
           sku: string
           stock_added_date: string | null
@@ -101,6 +168,7 @@ export type Database = {
           created_at?: string
           delivery_fee?: number
           id?: string
+          parent_inventory_id?: string | null
           product_name: string
           sku: string
           stock_added_date?: string | null
@@ -114,13 +182,22 @@ export type Database = {
           created_at?: string
           delivery_fee?: number
           id?: string
+          parent_inventory_id?: string | null
           product_name?: string
           sku?: string
           stock_added_date?: string | null
           total_bulk_stock_in?: number
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "inventory_parent_inventory_id_fkey"
+            columns: ["parent_inventory_id"]
+            isOneToOne: false
+            referencedRelation: "inventory"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       investments: {
         Row: {
@@ -380,10 +457,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      apply_capital_delta: {
+        Args: { _account_delta: number; _hot_cash_delta: number }
+        Returns: undefined
+      }
       current_user_has_role: {
         Args: { _role: Database["public"]["Enums"]["app_role"] }
         Returns: boolean
       }
+      ensure_capital_account: { Args: never; Returns: undefined }
       execute_monthly_disclosure: {
         Args: {
           _dividend_declared?: number
@@ -406,6 +488,26 @@ export type Database = {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
+        }
+        Returns: boolean
+      }
+      record_cash_movement: {
+        Args: {
+          _account_delta: number
+          _amount: number
+          _hot_cash_delta: number
+          _movement_type: string
+          _notes?: string
+          _reference_id?: string
+          _reference_table?: string
+        }
+        Returns: boolean
+      }
+      set_capital_accounts: {
+        Args: {
+          _account_holding_value: number
+          _hot_cash: number
+          _notes?: string
         }
         Returns: boolean
       }

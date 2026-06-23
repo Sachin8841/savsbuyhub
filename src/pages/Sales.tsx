@@ -670,6 +670,14 @@ export default function Sales() {
             </label>
           )}
           {admin && (
+            <>
+              <input ref={payFileRef} type="file" accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handlePaymentFile(f); }} />
+              <Button variant="outline" size="sm" disabled={payBusy} onClick={() => payFileRef.current?.click()}>
+                {payBusy ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Banknote className="mr-1 h-4 w-4" />}Import Payment XLSX
+              </Button>
+            </>
+          )}
+          {admin && (
             <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) { setEditId(null); form.reset(); } }}>
               <DialogTrigger asChild><Button size="sm"><Plus className="mr-1 h-4 w-4" />Log Sale</Button></DialogTrigger>
               <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg" onCloseAutoFocus={(event) => event.preventDefault()}>
@@ -1003,7 +1011,7 @@ export default function Sales() {
       </SectionCard>
 
       <Dialog open={billPreviewOpen} onOpenChange={(o) => { setBillPreviewOpen(o); if (!o) setBillPreview(null); }}>
-        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto" onCloseAutoFocus={(e) => e.preventDefault()}>
           <DialogHeader><DialogTitle>Review Parsed Orders ({billPreview?.length ?? 0})</DialogTitle></DialogHeader>
           <p className="text-sm text-muted-foreground">Date will be today ({new Date().toISOString().slice(0,10)}). Rows without an SKU match are skipped.</p>
           <div className="overflow-x-auto rounded border max-h-[400px] overflow-y-auto">
@@ -1031,6 +1039,52 @@ export default function Sales() {
           <div className="flex justify-end gap-2 mt-3">
             <Button variant="outline" onClick={() => setBillPreviewOpen(false)}>Cancel</Button>
             <Button onClick={confirmBillImport}>Import {billPreview?.filter(i => i.matched_inventory_id).length ?? 0} orders</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={payPreviewOpen} onOpenChange={(o) => { setPayPreviewOpen(o); if (!o) setPayPreview(null); }}>
+        <DialogContent className="max-w-5xl max-h-[85vh] overflow-y-auto" onCloseAutoFocus={(e) => e.preventDefault()}>
+          <DialogHeader><DialogTitle>Review Payment Settlements ({payPreview?.length ?? 0})</DialogTitle></DialogHeader>
+          <p className="text-xs text-muted-foreground">
+            Rows already settled with the same payment date are skipped. Unmatched order IDs are flagged so you can log them first.
+          </p>
+          <div className="rounded border max-h-[420px] overflow-auto">
+            <Table>
+              <TableHeader><TableRow>
+                <TableHead className="text-xs">Sub Order No</TableHead>
+                <TableHead className="text-xs">SKU</TableHead>
+                <TableHead className="text-xs">Product</TableHead>
+                <TableHead className="text-xs">Payment Date</TableHead>
+                <TableHead className="text-right text-xs">Settlement</TableHead>
+                <TableHead className="text-xs">Live Status</TableHead>
+                <TableHead className="text-xs">Result</TableHead>
+              </TableRow></TableHeader>
+              <TableBody>
+                {payPreview?.map((p, i) => (
+                  <TableRow key={i} className={p.action === 'unmatched' ? 'opacity-50' : p.action === 'already' ? 'opacity-60' : ''}>
+                    <TableCell className="font-mono text-[10px]">{p.subOrderNo}</TableCell>
+                    <TableCell className="font-mono text-xs">{p.sku}</TableCell>
+                    <TableCell className="text-xs max-w-[200px] truncate">{p.productName}</TableCell>
+                    <TableCell className="text-xs">{p.paymentDate}</TableCell>
+                    <TableCell className="text-right font-mono text-xs">₹{p.finalSettlementAmount.toFixed(2)}</TableCell>
+                    <TableCell className="text-xs">{p.liveStatus}</TableCell>
+                    <TableCell>
+                      {p.action === 'unmatched' && <Badge variant="destructive" className="text-[10px]">No sale match</Badge>}
+                      {p.action === 'already' && <Badge variant="secondary" className="text-[10px]">Already settled</Badge>}
+                      {p.action === 'settle' && <Badge className="text-[10px] bg-emerald-600">Will settle</Badge>}
+                      {p.action === 'change' && <Badge className="text-[10px] bg-amber-600">Will update date</Badge>}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+          <div className="flex justify-end gap-2 mt-3">
+            <Button variant="outline" onClick={() => setPayPreviewOpen(false)}>Cancel</Button>
+            <Button onClick={confirmPaymentImport}>
+              Apply {payPreview?.filter(p => p.action === 'settle' || p.action === 'change').length ?? 0} settlements
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

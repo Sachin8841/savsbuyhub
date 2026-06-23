@@ -16,7 +16,7 @@ export function useInventory() {
       if (error) throw error;
       return data;
     },
-    enabled: !loading,
+    enabled: !loading, ...KEEP,
   });
 }
 
@@ -30,7 +30,7 @@ export function useCapitalAccounts() {
       if (error) throw error;
       return data;
     },
-    enabled: !loading,
+    enabled: !loading, ...KEEP,
   });
 }
 
@@ -48,7 +48,7 @@ export function useCashMovements() {
       if (error) throw error;
       return data;
     },
-    enabled: !loading,
+    enabled: !loading, ...KEEP,
   });
 }
 
@@ -65,7 +65,7 @@ export function useSales() {
       if (error) throw error;
       return data;
     },
-    enabled: !loading,
+    enabled: !loading, ...KEEP,
   });
 }
 
@@ -82,7 +82,7 @@ export function useReturns() {
       if (error) throw error;
       return data;
     },
-    enabled: !loading,
+    enabled: !loading, ...KEEP,
   });
 }
 
@@ -99,7 +99,7 @@ export function useAdExpenses() {
       if (error) throw error;
       return data;
     },
-    enabled: !loading,
+    enabled: !loading, ...KEEP,
   });
 }
 

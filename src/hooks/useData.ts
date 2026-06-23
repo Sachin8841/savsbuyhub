@@ -1,6 +1,10 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuthStore } from '@/stores/authStore';
+
+// Keep previous data while refetching so tables don't collapse to zero rows
+// (which would otherwise reset scroll position to top after every status edit).
+const KEEP = { placeholderData: keepPreviousData } as const;
 
 export function useInventory() {
   const loading = useAuthStore((state) => state.loading);

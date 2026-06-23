@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSales, useInventory } from '@/hooks/useData';
 import { useAuthStore } from '@/stores/authStore';
 import { supabase } from '@/integrations/supabase/client';
@@ -16,13 +16,15 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { exportToXlsx } from '@/lib/xlsx-export';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Plus, Download, Pencil, Trash2, Search, DollarSign, Clock, FileUp, Loader2, SplitSquareHorizontal, TrendingUp, Copy } from 'lucide-react';
+import { Plus, Download, Pencil, Trash2, Search, DollarSign, Clock, FileUp, Loader2, SplitSquareHorizontal, TrendingUp, Copy, Banknote } from 'lucide-react';
 import { CsvImportButton } from '@/components/CsvImportButton';
 import { PageHeader, StatCard, SectionCard, EmptyState } from '@/components/PageHeader';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { parseMeeshoPaymentXlsx } from '@/lib/importMeesho';
+
 
 const COURIER_OPTIONS = ['Valmo', 'Delhivery', 'Shadowfax', 'XpressBees', 'SAVS Trans X', 'Other'];
 
@@ -56,8 +58,13 @@ export default function Sales() {
   const [billPreview, setBillPreview] = useState<any[] | null>(null);
   const [billPreviewOpen, setBillPreviewOpen] = useState(false);
   const [splitConfirmOpen, setSplitConfirmOpen] = useState(false);
+  const [payBusy, setPayBusy] = useState(false);
+  const [payPreview, setPayPreview] = useState<any[] | null>(null);
+  const [payPreviewOpen, setPayPreviewOpen] = useState(false);
+  const payFileRef = useRef<HTMLInputElement>(null);
   const qc = useQueryClient();
   const { toast } = useToast();
+
 
   const form = useForm<FormData>({
     resolver: zodResolver(schema),

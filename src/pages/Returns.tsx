@@ -446,6 +446,56 @@ export default function Returns() {
           </Table>
         </div>
       </SectionCard>
+
+      <Dialog open={meeshoPreviewOpen} onOpenChange={(o) => { setMeeshoPreviewOpen(o); if (!o) setMeeshoPreview(null); }}>
+        <DialogContent className="max-w-5xl max-h-[85vh] overflow-y-auto" onCloseAutoFocus={(e) => e.preventDefault()}>
+          <DialogHeader><DialogTitle>Review Meesho Return Rows ({meeshoPreview?.length ?? 0})</DialogTitle></DialogHeader>
+          <p className="text-xs text-muted-foreground">
+            Rows already logged (matched on order + date + SKU + type) are skipped automatically. Unmatched SKUs are flagged — add them to inventory first if you want them included.
+          </p>
+          <div className="rounded border max-h-[420px] overflow-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="text-xs">Order #</TableHead>
+                  <TableHead className="text-xs">SKU</TableHead>
+                  <TableHead className="text-xs">Product</TableHead>
+                  <TableHead className="text-xs">Type</TableHead>
+                  <TableHead className="text-xs">Return Date</TableHead>
+                  <TableHead className="text-xs">Courier</TableHead>
+                  <TableHead className="text-xs">Status</TableHead>
+                  <TableHead className="text-xs">Result</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {meeshoPreview?.map((p, i) => (
+                  <TableRow key={i} className={!p.matchedInventory ? 'opacity-50' : p.duplicate ? 'opacity-60' : ''}>
+                    <TableCell className="font-mono text-[10px]">{p.subOrderNumber || p.orderNumber}</TableCell>
+                    <TableCell className="font-mono text-xs text-primary">{p.matchedInventory?.sku ?? p.sku}</TableCell>
+                    <TableCell className="text-xs max-w-[180px] truncate">{p.matchedInventory?.product_name ?? p.productName}</TableCell>
+                    <TableCell><Badge variant={p.return_type === 'RTO' ? 'outline' : 'destructive'} className="text-[10px]">{p.return_type}</Badge></TableCell>
+                    <TableCell className="text-xs">{p.return_date}</TableCell>
+                    <TableCell className="text-xs">{p.courierPartner}</TableCell>
+                    <TableCell className="text-xs">{p.status}</TableCell>
+                    <TableCell className="text-xs">
+                      {!p.matchedInventory ? <Badge variant="destructive" className="text-[10px]">No SKU match</Badge>
+                        : p.duplicate ? <Badge variant="secondary" className="text-[10px]">Already logged</Badge>
+                        : p.matchedSale ? <Badge className="text-[10px] bg-emerald-600">Will link sale</Badge>
+                        : <Badge variant="outline" className="text-[10px]">New return</Badge>}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+          <div className="flex justify-end gap-2 mt-3">
+            <Button variant="outline" onClick={() => setMeeshoPreviewOpen(false)}>Cancel</Button>
+            <Button onClick={confirmMeeshoImport}>
+              Import {meeshoPreview?.filter(p => p.matchedInventory && !p.duplicate).length ?? 0} returns
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

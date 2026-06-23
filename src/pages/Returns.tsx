@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useReturns, useSales, useInventory } from '@/hooks/useData';
 import { useAuthStore } from '@/stores/authStore';
 import { supabase } from '@/integrations/supabase/client';
@@ -13,13 +13,15 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { exportToXlsx } from '@/lib/xlsx-export';
-import { Plus, Download, Trash2, Search, AlertTriangle, Package, Activity, Frown, RotateCcw } from 'lucide-react';
+import { Plus, Download, Trash2, Search, AlertTriangle, Package, Activity, Frown, RotateCcw, FileUp, Loader2 } from 'lucide-react';
 import { PageHeader, StatCard, SectionCard, EmptyState } from '@/components/PageHeader';
 import { CsvImportButton } from '@/components/CsvImportButton';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { parseMeeshoReturnsCsv, classifyReturnType, matchInventoryBySku } from '@/lib/importMeesho';
+
 
 const schema = z.object({
   inventory_id: z.string().min(1, 'Select a product'),
@@ -39,8 +41,13 @@ export default function Returns() {
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [meeshoBusy, setMeeshoBusy] = useState(false);
+  const [meeshoPreview, setMeeshoPreview] = useState<any[] | null>(null);
+  const [meeshoPreviewOpen, setMeeshoPreviewOpen] = useState(false);
+  const meeshoFileRef = useRef<HTMLInputElement>(null);
   const qc = useQueryClient();
   const { toast } = useToast();
+
 
   const form = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -188,6 +195,86 @@ export default function Returns() {
     return { success, errors };
   };
 
+  // ---------- Meesho returns CSV upload (intransit/RTO report) ----------
+  const handleMeeshoFile = async (file: File) => {
+    try {
+      setMeeshoBusy(true);
+      const text = await file.text();
+      const rows = parseMeeshoReturnsCsv(text);
+      if (!rows.length) { toast({ title: 'No return rows detected', description: 'The CSV does not contain a recognisable header row.', variant: 'destructive' }); return; }
+
+      const existing = new Set(returns.map(r => `${(r as any).sales_id ?? ''}|${(r as any).return_date ?? ''}|${(r as any).inventory_id ?? ''}|${(r as any).return_type ?? ''}`));
+      const previews = rows.map((r) => {
+        const inv = matchInventoryBySku(inventory as any, r.sku, r.productName);
+        const sale = sales.find((s: any) => s.order_number && (s.order_number === r.subOrderNumber || s.order_number === r.orderNumber));
+        const return_type = classifyReturnType(r.typeOfReturn);
+        const return_date = r.returnCreatedDate || r.dispatchDate || new Date().toISOString().slice(0, 10);
+        const dedupKey = `${sale?.id ?? ''}|${return_date}|${inv?.id ?? ''}|${return_type}`;
+        return {
+          ...r,
+          matchedInventory: inv,
+          matchedSale: sale,
+          return_type,
+          return_date,
+          delivery_status: /returned|received|delivered/i.test(r.status) ? 'Received' : 'In Transit',
+          duplicate: existing.has(dedupKey),
+        };
+      });
+      setMeeshoPreview(previews);
+      setMeeshoPreviewOpen(true);
+    } catch (err: any) {
+      toast({ title: 'Parse failed', description: err.message, variant: 'destructive' });
+    } finally {
+      setMeeshoBusy(false);
+      if (meeshoFileRef.current) meeshoFileRef.current.value = '';
+    }
+  };
+
+  const confirmMeeshoImport = async () => {
+    if (!meeshoPreview) return;
+    let inserted = 0, salesUpdated = 0, skipped = 0;
+    const errors: string[] = [];
+    for (const p of meeshoPreview) {
+      if (!p.matchedInventory) { skipped++; continue; }
+      if (p.duplicate) { skipped++; continue; }
+      const penalty_per_unit = p.return_type === 'Customer Return' ? 160 : 0;
+      const insertRow: any = {
+        sales_id: p.matchedSale?.id ?? null,
+        inventory_id: p.matchedInventory.id,
+        return_type: p.return_type,
+        quantity_returned: p.quantity || 1,
+        return_date: p.return_date,
+        penalty_amount: penalty_per_unit * (p.quantity || 1),
+        delivery_status: p.delivery_status,
+        delivered_date: p.delivery_status === 'Received' ? p.return_date : null,
+      };
+      const { error } = await supabase.from('returns').insert(insertRow);
+      if (error) { errors.push(`${p.subOrderNumber}: ${error.message}`); continue; }
+      inserted++;
+
+      // Update sales row's payment_status if we matched a sale.
+      if (p.matchedSale?.id) {
+        const newStatus = p.return_type === 'RTO' ? 'Order RTO' : 'Return';
+        if (p.matchedSale.payment_status !== newStatus) {
+          const { error: upErr } = await supabase.from('sales').update({ payment_status: newStatus } as any).eq('id', p.matchedSale.id);
+          if (!upErr) salesUpdated++;
+        }
+      }
+    }
+    qc.invalidateQueries({ queryKey: ['returns'] });
+    qc.invalidateQueries({ queryKey: ['sales'] });
+    qc.invalidateQueries({ queryKey: ['inventory'] });
+    qc.invalidateQueries({ queryKey: ['capital_accounts'] });
+    qc.invalidateQueries({ queryKey: ['cash_movements'] });
+    toast({
+      title: `Imported ${inserted} returns`,
+      description: `${salesUpdated} sales rows updated · ${skipped} skipped (duplicate or unmatched SKU)${errors.length ? ` · ${errors.length} errors` : ''}`,
+    });
+    setMeeshoPreviewOpen(false);
+    setMeeshoPreview(null);
+  };
+
+
   return (
     <div className="space-y-5 animate-in">
       <PageHeader
@@ -197,6 +284,14 @@ export default function Returns() {
         actions={<>
           <Button variant="outline" size="sm" onClick={handleExport} className="gap-1.5"><Download className="h-4 w-4" />Export</Button>
           {admin && <CsvImportButton onImport={handleImport} expectedColumns={['sku', 'return_type', 'quantity_returned', 'return_date']} label="Import CSV" />}
+          {admin && (
+            <>
+              <input ref={meeshoFileRef} type="file" accept=".csv,text/csv" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleMeeshoFile(f); }} />
+              <Button variant="outline" size="sm" disabled={meeshoBusy} onClick={() => meeshoFileRef.current?.click()} className="gap-1.5">
+                {meeshoBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileUp className="h-4 w-4" />}Import Meesho Returns CSV
+              </Button>
+            </>
+          )}
           {admin && (
             <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) form.reset(); }}>
               <DialogTrigger asChild><Button size="sm" className="gap-1.5 bg-gradient-to-r from-red-600 to-rose-500 hover:from-red-700 hover:to-rose-600 shadow-sm"><Plus className="h-4 w-4" />Log Return</Button></DialogTrigger>
@@ -351,6 +446,56 @@ export default function Returns() {
           </Table>
         </div>
       </SectionCard>
+
+      <Dialog open={meeshoPreviewOpen} onOpenChange={(o) => { setMeeshoPreviewOpen(o); if (!o) setMeeshoPreview(null); }}>
+        <DialogContent className="max-w-5xl max-h-[85vh] overflow-y-auto" onCloseAutoFocus={(e) => e.preventDefault()}>
+          <DialogHeader><DialogTitle>Review Meesho Return Rows ({meeshoPreview?.length ?? 0})</DialogTitle></DialogHeader>
+          <p className="text-xs text-muted-foreground">
+            Rows already logged (matched on order + date + SKU + type) are skipped automatically. Unmatched SKUs are flagged — add them to inventory first if you want them included.
+          </p>
+          <div className="rounded border max-h-[420px] overflow-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="text-xs">Order #</TableHead>
+                  <TableHead className="text-xs">SKU</TableHead>
+                  <TableHead className="text-xs">Product</TableHead>
+                  <TableHead className="text-xs">Type</TableHead>
+                  <TableHead className="text-xs">Return Date</TableHead>
+                  <TableHead className="text-xs">Courier</TableHead>
+                  <TableHead className="text-xs">Status</TableHead>
+                  <TableHead className="text-xs">Result</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {meeshoPreview?.map((p, i) => (
+                  <TableRow key={i} className={!p.matchedInventory ? 'opacity-50' : p.duplicate ? 'opacity-60' : ''}>
+                    <TableCell className="font-mono text-[10px]">{p.subOrderNumber || p.orderNumber}</TableCell>
+                    <TableCell className="font-mono text-xs text-primary">{p.matchedInventory?.sku ?? p.sku}</TableCell>
+                    <TableCell className="text-xs max-w-[180px] truncate">{p.matchedInventory?.product_name ?? p.productName}</TableCell>
+                    <TableCell><Badge variant={p.return_type === 'RTO' ? 'outline' : 'destructive'} className="text-[10px]">{p.return_type}</Badge></TableCell>
+                    <TableCell className="text-xs">{p.return_date}</TableCell>
+                    <TableCell className="text-xs">{p.courierPartner}</TableCell>
+                    <TableCell className="text-xs">{p.status}</TableCell>
+                    <TableCell className="text-xs">
+                      {!p.matchedInventory ? <Badge variant="destructive" className="text-[10px]">No SKU match</Badge>
+                        : p.duplicate ? <Badge variant="secondary" className="text-[10px]">Already logged</Badge>
+                        : p.matchedSale ? <Badge className="text-[10px] bg-emerald-600">Will link sale</Badge>
+                        : <Badge variant="outline" className="text-[10px]">New return</Badge>}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+          <div className="flex justify-end gap-2 mt-3">
+            <Button variant="outline" onClick={() => setMeeshoPreviewOpen(false)}>Cancel</Button>
+            <Button onClick={confirmMeeshoImport}>
+              Import {meeshoPreview?.filter(p => p.matchedInventory && !p.duplicate).length ?? 0} returns
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

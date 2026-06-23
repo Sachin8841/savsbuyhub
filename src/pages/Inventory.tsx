@@ -96,10 +96,12 @@ export default function Inventory() {
   const onRestockSubmit = async (values: FormData) => {
     try {
       const aliases = (values.aliases ?? '').split(',').map(s => s.trim()).filter(Boolean);
+      // Each restock is its OWN unique SKU (no parent linking) so batches are
+      // independently tracked, costed and sold against.
       const payload = {
         sku: values.sku,
         product_name: values.product_name,
-        parent_inventory_id: restockItem?.parent_inventory_id ?? restockItem?.id ?? null,
+        parent_inventory_id: null,
         aliases,
         average_cost_price: values.average_cost_price,
         average_selling_price: values.average_selling_price,
@@ -109,7 +111,7 @@ export default function Inventory() {
       };
       const { error } = await supabase.from('inventory').insert(payload);
       if (error) throw error;
-      toast({ title: 'Child batch restocked successfully' });
+      toast({ title: 'New batch added as unique SKU' });
       qc.invalidateQueries({ queryKey: ['inventory'] });
       setRestockDialogOpen(false);
       setRestockItem(null);
@@ -118,6 +120,7 @@ export default function Inventory() {
       toast({ title: 'Error', description: err.message, variant: 'destructive' });
     }
   };
+
 
   useEffect(() => {
     inventory.forEach(async (item) => {
@@ -221,16 +224,17 @@ export default function Inventory() {
     return { success, errors };
   };
 
-  const rootItems = inventory.filter(i => !(i as any).parent_inventory_id);
-  const totalSkus = rootItems.length;
+  // Each SKU row (including restocked batches) is treated as a unique SKU.
+  const totalSkus = inventory.length;
   const lowStockCount = inventory.filter(i => (currentStocks[i.id] ?? 0) <= 5).length;
   const totalBulk = inventory.reduce((s, i) => s + i.total_bulk_stock_in, 0);
+
 
   return (
     <div className="space-y-5 animate-in">
       <PageHeader
         title="Inventory"
-        subtitle={`${totalSkus} unique SKUs · ${inventory.length - totalSkus} child batches · Stock Holding Value: ${fmt(totalStockValue)}`}
+        subtitle={`${totalSkus} unique SKUs · Stock Holding Value: ${fmt(totalStockValue)}`}
         icon={<Package className="h-5 w-5 text-indigo-500" />}
         actions={<>
           <Button variant="outline" size="sm" onClick={handleExport}><Download className="mr-1 h-4 w-4" />Export Excel</Button>
@@ -270,7 +274,7 @@ export default function Inventory() {
                     Restock Item (New Batch)
                   </DialogTitle>
                   <div className="text-xs text-muted-foreground mt-1">
-                    Adding stock under "{restockItem?.product_name}" as a child batch. It is not counted as a new unique SKU.
+                    New batch from "{restockItem?.product_name}". This batch is logged as its own <b>unique SKU</b> with its own cost basis so resale margins stay accurate.
                   </div>
                 </DialogHeader>
                 <form onSubmit={restockForm.handleSubmit(onRestockSubmit)} className="space-y-4 pt-2">
@@ -329,7 +333,7 @@ export default function Inventory() {
         <StatCard title="Locked Capital" value={fmt(totalStockValue)} icon={<Package />} color="primary" subtitle={`${totalSkus} unique SKUs`} />
         <StatCard title="Total Stock In" value={totalBulk.toLocaleString()} icon={<Boxes />} color="slate" subtitle="All batches" />
         <StatCard title="Low Stock" value={lowStockCount} icon={<AlertTriangle />} color={lowStockCount > 0 ? 'amber' : 'emerald'} subtitle="≤ 5 units remaining" />
-        <StatCard title="Unique SKUs" value={totalSkus} icon={<BarChart2 />} color="slate" subtitle={`${inventory.length - totalSkus} child batches`} />
+        <StatCard title="Unique SKUs" value={totalSkus} icon={<BarChart2 />} color="slate" subtitle="Every batch counted" />
       </div>
 
       {/* Chart */}

@@ -1,6 +1,10 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuthStore } from '@/stores/authStore';
+
+// Keep previous data while refetching so tables don't collapse to zero rows
+// (which would otherwise reset scroll position to top after every status edit).
+const KEEP = { placeholderData: keepPreviousData } as const;
 
 export function useInventory() {
   const loading = useAuthStore((state) => state.loading);
@@ -12,7 +16,7 @@ export function useInventory() {
       if (error) throw error;
       return data;
     },
-    enabled: !loading,
+    enabled: !loading, ...KEEP,
   });
 }
 
@@ -26,7 +30,7 @@ export function useCapitalAccounts() {
       if (error) throw error;
       return data;
     },
-    enabled: !loading,
+    enabled: !loading, ...KEEP,
   });
 }
 
@@ -44,7 +48,7 @@ export function useCashMovements() {
       if (error) throw error;
       return data;
     },
-    enabled: !loading,
+    enabled: !loading, ...KEEP,
   });
 }
 
@@ -61,7 +65,7 @@ export function useSales() {
       if (error) throw error;
       return data;
     },
-    enabled: !loading,
+    enabled: !loading, ...KEEP,
   });
 }
 
@@ -78,7 +82,7 @@ export function useReturns() {
       if (error) throw error;
       return data;
     },
-    enabled: !loading,
+    enabled: !loading, ...KEEP,
   });
 }
 
@@ -95,7 +99,7 @@ export function useAdExpenses() {
       if (error) throw error;
       return data;
     },
-    enabled: !loading,
+    enabled: !loading, ...KEEP,
   });
 }
 

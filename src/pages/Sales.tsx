@@ -464,6 +464,68 @@ export default function Sales() {
     setBillPreview(null);
   };
 
+  // ---------- Meesho payment XLSX upload ----------
+  const handlePaymentFile = async (file: File) => {
+    try {
+      setPayBusy(true);
+      const rows = await parseMeeshoPaymentXlsx(file);
+      if (!rows.length) { toast({ title: 'No payment rows detected', variant: 'destructive' }); return; }
+
+      // Index sales by order_number — trim trailing _1, _2... suffix to be safe.
+      const salesByOrder = new Map<string, any>();
+      for (const s of sales as any[]) {
+        if (!s.order_number) continue;
+        salesByOrder.set(String(s.order_number).trim(), s);
+        salesByOrder.set(String(s.order_number).trim().replace(/_\d+$/, ''), s);
+      }
+
+      const previews = rows.map((r) => {
+        const sub = r.subOrderNo;
+        const sale = salesByOrder.get(sub) || salesByOrder.get(sub.replace(/_\d+$/, ''));
+        let action: 'settle' | 'already' | 'unmatched' | 'change' = 'unmatched';
+        if (sale) {
+          if (sale.payment_status === 'Settled' && sale.settlement_date === r.paymentDate) action = 'already';
+          else if (sale.payment_status === 'Settled') action = 'change';
+          else action = 'settle';
+        }
+        return { ...r, matchedSale: sale, action };
+      });
+      setPayPreview(previews);
+      setPayPreviewOpen(true);
+    } catch (err: any) {
+      toast({ title: 'Parse failed', description: err.message, variant: 'destructive' });
+    } finally {
+      setPayBusy(false);
+      if (payFileRef.current) payFileRef.current.value = '';
+    }
+  };
+
+  const confirmPaymentImport = async () => {
+    if (!payPreview) return;
+    let updated = 0, skipped = 0;
+    const errors: string[] = [];
+    for (const p of payPreview) {
+      if (!p.matchedSale || p.action === 'already') { skipped++; continue; }
+      const patch: any = {
+        payment_status: 'Settled',
+        settlement_date: p.paymentDate || new Date().toISOString().slice(0, 10),
+      };
+      const { error } = await supabase.from('sales').update(patch).eq('id', p.matchedSale.id);
+      if (error) errors.push(`${p.subOrderNo}: ${error.message}`);
+      else updated++;
+    }
+    qc.invalidateQueries({ queryKey: ['sales'] });
+    qc.invalidateQueries({ queryKey: ['capital_accounts'] });
+    qc.invalidateQueries({ queryKey: ['cash_movements'] });
+    toast({
+      title: `Settled ${updated} orders`,
+      description: `${skipped} skipped (already settled or unmatched)${errors.length ? ` · ${errors.length} errors` : ''}`,
+    });
+    setPayPreviewOpen(false);
+    setPayPreview(null);
+  };
+
+
   const requestSplitOrders = (checked: boolean | 'indeterminate') => {
     if (checked === true) {
       setSplitConfirmOpen(true);

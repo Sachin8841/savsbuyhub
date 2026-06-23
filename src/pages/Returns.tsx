@@ -285,6 +285,14 @@ export default function Returns() {
           <Button variant="outline" size="sm" onClick={handleExport} className="gap-1.5"><Download className="h-4 w-4" />Export</Button>
           {admin && <CsvImportButton onImport={handleImport} expectedColumns={['sku', 'return_type', 'quantity_returned', 'return_date']} label="Import CSV" />}
           {admin && (
+            <>
+              <input ref={meeshoFileRef} type="file" accept=".csv,text/csv" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleMeeshoFile(f); }} />
+              <Button variant="outline" size="sm" disabled={meeshoBusy} onClick={() => meeshoFileRef.current?.click()} className="gap-1.5">
+                {meeshoBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileUp className="h-4 w-4" />}Import Meesho Returns CSV
+              </Button>
+            </>
+          )}
+          {admin && (
             <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) form.reset(); }}>
               <DialogTrigger asChild><Button size="sm" className="gap-1.5 bg-gradient-to-r from-red-600 to-rose-500 hover:from-red-700 hover:to-rose-600 shadow-sm"><Plus className="h-4 w-4" />Log Return</Button></DialogTrigger>
               <DialogContent>

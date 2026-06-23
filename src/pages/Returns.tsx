@@ -195,6 +195,86 @@ export default function Returns() {
     return { success, errors };
   };
 
+  // ---------- Meesho returns CSV upload (intransit/RTO report) ----------
+  const handleMeeshoFile = async (file: File) => {
+    try {
+      setMeeshoBusy(true);
+      const text = await file.text();
+      const rows = parseMeeshoReturnsCsv(text);
+      if (!rows.length) { toast({ title: 'No return rows detected', description: 'The CSV does not contain a recognisable header row.', variant: 'destructive' }); return; }
+
+      const existing = new Set(returns.map(r => `${(r as any).sales_id ?? ''}|${(r as any).return_date ?? ''}|${(r as any).inventory_id ?? ''}|${(r as any).return_type ?? ''}`));
+      const previews = rows.map((r) => {
+        const inv = matchInventoryBySku(inventory as any, r.sku, r.productName);
+        const sale = sales.find((s: any) => s.order_number && (s.order_number === r.subOrderNumber || s.order_number === r.orderNumber));
+        const return_type = classifyReturnType(r.typeOfReturn);
+        const return_date = r.returnCreatedDate || r.dispatchDate || new Date().toISOString().slice(0, 10);
+        const dedupKey = `${sale?.id ?? ''}|${return_date}|${inv?.id ?? ''}|${return_type}`;
+        return {
+          ...r,
+          matchedInventory: inv,
+          matchedSale: sale,
+          return_type,
+          return_date,
+          delivery_status: /returned|received|delivered/i.test(r.status) ? 'Received' : 'In Transit',
+          duplicate: existing.has(dedupKey),
+        };
+      });
+      setMeeshoPreview(previews);
+      setMeeshoPreviewOpen(true);
+    } catch (err: any) {
+      toast({ title: 'Parse failed', description: err.message, variant: 'destructive' });
+    } finally {
+      setMeeshoBusy(false);
+      if (meeshoFileRef.current) meeshoFileRef.current.value = '';
+    }
+  };
+
+  const confirmMeeshoImport = async () => {
+    if (!meeshoPreview) return;
+    let inserted = 0, salesUpdated = 0, skipped = 0;
+    const errors: string[] = [];
+    for (const p of meeshoPreview) {
+      if (!p.matchedInventory) { skipped++; continue; }
+      if (p.duplicate) { skipped++; continue; }
+      const penalty_per_unit = p.return_type === 'Customer Return' ? 160 : 0;
+      const insertRow: any = {
+        sales_id: p.matchedSale?.id ?? null,
+        inventory_id: p.matchedInventory.id,
+        return_type: p.return_type,
+        quantity_returned: p.quantity || 1,
+        return_date: p.return_date,
+        penalty_amount: penalty_per_unit * (p.quantity || 1),
+        delivery_status: p.delivery_status,
+        delivered_date: p.delivery_status === 'Received' ? p.return_date : null,
+      };
+      const { error } = await supabase.from('returns').insert(insertRow);
+      if (error) { errors.push(`${p.subOrderNumber}: ${error.message}`); continue; }
+      inserted++;
+
+      // Update sales row's payment_status if we matched a sale.
+      if (p.matchedSale?.id) {
+        const newStatus = p.return_type === 'RTO' ? 'Order RTO' : 'Return';
+        if (p.matchedSale.payment_status !== newStatus) {
+          const { error: upErr } = await supabase.from('sales').update({ payment_status: newStatus } as any).eq('id', p.matchedSale.id);
+          if (!upErr) salesUpdated++;
+        }
+      }
+    }
+    qc.invalidateQueries({ queryKey: ['returns'] });
+    qc.invalidateQueries({ queryKey: ['sales'] });
+    qc.invalidateQueries({ queryKey: ['inventory'] });
+    qc.invalidateQueries({ queryKey: ['capital_accounts'] });
+    qc.invalidateQueries({ queryKey: ['cash_movements'] });
+    toast({
+      title: `Imported ${inserted} returns`,
+      description: `${salesUpdated} sales rows updated · ${skipped} skipped (duplicate or unmatched SKU)${errors.length ? ` · ${errors.length} errors` : ''}`,
+    });
+    setMeeshoPreviewOpen(false);
+    setMeeshoPreview(null);
+  };
+
+
   return (
     <div className="space-y-5 animate-in">
       <PageHeader

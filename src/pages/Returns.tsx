@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useReturns, useSales, useInventory } from '@/hooks/useData';
 import { useAuthStore } from '@/stores/authStore';
 import { supabase } from '@/integrations/supabase/client';
@@ -13,13 +13,15 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { exportToXlsx } from '@/lib/xlsx-export';
-import { Plus, Download, Trash2, Search, AlertTriangle, Package, Activity, Frown, RotateCcw } from 'lucide-react';
+import { Plus, Download, Trash2, Search, AlertTriangle, Package, Activity, Frown, RotateCcw, FileUp, Loader2 } from 'lucide-react';
 import { PageHeader, StatCard, SectionCard, EmptyState } from '@/components/PageHeader';
 import { CsvImportButton } from '@/components/CsvImportButton';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { parseMeeshoReturnsCsv, classifyReturnType, matchInventoryBySku } from '@/lib/importMeesho';
+
 
 const schema = z.object({
   inventory_id: z.string().min(1, 'Select a product'),
@@ -39,8 +41,13 @@ export default function Returns() {
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [meeshoBusy, setMeeshoBusy] = useState(false);
+  const [meeshoPreview, setMeeshoPreview] = useState<any[] | null>(null);
+  const [meeshoPreviewOpen, setMeeshoPreviewOpen] = useState(false);
+  const meeshoFileRef = useRef<HTMLInputElement>(null);
   const qc = useQueryClient();
   const { toast } = useToast();
+
 
   const form = useForm<FormData>({
     resolver: zodResolver(schema),

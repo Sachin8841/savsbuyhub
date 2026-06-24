@@ -105,8 +105,8 @@ export default function Login() {
         <Card className="w-full max-w-md glass-card shadow-2xl border-white/40 dark:border-white/10 micro-animate">
           <CardHeader className="text-center pb-2">
             {/* Mobile logo */}
-            <div className="mx-auto mb-5 lg:hidden h-14 w-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-emerald-500 flex items-center justify-center shadow-xl">
-              <span className="text-white font-black text-2xl">S</span>
+            <div className="mx-auto mb-5 lg:hidden h-16 w-16 rounded-2xl bg-white flex items-center justify-center shadow-xl ring-1 ring-indigo-500/30 overflow-hidden">
+              <img src="/savs-logo-placeholder.png" alt="SAVS BuyHub" className="h-full w-full object-contain" />
             </div>
             <CardTitle className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-slate-800 to-slate-500 dark:from-slate-100 dark:to-slate-400">
               {isSignUp ? 'Create Account' : 'Welcome Back'}

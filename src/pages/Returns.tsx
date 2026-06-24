@@ -204,6 +204,10 @@ export default function Returns() {
       if (!rows.length) { toast({ title: 'No return rows detected', description: 'The CSV does not contain a recognisable header row.', variant: 'destructive' }); return; }
 
       const existing = new Set(returns.map(r => `${(r as any).sales_id ?? ''}|${(r as any).return_date ?? ''}|${(r as any).inventory_id ?? ''}|${(r as any).return_type ?? ''}`));
+      // Meesho intransit/RTO report = items currently in transit back to seller.
+      // Only mark "Received" when the status EXPLICITLY says the seller has the parcel.
+      const isReceivedStatus = (s: string) =>
+        /(delivered_to_seller|received_by_supplier|seller.?received|rto.?delivered|return.?delivered.?to.?seller|delivered.?to.?supplier)/i.test(s);
       const previews = rows.map((r) => {
         const inv = matchInventoryBySku(inventory as any, r.sku, r.productName);
         const sale = sales.find((s: any) => s.order_number && (s.order_number === r.subOrderNumber || s.order_number === r.orderNumber));
@@ -216,7 +220,7 @@ export default function Returns() {
           matchedSale: sale,
           return_type,
           return_date,
-          delivery_status: /returned|received|delivered/i.test(r.status) ? 'Received' : 'In Transit',
+          delivery_status: isReceivedStatus(r.status) ? 'Received' : 'In Transit',
           duplicate: existing.has(dedupKey),
         };
       });

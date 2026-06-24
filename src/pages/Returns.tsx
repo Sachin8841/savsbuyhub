@@ -67,7 +67,9 @@ export default function Returns() {
     return matchSearch && matchType && matchStatus;
   });
 
-  const totalReturns = returns.reduce((sum, r) => sum + r.quantity_returned, 0);
+  // Quantity only counts toward inventory once physically received.
+  const receivedUnits = returns.filter(r => r.delivery_status === 'Received').reduce((sum, r) => sum + r.quantity_returned, 0);
+  const inTransitUnits = returns.filter(r => r.delivery_status === 'In Transit').reduce((sum, r) => sum + r.quantity_returned, 0);
   const totalPenalty = returns.reduce((sum, r) => sum + r.penalty_amount, 0);
   const inTransit = returns.filter(r => r.delivery_status === 'In Transit').length;
   const received = returns.filter(r => r.delivery_status === 'Received').length;

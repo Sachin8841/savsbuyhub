@@ -142,6 +142,79 @@ export default function PnL() {
     return { revenue, units, cogs, deliveryFees, grossProfit, returnPenalties, returnedUnits, adSpend, freightExpenses, packagingExpenses, otherExpenses, totalExpenses, netProfit, profitPerUnit, platforms, stockHoldingValue };
   }, [filteredSales, filteredReturns, filteredAdExpenses, currentStocks, activePeriod, inventory]);
 
+  // -------- Monthly trend (last 6 months in filtered range) --------
+  const monthlyTrend = useMemo(() => {
+    const buckets: Record<string, { month: string; revenue: number; cogs: number; expenses: number; profit: number }> = {};
+    const key = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const label = (d: Date) => d.toLocaleString('en-US', { month: 'short', year: '2-digit' });
+    const ensure = (d: Date) => {
+      const k = key(d);
+      if (!buckets[k]) buckets[k] = { month: label(d), revenue: 0, cogs: 0, expenses: 0, profit: 0 };
+      return buckets[k];
+    };
+    const currentInventory = activePeriod ? activePeriod.inventory_snapshot || [] : inventory;
+    filteredSales.forEach((s: any) => {
+      if (!s.dispatch_date) return;
+      const b = ensure(new Date(s.dispatch_date));
+      const inv = currentInventory.find((i: any) => i.id === s.inventory_id);
+      const cp = s.cost_price ?? inv?.average_cost_price ?? 0;
+      b.revenue += s.quantity_sold * s.average_selling_price;
+      b.cogs += s.quantity_sold * cp;
+    });
+    filteredReturns.forEach((r: any) => {
+      if (!r.return_date) return;
+      const b = ensure(new Date(r.return_date));
+      b.expenses += r.penalty_amount || 0;
+    });
+    filteredAdExpenses.forEach((e: any) => {
+      if (!e.expense_date) return;
+      const b = ensure(new Date(e.expense_date));
+      b.expenses += e.amount || 0;
+    });
+    Object.values(buckets).forEach(b => { b.profit = b.revenue - b.cogs - b.expenses; });
+    return Object.entries(buckets).sort(([a], [b]) => a.localeCompare(b)).slice(-6).map(([, v]) => v);
+  }, [filteredSales, filteredReturns, filteredAdExpenses, activePeriod, inventory]);
+
+  // -------- Per-SKU profitability --------
+  const skuPnl = useMemo(() => {
+    const currentInventory = activePeriod ? activePeriod.inventory_snapshot || [] : inventory;
+    const map: Record<string, { sku: string; product: string; units: number; revenue: number; cogs: number; returns: number; penalties: number; profit: number; margin: number; returnRate: number }> = {};
+    filteredSales.forEach((s: any) => {
+      const inv = currentInventory.find((i: any) => i.id === s.inventory_id);
+      if (!inv) return;
+      const id = inv.id;
+      const cp = s.cost_price ?? inv.average_cost_price ?? 0;
+      const row = map[id] || (map[id] = { sku: inv.sku, product: inv.product_name, units: 0, revenue: 0, cogs: 0, returns: 0, penalties: 0, profit: 0, margin: 0, returnRate: 0 });
+      row.units += s.quantity_sold;
+      row.revenue += s.quantity_sold * s.average_selling_price;
+      row.cogs += s.quantity_sold * cp;
+    });
+    filteredReturns.forEach((r: any) => {
+      const invId = r.inventory_id || currentSales.find((s: any) => s.id === r.sales_id)?.inventory_id;
+      if (!invId || !map[invId]) return;
+      map[invId].returns += r.quantity_returned;
+      map[invId].penalties += r.penalty_amount || 0;
+    });
+    return Object.values(map).map(r => {
+      r.profit = r.revenue - r.cogs - r.penalties;
+      r.margin = r.revenue > 0 ? (r.profit / r.revenue) * 100 : 0;
+      r.returnRate = r.units > 0 ? (r.returns / r.units) * 100 : 0;
+      return r;
+    }).sort((a, b) => b.profit - a.profit);
+  }, [filteredSales, filteredReturns, activePeriod, inventory, currentSales]);
+
+  // -------- Payment status breakdown --------
+  const paymentBreakdown = useMemo(() => {
+    const groups: Record<string, { status: string; orders: number; value: number }> = {};
+    filteredSales.forEach((s: any) => {
+      const st = s.payment_status || 'Unknown';
+      const g = groups[st] || (groups[st] = { status: st, orders: 0, value: 0 });
+      g.orders += 1;
+      g.value += s.quantity_sold * s.average_selling_price;
+    });
+    return Object.values(groups).sort((a, b) => b.value - a.value);
+  }, [filteredSales]);
+
   const lineItems = [
     { label: 'Sales Revenue', value: pnl.revenue, bold: true, type: 'income' as const },
     { label: `  Units Sold`, value: pnl.units, isMeta: true },

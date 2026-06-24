@@ -337,10 +337,10 @@ export default function Returns() {
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <StatCard title="Total Units Returned" value={`${totalReturns}`} subtitle="All time" icon={<Package />} color="slate" />
+        <StatCard title="Units Received (back in stock)" value={`${receivedUnits}`} subtitle="Counted toward inventory" icon={<Package />} color="emerald" />
+        <StatCard title="Units In Transit" value={`${inTransitUnits}`} subtitle="Not yet received" icon={<Activity />} color="amber" />
         <StatCard title="Penalty Costs" value={fmt(totalPenalty)} icon={<AlertTriangle />} color="red" />
-        <StatCard title="In Transit" value={inTransit} icon={<Activity />} color="amber" />
-        <StatCard title="Received" value={received} icon={<Package />} color="emerald" />
+        <StatCard title="Return Records" value={`${received} ✓ · ${inTransit} ⏳`} subtitle={`${returns.length} total`} icon={<Package />} color="slate" />
       </div>
 
       <SectionCard title="Top Problematic SKUs" description="Sorted by highest penalty cost" noPadding={false}>

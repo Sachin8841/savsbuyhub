@@ -37,13 +37,13 @@ export function AppSidebar() {
       <SidebarContent>
         {/* Logo / Brand */}
         <div className="flex items-center gap-3 px-4 py-5 border-b border-sidebar-border/50 bg-sidebar-background/50 backdrop-blur-sm">
-          <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-indigo-500 to-emerald-500 flex items-center justify-center flex-shrink-0 shadow-lg relative overflow-hidden">
-            <span className="text-white font-black text-sm select-none">S</span>
+          <div className="h-9 w-9 rounded-xl bg-white/95 flex items-center justify-center flex-shrink-0 shadow-lg overflow-hidden ring-1 ring-indigo-500/30">
+            <img src="/savs-logo-placeholder.png" alt="SAVS BuyHub" className="h-full w-full object-contain" />
           </div>
           {!collapsed && (
             <div className="flex flex-col min-w-0">
-              <span className="text-base font-bold text-sidebar-foreground tracking-tight leading-tight truncate">SAVS ERP</span>
-              <span className="text-[10px] uppercase font-bold tracking-widest text-indigo-400">BuyHub Core</span>
+              <span className="text-base font-bold text-sidebar-foreground tracking-tight leading-tight truncate">SAVS BuyHub</span>
+              <span className="text-[10px] uppercase font-bold tracking-widest text-indigo-400">Command Center</span>
             </div>
           )}
         </div>

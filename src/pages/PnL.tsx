@@ -25,6 +25,8 @@ export default function PnL() {
   const { data: returns = [] } = useReturns();
   const { data: inventory = [] } = useInventory();
   const { data: adExpenses = [] } = useAdExpenses();
+  const { data: capital } = useCapitalAccounts();
+  const { data: cashMovements = [] } = useCashMovements();
   const [period, setPeriod] = useState('month');
   const [dateRange, setDateRange] = useState<{ from?: Date; to?: Date }>({});
   const [disclosureOpen, setDisclosureOpen] = useState(false);

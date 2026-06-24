@@ -67,7 +67,9 @@ export default function Returns() {
     return matchSearch && matchType && matchStatus;
   });
 
-  const totalReturns = returns.reduce((sum, r) => sum + r.quantity_returned, 0);
+  // Quantity only counts toward inventory once physically received.
+  const receivedUnits = returns.filter(r => r.delivery_status === 'Received').reduce((sum, r) => sum + r.quantity_returned, 0);
+  const inTransitUnits = returns.filter(r => r.delivery_status === 'In Transit').reduce((sum, r) => sum + r.quantity_returned, 0);
   const totalPenalty = returns.reduce((sum, r) => sum + r.penalty_amount, 0);
   const inTransit = returns.filter(r => r.delivery_status === 'In Transit').length;
   const received = returns.filter(r => r.delivery_status === 'Received').length;
@@ -204,6 +206,10 @@ export default function Returns() {
       if (!rows.length) { toast({ title: 'No return rows detected', description: 'The CSV does not contain a recognisable header row.', variant: 'destructive' }); return; }
 
       const existing = new Set(returns.map(r => `${(r as any).sales_id ?? ''}|${(r as any).return_date ?? ''}|${(r as any).inventory_id ?? ''}|${(r as any).return_type ?? ''}`));
+      // Meesho intransit/RTO report = items currently in transit back to seller.
+      // Only mark "Received" when the status EXPLICITLY says the seller has the parcel.
+      const isReceivedStatus = (s: string) =>
+        /(delivered_to_seller|received_by_supplier|seller.?received|rto.?delivered|return.?delivered.?to.?seller|delivered.?to.?supplier)/i.test(s);
       const previews = rows.map((r) => {
         const inv = matchInventoryBySku(inventory as any, r.sku, r.productName);
         const sale = sales.find((s: any) => s.order_number && (s.order_number === r.subOrderNumber || s.order_number === r.orderNumber));
@@ -216,7 +222,7 @@ export default function Returns() {
           matchedSale: sale,
           return_type,
           return_date,
-          delivery_status: /returned|received|delivered/i.test(r.status) ? 'Received' : 'In Transit',
+          delivery_status: isReceivedStatus(r.status) ? 'Received' : 'In Transit',
           duplicate: existing.has(dedupKey),
         };
       });
@@ -331,10 +337,10 @@ export default function Returns() {
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <StatCard title="Total Units Returned" value={`${totalReturns}`} subtitle="All time" icon={<Package />} color="slate" />
+        <StatCard title="Units Received (back in stock)" value={`${receivedUnits}`} subtitle="Counted toward inventory" icon={<Package />} color="emerald" />
+        <StatCard title="Units In Transit" value={`${inTransitUnits}`} subtitle="Not yet received" icon={<Activity />} color="amber" />
         <StatCard title="Penalty Costs" value={fmt(totalPenalty)} icon={<AlertTriangle />} color="red" />
-        <StatCard title="In Transit" value={inTransit} icon={<Activity />} color="amber" />
-        <StatCard title="Received" value={received} icon={<Package />} color="emerald" />
+        <StatCard title="Return Records" value={`${received} ✓ · ${inTransit} ⏳`} subtitle={`${returns.length} total`} icon={<Package />} color="slate" />
       </div>
 
       <SectionCard title="Top Problematic SKUs" description="Sorted by highest penalty cost" noPadding={false}>

@@ -327,40 +327,67 @@ export type Database = {
       }
       returns: {
         Row: {
+          courier_partner: string | null
           created_at: string
           delivered_date: string | null
           delivery_status: Database["public"]["Enums"]["delivery_status_type"]
           id: string
           inventory_id: string | null
+          order_number: string | null
           penalty_amount: number
+          platform: string | null
+          product_name_snapshot: string | null
           quantity_returned: number
+          raw_status: string | null
+          report_row: Json
           return_date: string
           return_type: Database["public"]["Enums"]["return_type"]
           sales_id: string | null
+          sku_snapshot: string | null
+          source_report: string | null
+          sub_order_number: string | null
         }
         Insert: {
+          courier_partner?: string | null
           created_at?: string
           delivered_date?: string | null
           delivery_status?: Database["public"]["Enums"]["delivery_status_type"]
           id?: string
           inventory_id?: string | null
+          order_number?: string | null
           penalty_amount?: number
+          platform?: string | null
+          product_name_snapshot?: string | null
           quantity_returned: number
+          raw_status?: string | null
+          report_row?: Json
           return_date?: string
           return_type: Database["public"]["Enums"]["return_type"]
           sales_id?: string | null
+          sku_snapshot?: string | null
+          source_report?: string | null
+          sub_order_number?: string | null
         }
         Update: {
+          courier_partner?: string | null
           created_at?: string
           delivered_date?: string | null
           delivery_status?: Database["public"]["Enums"]["delivery_status_type"]
           id?: string
           inventory_id?: string | null
+          order_number?: string | null
           penalty_amount?: number
+          platform?: string | null
+          product_name_snapshot?: string | null
           quantity_returned?: number
+          raw_status?: string | null
+          report_row?: Json
           return_date?: string
           return_type?: Database["public"]["Enums"]["return_type"]
           sales_id?: string | null
+          sku_snapshot?: string | null
+          source_report?: string | null
+          sub_order_number?: string | null
         }
         Relationships: [
           {

@@ -1026,7 +1026,7 @@ export default function SettingsPage() {
                     ₹{simValuation.finalPrice.toFixed(2)}
                   </div>
                   <p className="text-[10px] text-muted-foreground">
-                    * Formula adheres precisely to the database calculation logic implemented in the Supabase schema.
+                    * Formula follows the backend valuation logic used by the live forecast.
                   </p>
                 </div>
               </div>

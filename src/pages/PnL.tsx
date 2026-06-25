@@ -299,7 +299,7 @@ export default function PnL() {
             <p>{err.message || String(err)}</p>
             {isSchemaError && (
               <div className="bg-slate-900 text-slate-300 p-2.5 rounded text-xs font-mono border border-slate-700 mt-2">
-                <strong>Migration required:</strong> Paste and run the contents of <code>phase5_fixes.sql</code> in your Supabase SQL Editor.
+                <strong>Backend update required:</strong> Refresh and retry once the latest database changes finish applying.
               </div>
             )}
           </div>

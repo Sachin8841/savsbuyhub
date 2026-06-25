@@ -15,7 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Shield, Users, FileDown, Database, Palette, UserCircle, CheckCircle2, Settings as SettingsIcon, Trash2, ShieldCheck, ShieldAlert, Terminal, RefreshCw, Sparkles, ArrowRightLeft, TrendingUp, AlertTriangle, AlertCircle, Play, Warehouse, Sliders, Eye, Search } from 'lucide-react';
 import { exportDashboardReport } from '@/lib/xlsx-export';
 import { PageHeader, StatCard, SectionCard, EmptyState } from '@/components/PageHeader';
-import { useSales, useInventory, useReturns, useAdExpenses } from '@/hooks/useData';
+import { useSales, useInventory, useReturns, useAdExpenses, useCurrentStocks } from '@/hooks/useData';
 
 interface UserWithProfile {
   user_id: string;
@@ -50,17 +50,8 @@ export default function SettingsPage() {
   const admin = isAdmin();
 
   // Low Stock & Current Stocks state
-  const [currentStocks, setCurrentStocks] = useState<Record<string, number>>({});
+  const currentStocks = useCurrentStocks();
   const [disclosedPeriods, setDisclosedPeriods] = useState<any[]>([]);
-  
-  useEffect(() => {
-    if (inventory.length > 0) {
-      inventory.forEach(async (item) => {
-        const { data } = await supabase.rpc('get_current_stock', { inv_id: item.id });
-        if (data !== null) setCurrentStocks(prev => ({ ...prev, [item.id]: data as number }));
-      });
-    }
-  }, [inventory]);
 
   const lowStockItems = useMemo(() => {
     return inventory

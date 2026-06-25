@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { useSales, useReturns, useInventory, useAdExpenses, useCapitalAccounts, useCashMovements } from '@/hooks/useData';
+import { useSales, useReturns, useInventory, useAdExpenses, useCapitalAccounts, useCashMovements, useCurrentStocks } from '@/hooks/useData';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -37,17 +37,10 @@ export default function PnL() {
   
   const [disclosedPeriods, setDisclosedPeriods] = useState<any[]>([]);
   const [selectedDisclosedPeriod, setSelectedDisclosedPeriod] = useState<string>('active');
-  const [currentStocks, setCurrentStocks] = useState<Record<string, number>>({});
+  const currentStocks = useCurrentStocks();
 
   const qc = useQueryClient();
   const { toast } = useToast();
-
-  useEffect(() => {
-    inventory.forEach(async (item) => {
-      const { data } = await supabase.rpc('get_current_stock', { inv_id: item.id });
-      if (data !== null) setCurrentStocks(prev => ({ ...prev, [item.id]: data as number }));
-    });
-  }, [inventory]);
 
   useEffect(() => {
     supabase.from('disclosed_periods').select('*').order('created_at', { ascending: false }).then(res => {

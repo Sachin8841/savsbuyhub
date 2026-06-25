@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useSales, useReturns, useInventory, useAdExpenses, useCapitalAccounts, useCashMovements } from '@/hooks/useData';
+import { useSales, useReturns, useInventory, useAdExpenses, useCapitalAccounts, useCashMovements, useCurrentStocks } from '@/hooks/useData';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuthStore } from '@/stores/authStore';
 import { useQueryClient } from '@tanstack/react-query';
@@ -40,14 +40,7 @@ export default function Dashboard() {
   const [capitalDialogOpen, setCapitalDialogOpen] = useState(false);
   const [capitalForm, setCapitalForm] = useState({ hot_cash: '', account_holding_value: '', notes: '' });
   const [movementForm, setMovementForm] = useState({ type: 'cash_to_account', amount: '', notes: '' });
-  const [currentStocks, setCurrentStocks] = useState<Record<string, number>>({});
-
-  useEffect(() => {
-    inventory.forEach(async (item) => {
-      const { data } = await supabase.rpc('get_current_stock', { inv_id: item.id });
-      if (data !== null) setCurrentStocks(prev => ({ ...prev, [item.id]: data as number }));
-    });
-  }, [inventory]);
+  const currentStocks = useCurrentStocks();
 
   const filterSalesByPeriod = (p: string, dr: { from?: Date; to?: Date }) => {
     const { from, to } = getFilterDate(p, dr);

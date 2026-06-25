@@ -285,7 +285,7 @@ export default function PnL() {
       const res = await supabase.from('disclosed_periods').select('*').order('created_at', { ascending: false });
       if (res.data) setDisclosedPeriods(res.data);
 
-      toast({ title: 'Monthly Disclosure Complete', description: 'Financial period archived and ledger zeroed successfully.' });
+      toast({ title: 'Monthly Disclosure Complete', description: 'Financial period saved with net profit, stock value, cash balances, and net worth.' });
       setDisclosureOpen(false);
       setDisclosureConfirm('');
       setDisclosureNotes('');
@@ -365,11 +365,12 @@ export default function PnL() {
       />
 
       {/* Summary Cards */}
-      <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 grid-cols-2 lg:grid-cols-5">
         <StatCard title="Gross Revenue" value={fmt(pnl.revenue)} icon={<DollarSign />} color="primary" />
         <StatCard title="Gross Profit" value={fmt(pnl.grossProfit)} icon={<TrendingUp />} color="amber" />
         <StatCard title="Net Profit / (Loss)" value={fmt(pnl.netProfit)} icon={pnl.netProfit >= 0 ? <TrendingUp /> : <TrendingDown />} color={pnl.netProfit >= 0 ? 'emerald' : 'red'} />
         <StatCard title="Profit Per Unit" value={fmt(Math.round(pnl.profitPerUnit))} icon={<DollarSign />} color={pnl.profitPerUnit >= 0 ? 'emerald' : 'red'} />
+        <StatCard title="Net Worth" value={fmt(liveNetWorth)} icon={<Landmark />} color="primary" />
       </div>
 
       {/* Visualizations */}
@@ -399,6 +400,7 @@ export default function PnL() {
                   <Pie
                     data={[
                       { name: 'Delivery Fees', value: pnl.deliveryFees },
+                      { name: 'Inventory Freight', value: pnl.inventoryDeliveryFees },
                       { name: 'Return Penalties', value: pnl.returnPenalties },
                       { name: 'Ad Spend', value: pnl.adSpend },
                       { name: 'Freight', value: pnl.freightExpenses },
@@ -518,16 +520,21 @@ export default function PnL() {
           <div className="grid grid-cols-2 gap-3">
             <div className="rounded-lg border bg-gradient-to-br from-emerald-50 to-white dark:from-emerald-950/30 dark:to-slate-900 p-4">
               <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">Hot Cash (COD)</p>
-              <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-400 mt-1 tabular-nums">{fmt(Number(capital?.hot_cash ?? 0))}</p>
+              <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-400 mt-1 tabular-nums">{fmt(liveHotCash)}</p>
             </div>
             <div className="rounded-lg border bg-gradient-to-br from-indigo-50 to-white dark:from-indigo-950/30 dark:to-slate-900 p-4">
               <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">Account Value (Bank)</p>
-              <p className="text-2xl font-bold text-indigo-700 dark:text-indigo-400 mt-1 tabular-nums">{fmt(Number(capital?.account_holding_value ?? 0))}</p>
+              <p className="text-2xl font-bold text-indigo-700 dark:text-indigo-400 mt-1 tabular-nums">{fmt(liveAccountValue)}</p>
             </div>
             <div className="rounded-lg border p-4 col-span-2">
               <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">Total Liquid + Inventory Asset</p>
-              <p className="text-xl font-bold mt-1 tabular-nums">{fmt(Number(capital?.hot_cash ?? 0) + Number(capital?.account_holding_value ?? 0) + pnl.stockHoldingValue)}</p>
+              <p className="text-xl font-bold mt-1 tabular-nums">{fmt(liveNetWorth)}</p>
               <p className="text-[10px] text-muted-foreground mt-1">Cash + Bank + Unsold inventory at cost</p>
+            </div>
+            <div className="rounded-lg border p-4 col-span-2">
+              <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">Archived Earnings</p>
+              <p className="text-xl font-bold mt-1 tabular-nums">{fmt(historicalTotals.netProfit)}</p>
+              <p className="text-[10px] text-muted-foreground mt-1">Saved from completed monthly disclosures</p>
             </div>
           </div>
           {cashMovements.length > 0 && (

@@ -274,6 +274,18 @@ export default function Returns() {
     for (const p of meeshoPreview) {
       if (!p.matchedInventory) { skipped++; continue; }
       const penalty_per_unit = p.return_type === 'Customer Return' ? 160 : 0;
+      const reportRow = {
+        sku: p.sku,
+        productName: p.productName,
+        quantity: p.quantity,
+        orderNumber: p.orderNumber,
+        subOrderNumber: p.subOrderNumber,
+        dispatchDate: p.dispatchDate,
+        returnCreatedDate: p.returnCreatedDate,
+        typeOfReturn: p.typeOfReturn,
+        courierPartner: p.courierPartner,
+        status: p.status,
+      };
       const insertRow: any = {
         sales_id: p.matchedSale?.id ?? null,
         inventory_id: p.matchedInventory.id,
@@ -285,7 +297,7 @@ export default function Returns() {
         sku_snapshot: p.sku || p.matchedInventory.sku,
         product_name_snapshot: p.productName || p.matchedInventory.product_name,
         source_report: 'Meesho Returns',
-        report_row: p,
+        report_row: reportRow,
         return_type: p.return_type,
         quantity_returned: p.quantity || 1,
         return_date: p.return_date,

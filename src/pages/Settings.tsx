@@ -214,16 +214,18 @@ export default function SettingsPage() {
         const feePerUnit = inv ? (inv.delivery_fee || 0) / (inv.total_bulk_stock_in || 1) : 0;
         return sum + s.quantity_sold * feePerUnit;
       }, 0);
+      const inventoryDeliveryFees = inventory.reduce((sum, i) => sum + (i.delivery_fee || 0), 0);
       const activePenalties = returns.reduce((sum, r) => sum + r.penalty_amount, 0);
       const activeAdSpend = adExpenses.reduce((sum, e) => sum + e.amount, 0);
-      const calculatedActiveProfit = activeRevenue - activeCogs - activeDeliveryFees - activePenalties - activeAdSpend;
+      const calculatedActiveProfit = activeRevenue - activeCogs - activeDeliveryFees - inventoryDeliveryFees - activePenalties - activeAdSpend;
 
       const calculatedHistProfit = disclosedPeriods.reduce((sum, dp) => {
-        return sum + (dp.dividend_declared || 0); // simulation fallback
+        return sum + Number(dp.net_profit ?? 0);
       }, 0);
 
       setSimStockValue(Math.round(stockVal));
       setSimActiveProfit(Math.round(calculatedActiveProfit));
+      setSimHistoricalProfit(Math.round(calculatedHistProfit));
       
       const dispatchDates = sales.filter(s => s.payment_status !== 'Cancelled' && s.dispatch_date).map(s => new Date(s.dispatch_date).getTime());
       if (dispatchDates.length > 0) {

@@ -22,18 +22,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   setUser: (user) => set({ user }),
   setRole: (role) => set({ role }),
   setLoading: (loading) => set({ loading }),
-  // Check role or case-insensitive whitelist of admin emails
-  isAdmin: () => {
-    const adminEmails = [
-      'sachinsathishkumar2005@gmail.com',
-      'sathishabirami2002@gmail.com',
-      'vanisathishkumar2003@gmail.com',
-      'savsbuyhub@gmail.com',
-      'savsbuyhubofficial@gmail.com'
-    ];
-    const email = get().user?.email?.toLowerCase();
-    return get().role === 'admin' || (!!email && adminEmails.includes(email));
-  },
+  isAdmin: () => get().role === 'admin',
   signOut: async () => {
     await supabase.auth.signOut();
     set({ user: null, role: null, loading: false });

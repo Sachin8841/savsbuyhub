@@ -14,9 +14,9 @@ import { PageHeader, StatCard, SectionCard } from '@/components/PageHeader';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { AlertTriangle, TrendingUp, TrendingDown, DollarSign } from 'lucide-react';
+import { AlertTriangle, TrendingUp, TrendingDown, DollarSign, Landmark } from 'lucide-react';
 import { useEffect } from 'react';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line, Area, AreaChart } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid, Line, Area, AreaChart } from 'recharts';
 
 const fmt = (n: number) => '₹' + n.toLocaleString('en-IN', { maximumFractionDigits: 0 });
 
@@ -109,7 +109,7 @@ export default function PnL() {
     const packagingExpenses = filteredAdExpenses.filter(e => e.category === 'Packaging').reduce((sum, e) => sum + e.amount, 0);
     const otherExpenses = filteredAdExpenses.filter(e => !['Ads', 'Delivery/Freight', 'Packaging'].includes(e.category) && e.category).reduce((sum, e) => sum + e.amount, 0);
 
-    const totalExpenses = deliveryFees + returnPenalties + adSpend + freightExpenses + packagingExpenses + otherExpenses;
+    const totalExpenses = deliveryFees + inventoryDeliveryFees + returnPenalties + adSpend + freightExpenses + packagingExpenses + otherExpenses;
     const netProfit = grossProfit - totalExpenses;
     const netUnits = units - returnedUnits;
     const profitPerUnit = netUnits > 0 ? netProfit / netUnits : 0;
@@ -132,7 +132,7 @@ export default function PnL() {
       return sum + stock * (item.average_cost_price || 0);
     }, 0);
 
-    return { revenue, units, cogs, deliveryFees, grossProfit, returnPenalties, returnedUnits, adSpend, freightExpenses, packagingExpenses, otherExpenses, totalExpenses, netProfit, profitPerUnit, platforms, stockHoldingValue };
+    return { revenue, units, cogs, deliveryFees, inventoryDeliveryFees, grossProfit, returnPenalties, returnedUnits, adSpend, freightExpenses, packagingExpenses, otherExpenses, totalExpenses, netProfit, profitPerUnit, platforms, stockHoldingValue };
   }, [filteredSales, filteredReturns, filteredAdExpenses, currentStocks, activePeriod, inventory]);
 
   // -------- Monthly trend (last 6 months in filtered range) --------
@@ -163,6 +163,11 @@ export default function PnL() {
       if (!e.expense_date) return;
       const b = ensure(new Date(e.expense_date));
       b.expenses += e.amount || 0;
+    });
+    currentInventory.forEach((i: any) => {
+      if (!i.stock_added_date || !i.delivery_fee) return;
+      const b = ensure(new Date(i.stock_added_date));
+      b.expenses += i.delivery_fee || 0;
     });
     Object.values(buckets).forEach(b => { b.profit = b.revenue - b.cogs - b.expenses; });
     return Object.entries(buckets).sort(([a], [b]) => a.localeCompare(b)).slice(-6).map(([, v]) => v);
@@ -208,12 +213,23 @@ export default function PnL() {
     return Object.values(groups).sort((a, b) => b.value - a.value);
   }, [filteredSales]);
 
+  const historicalTotals = useMemo(() => disclosedPeriods.reduce((acc, p) => {
+    acc.netProfit += Number(p.net_profit ?? 0);
+    acc.netWorth = Math.max(acc.netWorth, Number(p.net_worth ?? 0));
+    return acc;
+  }, { netProfit: 0, netWorth: 0 }), [disclosedPeriods]);
+
+  const liveHotCash = Number(capital?.hot_cash ?? 0);
+  const liveAccountValue = Number(capital?.account_holding_value ?? 0);
+  const liveNetWorth = liveHotCash + liveAccountValue + pnl.stockHoldingValue;
+
   const lineItems = [
     { label: 'Sales Revenue', value: pnl.revenue, bold: true, type: 'income' as const },
     { label: `  Units Sold`, value: pnl.units, isMeta: true },
     { label: 'Cost of Goods Sold (COGS)', value: -pnl.cogs, type: 'expense' as const },
     { label: 'Gross Profit', value: pnl.grossProfit, bold: true, type: 'subtotal' as const },
     { label: 'Outbound Delivery Fees (Couriers)', value: -pnl.deliveryFees, type: 'expense' as const },
+    { label: 'Inventory Delivery / Inbound Freight', value: -pnl.inventoryDeliveryFees, type: 'expense' as const },
     { label: `Return Penalties (${pnl.returnedUnits} units)`, value: -pnl.returnPenalties, type: 'expense' as const },
     { label: 'Advertising & Marketing', value: -pnl.adSpend, type: 'expense' as const },
     { label: 'Inbound Freight & Dealer Delivery', value: -pnl.freightExpenses, type: 'expense' as const },

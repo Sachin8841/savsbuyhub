@@ -562,6 +562,14 @@ export default function Sales() {
         const row = {
           sales_id: sale.id,
           inventory_id: sale.inventory_id,
+          platform: sale.platform,
+          order_number: (sale as any).order_number ?? null,
+          sub_order_number: (sale as any).order_number ?? null,
+          courier_partner: sale.courier_partner ?? null,
+          raw_status: newStatus,
+          sku_snapshot: (Array.isArray(sale.inventory) ? sale.inventory[0]?.sku : sale.inventory?.sku) ?? null,
+          product_name_snapshot: (Array.isArray(sale.inventory) ? sale.inventory[0]?.product_name : sale.inventory?.product_name) ?? null,
+          source_report: 'Sales status change',
           return_type: return_type,
           quantity_returned: sale.quantity_sold,
           return_date: new Date().toISOString().slice(0, 10),
@@ -569,7 +577,10 @@ export default function Sales() {
           delivery_status: 'In Transit'
         };
         
-        const { error: retError } = await supabase.from('returns').upsert(row as any, { onConflict: 'sales_id' });
+        const { data: existingReturn } = await supabase.from('returns').select('id').eq('sales_id', sale.id).maybeSingle();
+        const { error: retError } = existingReturn?.id
+          ? await supabase.from('returns').update(row as any).eq('id', existingReturn.id)
+          : await supabase.from('returns').insert(row as any);
         if (retError) {
           toast({ title: 'Status updated, but failed to log return', description: retError.message, variant: 'destructive' });
         } else {

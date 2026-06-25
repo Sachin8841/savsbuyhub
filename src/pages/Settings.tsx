@@ -82,7 +82,7 @@ export default function SettingsPage() {
     logs.push(`[${timestamp()}] SYSTEM: Initializing environment diagnostic check...`);
     
     try {
-      logs.push(`[${timestamp()}] DATABASE: Testing connection to Supabase instance...`);
+      logs.push(`[${timestamp()}] DATABASE: Testing connection to backend instance...`);
       const { data: pCountData, error: pCountErr } = await supabase.from('profiles').select('count', { count: 'exact', head: true });
       if (pCountErr) throw pCountErr;
       
@@ -810,7 +810,7 @@ export default function SettingsPage() {
 
                 <div className="space-y-2.5">
                   <div className="flex justify-between items-center text-xs">
-                    <span className="text-muted-foreground font-semibold">Supabase API Connection</span>
+                    <span className="text-muted-foreground font-semibold">Backend API Connection</span>
                     {diagResults.api ? (
                       <Badge className="bg-emerald-50 text-white hover:bg-emerald-600 text-[10px] px-2">Connected</Badge>
                     ) : (

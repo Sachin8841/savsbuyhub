@@ -93,7 +93,9 @@ export default function Sales() {
 
   const totalRevenue = filtered.reduce((sum, s) => sum + s.quantity_sold * s.average_selling_price, 0);
   const pendingAmount = filtered.filter(s => s.payment_status === 'Pending').reduce((sum, s) => sum + s.quantity_sold * s.average_selling_price, 0);
-  const settledAmount = filtered.filter(s => s.payment_status === 'Settled').reduce((sum, s) => sum + s.quantity_sold * s.average_selling_price, 0);
+  const settledAmount = filtered
+    .filter(s => s.payment_status === 'Settled')
+    .reduce((sum, s) => sum + Number((s as any).settlement_amount ?? (s.quantity_sold * s.average_selling_price)), 0);
   const totalCostPrice = filtered.filter(s => s.payment_status !== 'Cancelled').reduce((sum, s) => {
     const inv = (Array.isArray(s.inventory) ? s.inventory[0] : s.inventory) as any;
     const cp = s.cost_price ?? inv?.average_cost_price ?? 0;
@@ -484,7 +486,8 @@ export default function Sales() {
         const sale = salesByOrder.get(sub) || salesByOrder.get(sub.replace(/_\d+$/, ''));
         let action: 'settle' | 'already' | 'unmatched' | 'change' = 'unmatched';
         if (sale) {
-          if (sale.payment_status === 'Settled' && sale.settlement_date === r.paymentDate) action = 'already';
+          const sameAmount = Number(sale.settlement_amount ?? sale.quantity_sold * sale.average_selling_price) === Number(r.finalSettlementAmount ?? 0);
+          if (sale.payment_status === 'Settled' && sale.settlement_date === r.paymentDate && sameAmount) action = 'already';
           else if (sale.payment_status === 'Settled') action = 'change';
           else action = 'settle';
         }
@@ -509,6 +512,10 @@ export default function Sales() {
       const patch: any = {
         payment_status: 'Settled',
         settlement_date: p.paymentDate || new Date().toISOString().slice(0, 10),
+        settlement_amount: Number(p.finalSettlementAmount ?? 0),
+        payment_report_amount: Number(p.totalSaleAmount ?? 0),
+        payment_report_date: p.paymentDate || new Date().toISOString().slice(0, 10),
+        payment_report_status: p.liveStatus || null,
       };
       const { error } = await supabase.from('sales').update(patch).eq('id', p.matchedSale.id);
       if (error) errors.push(`${p.subOrderNo}: ${error.message}`);
@@ -608,6 +615,9 @@ export default function Sales() {
           'Courier Partner': s.courier_partner ?? '',
           'Payment Status': s.payment_status,
           'Settlement Date': s.settlement_date ?? '',
+          'Settlement Amount (₹)': (s as any).settlement_amount ?? '',
+          'Payment Report Amount (₹)': (s as any).payment_report_amount ?? '',
+          'Payment Report Status': (s as any).payment_report_status ?? '',
         };
       }),
     });
@@ -912,6 +922,7 @@ export default function Sales() {
                 <TableHead className="text-right font-semibold text-xs">P/L</TableHead>
                 <TableHead className="font-semibold text-xs">Courier</TableHead>
                 <TableHead className="font-semibold text-xs">Status</TableHead>
+                <TableHead className="text-right font-semibold text-xs">Settled</TableHead>
                 {admin && <TableHead className="text-right font-semibold text-xs">Actions</TableHead>}
               </TableRow>
             </TableHeader>
@@ -955,6 +966,9 @@ export default function Sales() {
                           {s.payment_status}
                         </Badge>
                       )}
+                    </TableCell>
+                    <TableCell className="text-right font-mono text-xs text-muted-foreground">
+                      {s.payment_status === 'Settled' ? fmt(Number((s as any).settlement_amount ?? sp * qty)) : '—'}
                     </TableCell>
                     {admin && (
                       <TableCell className="text-right">
@@ -1000,7 +1014,7 @@ export default function Sales() {
               })}
               {filtered.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={admin ? 12 : 11} className="py-16">
+                    <TableCell colSpan={admin ? 13 : 12} className="py-16">
                     <EmptyState icon={<DollarSign className="h-8 w-8" />} title="No sales found" description="Adjust your filters or record a new sale." />
                   </TableCell>
                 </TableRow>
@@ -1058,10 +1072,15 @@ export default function Sales() {
                 <TableHead className="text-xs">Payment Date</TableHead>
                 <TableHead className="text-right text-xs">Settlement</TableHead>
                 <TableHead className="text-xs">Live Status</TableHead>
+                <TableHead className="text-right text-xs">Expected</TableHead>
+                <TableHead className="text-right text-xs">Δ</TableHead>
                 <TableHead className="text-xs">Result</TableHead>
               </TableRow></TableHeader>
               <TableBody>
-                {payPreview?.map((p, i) => (
+                {payPreview?.map((p, i) => {
+                  const expected = p.matchedSale ? Number(p.matchedSale.quantity_sold ?? 0) * Number(p.matchedSale.average_selling_price ?? 0) : 0;
+                  const delta = Number(p.finalSettlementAmount ?? 0) - expected;
+                  return (
                   <TableRow key={i} className={p.action === 'unmatched' ? 'opacity-50' : p.action === 'already' ? 'opacity-60' : ''}>
                     <TableCell className="font-mono text-[10px]">{p.subOrderNo}</TableCell>
                     <TableCell className="font-mono text-xs">{p.sku}</TableCell>
@@ -1069,14 +1088,17 @@ export default function Sales() {
                     <TableCell className="text-xs">{p.paymentDate}</TableCell>
                     <TableCell className="text-right font-mono text-xs">₹{p.finalSettlementAmount.toFixed(2)}</TableCell>
                     <TableCell className="text-xs">{p.liveStatus}</TableCell>
+                    <TableCell className="text-right font-mono text-xs">{p.matchedSale ? fmt(expected) : '—'}</TableCell>
+                    <TableCell className={`text-right font-mono text-xs ${delta < 0 ? 'text-red-600' : delta > 0 ? 'text-emerald-600' : 'text-muted-foreground'}`}>{p.matchedSale ? fmt(delta) : '—'}</TableCell>
                     <TableCell>
                       {p.action === 'unmatched' && <Badge variant="destructive" className="text-[10px]">No sale match</Badge>}
                       {p.action === 'already' && <Badge variant="secondary" className="text-[10px]">Already settled</Badge>}
-                      {p.action === 'settle' && <Badge className="text-[10px] bg-emerald-600">Will settle</Badge>}
-                      {p.action === 'change' && <Badge className="text-[10px] bg-amber-600">Will update date</Badge>}
+                      {p.action === 'settle' && <Badge className="text-[10px] bg-emerald-600">Will settle exact</Badge>}
+                      {p.action === 'change' && <Badge className="text-[10px] bg-amber-600">Will adjust exact</Badge>}
                     </TableCell>
                   </TableRow>
-                ))}
+                  );
+                })}
               </TableBody>
             </Table>
           </div>

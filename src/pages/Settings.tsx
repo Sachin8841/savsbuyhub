@@ -400,7 +400,9 @@ export default function SettingsPage() {
           subtitle="Your account does not have administrator permissions."
           icon={<SettingsIcon className="h-5 w-5 text-indigo-500" />}
         />
-        <SectionCard title="Access restricted" description="Ask an administrator to update users, roles, exports, diagnostics, or valuation settings." />
+        <SectionCard title="Access restricted" description="Ask an administrator to update users, roles, exports, diagnostics, or valuation settings.">
+          <div className="text-sm text-muted-foreground">Signed-in users can view operational pages; admin-only controls remain protected.</div>
+        </SectionCard>
       </div>
     );
   }

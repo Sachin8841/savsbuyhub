@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuthStore } from '@/stores/authStore';
@@ -115,5 +116,29 @@ export function useCurrentStock(inventoryId: string) {
     },
     enabled: !loading && !!inventoryId,
   });
+}
+
+export function useCurrentStocks() {
+  const { data: inventory = [] } = useInventory();
+  const { data: sales = [] } = useSales();
+  const { data: returns = [] } = useReturns();
+
+  return useMemo(() => {
+    const stock: Record<string, number> = {};
+    for (const item of inventory as any[]) {
+      stock[item.id] = Number(item.total_bulk_stock_in ?? 0);
+    }
+    for (const sale of sales as any[]) {
+      if (!sale.inventory_id || sale.payment_status === 'Cancelled') continue;
+      stock[sale.inventory_id] = (stock[sale.inventory_id] ?? 0) - Number(sale.quantity_sold ?? 0);
+    }
+    for (const ret of returns as any[]) {
+      if (ret.delivery_status !== 'Received') continue;
+      const invId = ret.inventory_id || ret.sales?.inventory_id;
+      if (!invId) continue;
+      stock[invId] = (stock[invId] ?? 0) + Number(ret.quantity_returned ?? 0);
+    }
+    return stock;
+  }, [inventory, sales, returns]);
 }
 

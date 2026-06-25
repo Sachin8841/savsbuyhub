@@ -219,9 +219,9 @@ export default function PnL() {
     return acc;
   }, { netProfit: 0, netWorth: 0 }), [disclosedPeriods]);
 
-  const liveHotCash = Number(capital?.hot_cash ?? 0);
-  const liveAccountValue = Number(capital?.account_holding_value ?? 0);
-  const liveNetWorth = liveHotCash + liveAccountValue + pnl.stockHoldingValue;
+  const liveHotCash = activePeriod ? Number(activePeriod.hot_cash_snapshot ?? 0) : Number(capital?.hot_cash ?? 0);
+  const liveAccountValue = activePeriod ? Number(activePeriod.account_holding_value_snapshot ?? 0) : Number(capital?.account_holding_value ?? 0);
+  const liveNetWorth = activePeriod ? Number(activePeriod.net_worth ?? 0) : liveHotCash + liveAccountValue + pnl.stockHoldingValue;
 
   const lineItems = [
     { label: 'Sales Revenue', value: pnl.revenue, bold: true, type: 'income' as const },

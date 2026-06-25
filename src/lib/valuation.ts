@@ -15,11 +15,12 @@ export const calculateNetProfit = (
     const feePerUnit = inv ? (inv.delivery_fee || 0) / (inv.total_bulk_stock_in || 1) : 0;
     return sum + (s.quantity_sold * feePerUnit);
   }, 0);
+  const inventoryDeliveryFees = inventory.reduce((sum, inv) => sum + (inv.delivery_fee || 0), 0);
 
   const penalties = returns.reduce((sum, r) => sum + (r.penalty_amount || 0), 0);
   const expenseTotal = expenses.reduce((sum, e) => sum + (e.amount || 0), 0);
 
-  return revenue - cogs - deliveryFees - penalties - expenseTotal;
+  return revenue - cogs - deliveryFees - inventoryDeliveryFees - penalties - expenseTotal;
 };
 
 export const calculateSharePrice = (
@@ -48,7 +49,7 @@ export const calculateSharePrice = (
   // 3. Historical Retained Earnings
   let historicalProfit = 0;
   disclosedPeriods.forEach(dp => {
-    historicalProfit += calculateNetProfit(dp.sales_data || [], dp.inventory_snapshot || [], dp.returns_data || [], dp.ad_expenses_data || []);
+    historicalProfit += Number(dp.net_profit ?? calculateNetProfit(dp.sales_data || [], dp.inventory_snapshot || [], dp.returns_data || [], dp.ad_expenses_data || []));
   });
 
   const totalRetainedEarnings = activeProfit + historicalProfit;

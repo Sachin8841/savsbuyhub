@@ -1,6 +1,5 @@
-import { useEffect, useState, useRef } from 'react';
-import { useInventory, useSales } from '@/hooks/useData';
-import { supabase } from '@/integrations/supabase/client';
+import { useEffect, useRef } from 'react';
+import { useInventory, useSales, useCurrentStocks } from '@/hooks/useData';
 import { useAuthStore } from '@/stores/authStore';
 import { useToast } from '@/hooks/use-toast';
 import { Package, Clock } from 'lucide-react';
@@ -11,14 +10,7 @@ export function AlertNotifications() {
   const { isAdmin } = useAuthStore();
   const { toast } = useToast();
   const shownRef = useRef(false);
-  const [currentStocks, setCurrentStocks] = useState<Record<string, number>>({});
-
-  useEffect(() => {
-    inventory.forEach(async (item) => {
-      const { data } = await supabase.rpc('get_current_stock', { inv_id: item.id });
-      if (data !== null) setCurrentStocks(prev => ({ ...prev, [item.id]: data as number }));
-    });
-  }, [inventory]);
+  const currentStocks = useCurrentStocks();
 
   useEffect(() => {
     if (!isAdmin() || shownRef.current || Object.keys(currentStocks).length === 0) return;

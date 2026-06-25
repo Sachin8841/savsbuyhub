@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useSales, useReturns, useInventory, useAdExpenses, useCapitalAccounts, useCashMovements } from '@/hooks/useData';
+import { useSales, useReturns, useInventory, useAdExpenses, useCapitalAccounts, useCashMovements, useCurrentStocks } from '@/hooks/useData';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuthStore } from '@/stores/authStore';
 import { useQueryClient } from '@tanstack/react-query';
@@ -40,14 +40,7 @@ export default function Dashboard() {
   const [capitalDialogOpen, setCapitalDialogOpen] = useState(false);
   const [capitalForm, setCapitalForm] = useState({ hot_cash: '', account_holding_value: '', notes: '' });
   const [movementForm, setMovementForm] = useState({ type: 'cash_to_account', amount: '', notes: '' });
-  const [currentStocks, setCurrentStocks] = useState<Record<string, number>>({});
-
-  useEffect(() => {
-    inventory.forEach(async (item) => {
-      const { data } = await supabase.rpc('get_current_stock', { inv_id: item.id });
-      if (data !== null) setCurrentStocks(prev => ({ ...prev, [item.id]: data as number }));
-    });
-  }, [inventory]);
+  const currentStocks = useCurrentStocks();
 
   const filterSalesByPeriod = (p: string, dr: { from?: Date; to?: Date }) => {
     const { from, to } = getFilterDate(p, dr);
@@ -99,7 +92,7 @@ export default function Dashboard() {
     const feePerUnit = inv ? (inv.delivery_fee || 0) / (inv.total_bulk_stock_in || 1) : 0;
     return sum + s.quantity_sold * feePerUnit;
   }, 0);
-  const netProfit = totalRevenue - totalCost - totalPenalties - totalAdSpend - totalDeliveryFees;
+  const netProfit = totalRevenue - totalCost - totalPenalties - totalAdSpend - totalDeliveryFees - totalInventoryDeliveryFees;
   const profitMargin = totalRevenue > 0 ? ((netProfit / totalRevenue) * 100).toFixed(1) : '0';
   const returnRate = totalUnits > 0 ? ((totalReturnedQty / totalUnits) * 100).toFixed(1) : '0';
   const grossRevenue = filteredSales.reduce((sum, s) => sum + s.quantity_sold * s.average_selling_price, 0);
@@ -298,12 +291,14 @@ export default function Dashboard() {
   const hotCash = capitalAccounts?.hot_cash ?? 0;
   const accountHoldingValue = capitalAccounts?.account_holding_value ?? 0;
   const availableCapital = hotCash + accountHoldingValue;
+  const netWorth = availableCapital + stockHoldingValue;
 
   const kpis = [
     { title: 'Total Revenue', value: fmt(totalRevenue), icon: DollarSign, color: 'text-primary', bg: 'bg-primary/10' },
     { title: 'Hot Cash', value: fmt(hotCash), subtitle: 'COD / cash on hand', icon: Banknote, color: 'text-emerald-600', bg: 'bg-emerald-50 dark:bg-emerald-950' },
     { title: 'Account Value', value: fmt(accountHoldingValue), subtitle: 'Bank / account holding', icon: Landmark, color: 'text-primary', bg: 'bg-primary/10' },
     { title: 'Available Capital', value: fmt(availableCapital), subtitle: 'Cash + account', icon: ArrowRightLeft, color: 'text-emerald-600', bg: 'bg-emerald-50 dark:bg-emerald-950' },
+    { title: 'Net Worth', value: fmt(netWorth), subtitle: 'Cash + Bank + Stock', icon: Landmark, color: 'text-primary', bg: 'bg-primary/10' },
     { title: 'Total Investment', value: fmt(totalCost + stockHoldingValue + totalAdSpend + totalInventoryDeliveryFees), subtitle: 'COGS + Stock + Ads + Delivery', icon: Package, color: 'text-amber-600', bg: 'bg-amber-50 dark:bg-amber-950' },
     { title: 'Net Profit', value: fmt(netProfit), subtitle: `${profitMargin}% margin`, icon: netProfit >= 0 ? ArrowUpRight : ArrowDownRight, color: netProfit >= 0 ? 'text-emerald-600' : 'text-destructive', bg: netProfit >= 0 ? 'bg-emerald-50 dark:bg-emerald-950' : 'bg-destructive/10' },
     { title: 'Total Orders', value: totalOrders.toLocaleString(), subtitle: `${totalUnits} units · Avg ${fmt(Math.round(avgUnitValue))}/unit`, icon: ShoppingCart, color: 'text-primary', bg: 'bg-primary/10' },

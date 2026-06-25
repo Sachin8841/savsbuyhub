@@ -15,7 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Shield, Users, FileDown, Database, Palette, UserCircle, CheckCircle2, Settings as SettingsIcon, Trash2, ShieldCheck, ShieldAlert, Terminal, RefreshCw, Sparkles, ArrowRightLeft, TrendingUp, AlertTriangle, AlertCircle, Play, Warehouse, Sliders, Eye, Search } from 'lucide-react';
 import { exportDashboardReport } from '@/lib/xlsx-export';
 import { PageHeader, StatCard, SectionCard, EmptyState } from '@/components/PageHeader';
-import { useSales, useInventory, useReturns, useAdExpenses } from '@/hooks/useData';
+import { useSales, useInventory, useReturns, useAdExpenses, useCurrentStocks } from '@/hooks/useData';
 
 interface UserWithProfile {
   user_id: string;
@@ -50,17 +50,8 @@ export default function SettingsPage() {
   const admin = isAdmin();
 
   // Low Stock & Current Stocks state
-  const [currentStocks, setCurrentStocks] = useState<Record<string, number>>({});
+  const currentStocks = useCurrentStocks();
   const [disclosedPeriods, setDisclosedPeriods] = useState<any[]>([]);
-  
-  useEffect(() => {
-    if (inventory.length > 0) {
-      inventory.forEach(async (item) => {
-        const { data } = await supabase.rpc('get_current_stock', { inv_id: item.id });
-        if (data !== null) setCurrentStocks(prev => ({ ...prev, [item.id]: data as number }));
-      });
-    }
-  }, [inventory]);
 
   const lowStockItems = useMemo(() => {
     return inventory
@@ -91,7 +82,7 @@ export default function SettingsPage() {
     logs.push(`[${timestamp()}] SYSTEM: Initializing environment diagnostic check...`);
     
     try {
-      logs.push(`[${timestamp()}] DATABASE: Testing connection to Supabase instance...`);
+      logs.push(`[${timestamp()}] DATABASE: Testing connection to backend instance...`);
       const { data: pCountData, error: pCountErr } = await supabase.from('profiles').select('count', { count: 'exact', head: true });
       if (pCountErr) throw pCountErr;
       
@@ -223,16 +214,18 @@ export default function SettingsPage() {
         const feePerUnit = inv ? (inv.delivery_fee || 0) / (inv.total_bulk_stock_in || 1) : 0;
         return sum + s.quantity_sold * feePerUnit;
       }, 0);
+      const inventoryDeliveryFees = inventory.reduce((sum, i) => sum + (i.delivery_fee || 0), 0);
       const activePenalties = returns.reduce((sum, r) => sum + r.penalty_amount, 0);
       const activeAdSpend = adExpenses.reduce((sum, e) => sum + e.amount, 0);
-      const calculatedActiveProfit = activeRevenue - activeCogs - activeDeliveryFees - activePenalties - activeAdSpend;
+      const calculatedActiveProfit = activeRevenue - activeCogs - activeDeliveryFees - inventoryDeliveryFees - activePenalties - activeAdSpend;
 
       const calculatedHistProfit = disclosedPeriods.reduce((sum, dp) => {
-        return sum + (dp.dividend_declared || 0); // simulation fallback
+        return sum + Number(dp.net_profit ?? 0);
       }, 0);
 
       setSimStockValue(Math.round(stockVal));
       setSimActiveProfit(Math.round(calculatedActiveProfit));
+      setSimHistoricalProfit(Math.round(calculatedHistProfit));
       
       const dispatchDates = sales.filter(s => s.payment_status !== 'Cancelled' && s.dispatch_date).map(s => new Date(s.dispatch_date).getTime());
       if (dispatchDates.length > 0) {
@@ -400,6 +393,21 @@ export default function SettingsPage() {
   const totalProducts = inventory.length;
   const adminCount = users.filter(u => u.role === 'admin').length;
   const userCount = users.filter(u => u.role === 'user').length;
+
+  if (!admin) {
+    return (
+      <div className="space-y-6 max-w-3xl mx-auto animate-in">
+        <PageHeader
+          title="Settings"
+          subtitle="Your account does not have administrator permissions."
+          icon={<SettingsIcon className="h-5 w-5 text-indigo-500" />}
+        />
+        <SectionCard title="Access restricted" description="Ask an administrator to update users, roles, exports, diagnostics, or valuation settings.">
+          <div className="text-sm text-muted-foreground">Signed-in users can view operational pages; admin-only controls remain protected.</div>
+        </SectionCard>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto animate-in">
@@ -802,7 +810,7 @@ export default function SettingsPage() {
 
                 <div className="space-y-2.5">
                   <div className="flex justify-between items-center text-xs">
-                    <span className="text-muted-foreground font-semibold">Supabase API Connection</span>
+                    <span className="text-muted-foreground font-semibold">Backend API Connection</span>
                     {diagResults.api ? (
                       <Badge className="bg-emerald-50 text-white hover:bg-emerald-600 text-[10px] px-2">Connected</Badge>
                     ) : (
@@ -1018,7 +1026,7 @@ export default function SettingsPage() {
                     ₹{simValuation.finalPrice.toFixed(2)}
                   </div>
                   <p className="text-[10px] text-muted-foreground">
-                    * Formula adheres precisely to the database calculation logic implemented in the Supabase schema.
+                    * Formula follows the backend valuation logic used by the live forecast.
                   </p>
                 </div>
               </div>

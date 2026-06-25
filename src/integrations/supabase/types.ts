@@ -112,37 +112,67 @@ export type Database = {
       }
       disclosed_periods: {
         Row: {
+          account_holding_value_snapshot: number
           ad_expenses_data: Json
+          cash_movements_data: Json
+          cogs: number
           created_at: string
           dividend_declared: number | null
+          gross_revenue: number
+          hot_cash_snapshot: number
           id: string
           inventory_snapshot: Json
+          net_profit: number
+          net_worth: number
           notes: string | null
+          operating_expenses: number
           period_name: string
+          return_penalties: number
           returns_data: Json
           sales_data: Json
+          stock_holding_value: number
         }
         Insert: {
+          account_holding_value_snapshot?: number
           ad_expenses_data?: Json
+          cash_movements_data?: Json
+          cogs?: number
           created_at?: string
           dividend_declared?: number | null
+          gross_revenue?: number
+          hot_cash_snapshot?: number
           id?: string
           inventory_snapshot?: Json
+          net_profit?: number
+          net_worth?: number
           notes?: string | null
+          operating_expenses?: number
           period_name: string
+          return_penalties?: number
           returns_data?: Json
           sales_data?: Json
+          stock_holding_value?: number
         }
         Update: {
+          account_holding_value_snapshot?: number
           ad_expenses_data?: Json
+          cash_movements_data?: Json
+          cogs?: number
           created_at?: string
           dividend_declared?: number | null
+          gross_revenue?: number
+          hot_cash_snapshot?: number
           id?: string
           inventory_snapshot?: Json
+          net_profit?: number
+          net_worth?: number
           notes?: string | null
+          operating_expenses?: number
           period_name?: string
+          return_penalties?: number
           returns_data?: Json
           sales_data?: Json
+          stock_holding_value?: number
         }
         Relationships: []
       }
@@ -297,40 +327,67 @@ export type Database = {
       }
       returns: {
         Row: {
+          courier_partner: string | null
           created_at: string
           delivered_date: string | null
           delivery_status: Database["public"]["Enums"]["delivery_status_type"]
           id: string
           inventory_id: string | null
+          order_number: string | null
           penalty_amount: number
+          platform: string | null
+          product_name_snapshot: string | null
           quantity_returned: number
+          raw_status: string | null
+          report_row: Json
           return_date: string
           return_type: Database["public"]["Enums"]["return_type"]
           sales_id: string | null
+          sku_snapshot: string | null
+          source_report: string | null
+          sub_order_number: string | null
         }
         Insert: {
+          courier_partner?: string | null
           created_at?: string
           delivered_date?: string | null
           delivery_status?: Database["public"]["Enums"]["delivery_status_type"]
           id?: string
           inventory_id?: string | null
+          order_number?: string | null
           penalty_amount?: number
+          platform?: string | null
+          product_name_snapshot?: string | null
           quantity_returned: number
+          raw_status?: string | null
+          report_row?: Json
           return_date?: string
           return_type: Database["public"]["Enums"]["return_type"]
           sales_id?: string | null
+          sku_snapshot?: string | null
+          source_report?: string | null
+          sub_order_number?: string | null
         }
         Update: {
+          courier_partner?: string | null
           created_at?: string
           delivered_date?: string | null
           delivery_status?: Database["public"]["Enums"]["delivery_status_type"]
           id?: string
           inventory_id?: string | null
+          order_number?: string | null
           penalty_amount?: number
+          platform?: string | null
+          product_name_snapshot?: string | null
           quantity_returned?: number
+          raw_status?: string | null
+          report_row?: Json
           return_date?: string
           return_type?: Database["public"]["Enums"]["return_type"]
           sales_id?: string | null
+          sku_snapshot?: string | null
+          source_report?: string | null
+          sub_order_number?: string | null
         }
         Relationships: [
           {
@@ -353,9 +410,13 @@ export type Database = {
           inventory_id: string
           order_number: string | null
           payment_method: string | null
+          payment_report_amount: number | null
+          payment_report_date: string | null
+          payment_report_status: string | null
           payment_status: Database["public"]["Enums"]["payment_status_type"]
           platform: Database["public"]["Enums"]["platform_type"]
           quantity_sold: number
+          settlement_amount: number | null
           settlement_date: string | null
         }
         Insert: {
@@ -368,9 +429,13 @@ export type Database = {
           inventory_id: string
           order_number?: string | null
           payment_method?: string | null
+          payment_report_amount?: number | null
+          payment_report_date?: string | null
+          payment_report_status?: string | null
           payment_status?: Database["public"]["Enums"]["payment_status_type"]
           platform: Database["public"]["Enums"]["platform_type"]
           quantity_sold: number
+          settlement_amount?: number | null
           settlement_date?: string | null
         }
         Update: {
@@ -383,9 +448,13 @@ export type Database = {
           inventory_id?: string
           order_number?: string | null
           payment_method?: string | null
+          payment_report_amount?: number | null
+          payment_report_date?: string | null
+          payment_report_status?: string | null
           payment_status?: Database["public"]["Enums"]["payment_status_type"]
           platform?: Database["public"]["Enums"]["platform_type"]
           quantity_sold?: number
+          settlement_amount?: number | null
           settlement_date?: string | null
         }
         Relationships: [

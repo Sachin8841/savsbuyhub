@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { useSales, useReturns, useInventory, useAdExpenses, useCapitalAccounts, useCashMovements } from '@/hooks/useData';
+import { useSales, useReturns, useInventory, useAdExpenses, useCapitalAccounts, useCashMovements, useCurrentStocks } from '@/hooks/useData';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -14,9 +14,9 @@ import { PageHeader, StatCard, SectionCard } from '@/components/PageHeader';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { AlertTriangle, TrendingUp, TrendingDown, DollarSign } from 'lucide-react';
+import { AlertTriangle, TrendingUp, TrendingDown, DollarSign, Landmark } from 'lucide-react';
 import { useEffect } from 'react';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line, Area, AreaChart } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid, Line, Area, AreaChart } from 'recharts';
 
 const fmt = (n: number) => '₹' + n.toLocaleString('en-IN', { maximumFractionDigits: 0 });
 
@@ -37,17 +37,10 @@ export default function PnL() {
   
   const [disclosedPeriods, setDisclosedPeriods] = useState<any[]>([]);
   const [selectedDisclosedPeriod, setSelectedDisclosedPeriod] = useState<string>('active');
-  const [currentStocks, setCurrentStocks] = useState<Record<string, number>>({});
+  const currentStocks = useCurrentStocks();
 
   const qc = useQueryClient();
   const { toast } = useToast();
-
-  useEffect(() => {
-    inventory.forEach(async (item) => {
-      const { data } = await supabase.rpc('get_current_stock', { inv_id: item.id });
-      if (data !== null) setCurrentStocks(prev => ({ ...prev, [item.id]: data as number }));
-    });
-  }, [inventory]);
 
   useEffect(() => {
     supabase.from('disclosed_periods').select('*').order('created_at', { ascending: false }).then(res => {
@@ -116,7 +109,7 @@ export default function PnL() {
     const packagingExpenses = filteredAdExpenses.filter(e => e.category === 'Packaging').reduce((sum, e) => sum + e.amount, 0);
     const otherExpenses = filteredAdExpenses.filter(e => !['Ads', 'Delivery/Freight', 'Packaging'].includes(e.category) && e.category).reduce((sum, e) => sum + e.amount, 0);
 
-    const totalExpenses = deliveryFees + returnPenalties + adSpend + freightExpenses + packagingExpenses + otherExpenses;
+    const totalExpenses = deliveryFees + inventoryDeliveryFees + returnPenalties + adSpend + freightExpenses + packagingExpenses + otherExpenses;
     const netProfit = grossProfit - totalExpenses;
     const netUnits = units - returnedUnits;
     const profitPerUnit = netUnits > 0 ? netProfit / netUnits : 0;
@@ -139,7 +132,7 @@ export default function PnL() {
       return sum + stock * (item.average_cost_price || 0);
     }, 0);
 
-    return { revenue, units, cogs, deliveryFees, grossProfit, returnPenalties, returnedUnits, adSpend, freightExpenses, packagingExpenses, otherExpenses, totalExpenses, netProfit, profitPerUnit, platforms, stockHoldingValue };
+    return { revenue, units, cogs, deliveryFees, inventoryDeliveryFees, grossProfit, returnPenalties, returnedUnits, adSpend, freightExpenses, packagingExpenses, otherExpenses, totalExpenses, netProfit, profitPerUnit, platforms, stockHoldingValue };
   }, [filteredSales, filteredReturns, filteredAdExpenses, currentStocks, activePeriod, inventory]);
 
   // -------- Monthly trend (last 6 months in filtered range) --------
@@ -170,6 +163,11 @@ export default function PnL() {
       if (!e.expense_date) return;
       const b = ensure(new Date(e.expense_date));
       b.expenses += e.amount || 0;
+    });
+    currentInventory.forEach((i: any) => {
+      if (!i.stock_added_date || !i.delivery_fee) return;
+      const b = ensure(new Date(i.stock_added_date));
+      b.expenses += i.delivery_fee || 0;
     });
     Object.values(buckets).forEach(b => { b.profit = b.revenue - b.cogs - b.expenses; });
     return Object.entries(buckets).sort(([a], [b]) => a.localeCompare(b)).slice(-6).map(([, v]) => v);
@@ -215,12 +213,23 @@ export default function PnL() {
     return Object.values(groups).sort((a, b) => b.value - a.value);
   }, [filteredSales]);
 
+  const historicalTotals = useMemo(() => disclosedPeriods.reduce((acc, p) => {
+    acc.netProfit += Number(p.net_profit ?? 0);
+    acc.netWorth = Math.max(acc.netWorth, Number(p.net_worth ?? 0));
+    return acc;
+  }, { netProfit: 0, netWorth: 0 }), [disclosedPeriods]);
+
+  const liveHotCash = activePeriod ? Number(activePeriod.hot_cash_snapshot ?? 0) : Number(capital?.hot_cash ?? 0);
+  const liveAccountValue = activePeriod ? Number(activePeriod.account_holding_value_snapshot ?? 0) : Number(capital?.account_holding_value ?? 0);
+  const liveNetWorth = activePeriod ? Number(activePeriod.net_worth ?? 0) : liveHotCash + liveAccountValue + pnl.stockHoldingValue;
+
   const lineItems = [
     { label: 'Sales Revenue', value: pnl.revenue, bold: true, type: 'income' as const },
     { label: `  Units Sold`, value: pnl.units, isMeta: true },
     { label: 'Cost of Goods Sold (COGS)', value: -pnl.cogs, type: 'expense' as const },
     { label: 'Gross Profit', value: pnl.grossProfit, bold: true, type: 'subtotal' as const },
     { label: 'Outbound Delivery Fees (Couriers)', value: -pnl.deliveryFees, type: 'expense' as const },
+    { label: 'Inventory Delivery / Inbound Freight', value: -pnl.inventoryDeliveryFees, type: 'expense' as const },
     { label: `Return Penalties (${pnl.returnedUnits} units)`, value: -pnl.returnPenalties, type: 'expense' as const },
     { label: 'Advertising & Marketing', value: -pnl.adSpend, type: 'expense' as const },
     { label: 'Inbound Freight & Dealer Delivery', value: -pnl.freightExpenses, type: 'expense' as const },
@@ -276,7 +285,7 @@ export default function PnL() {
       const res = await supabase.from('disclosed_periods').select('*').order('created_at', { ascending: false });
       if (res.data) setDisclosedPeriods(res.data);
 
-      toast({ title: 'Monthly Disclosure Complete', description: 'Financial period archived and ledger zeroed successfully.' });
+      toast({ title: 'Monthly Disclosure Complete', description: 'Financial period saved with net profit, stock value, cash balances, and net worth.' });
       setDisclosureOpen(false);
       setDisclosureConfirm('');
       setDisclosureNotes('');
@@ -290,7 +299,7 @@ export default function PnL() {
             <p>{err.message || String(err)}</p>
             {isSchemaError && (
               <div className="bg-slate-900 text-slate-300 p-2.5 rounded text-xs font-mono border border-slate-700 mt-2">
-                <strong>Migration required:</strong> Paste and run the contents of <code>phase5_fixes.sql</code> in your Supabase SQL Editor.
+                <strong>Backend update required:</strong> Refresh and retry once the latest database changes finish applying.
               </div>
             )}
           </div>
@@ -356,11 +365,12 @@ export default function PnL() {
       />
 
       {/* Summary Cards */}
-      <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 grid-cols-2 lg:grid-cols-5">
         <StatCard title="Gross Revenue" value={fmt(pnl.revenue)} icon={<DollarSign />} color="primary" />
         <StatCard title="Gross Profit" value={fmt(pnl.grossProfit)} icon={<TrendingUp />} color="amber" />
         <StatCard title="Net Profit / (Loss)" value={fmt(pnl.netProfit)} icon={pnl.netProfit >= 0 ? <TrendingUp /> : <TrendingDown />} color={pnl.netProfit >= 0 ? 'emerald' : 'red'} />
         <StatCard title="Profit Per Unit" value={fmt(Math.round(pnl.profitPerUnit))} icon={<DollarSign />} color={pnl.profitPerUnit >= 0 ? 'emerald' : 'red'} />
+        <StatCard title="Net Worth" value={fmt(liveNetWorth)} icon={<Landmark />} color="primary" />
       </div>
 
       {/* Visualizations */}
@@ -390,6 +400,7 @@ export default function PnL() {
                   <Pie
                     data={[
                       { name: 'Delivery Fees', value: pnl.deliveryFees },
+                      { name: 'Inventory Freight', value: pnl.inventoryDeliveryFees },
                       { name: 'Return Penalties', value: pnl.returnPenalties },
                       { name: 'Ad Spend', value: pnl.adSpend },
                       { name: 'Freight', value: pnl.freightExpenses },
@@ -509,16 +520,21 @@ export default function PnL() {
           <div className="grid grid-cols-2 gap-3">
             <div className="rounded-lg border bg-gradient-to-br from-emerald-50 to-white dark:from-emerald-950/30 dark:to-slate-900 p-4">
               <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">Hot Cash (COD)</p>
-              <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-400 mt-1 tabular-nums">{fmt(Number(capital?.hot_cash ?? 0))}</p>
+              <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-400 mt-1 tabular-nums">{fmt(liveHotCash)}</p>
             </div>
             <div className="rounded-lg border bg-gradient-to-br from-indigo-50 to-white dark:from-indigo-950/30 dark:to-slate-900 p-4">
               <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">Account Value (Bank)</p>
-              <p className="text-2xl font-bold text-indigo-700 dark:text-indigo-400 mt-1 tabular-nums">{fmt(Number(capital?.account_holding_value ?? 0))}</p>
+              <p className="text-2xl font-bold text-indigo-700 dark:text-indigo-400 mt-1 tabular-nums">{fmt(liveAccountValue)}</p>
             </div>
             <div className="rounded-lg border p-4 col-span-2">
               <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">Total Liquid + Inventory Asset</p>
-              <p className="text-xl font-bold mt-1 tabular-nums">{fmt(Number(capital?.hot_cash ?? 0) + Number(capital?.account_holding_value ?? 0) + pnl.stockHoldingValue)}</p>
+              <p className="text-xl font-bold mt-1 tabular-nums">{fmt(liveNetWorth)}</p>
               <p className="text-[10px] text-muted-foreground mt-1">Cash + Bank + Unsold inventory at cost</p>
+            </div>
+            <div className="rounded-lg border p-4 col-span-2">
+              <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">Archived Earnings</p>
+              <p className="text-xl font-bold mt-1 tabular-nums">{fmt(historicalTotals.netProfit)}</p>
+              <p className="text-[10px] text-muted-foreground mt-1">Saved from completed monthly disclosures</p>
             </div>
           </div>
           {cashMovements.length > 0 && (

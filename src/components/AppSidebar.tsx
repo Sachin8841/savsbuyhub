@@ -15,19 +15,27 @@ import {
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 
-const navItems = [
+type NavItem = {
+  title: string;
+  url: string;
+  icon: typeof LayoutDashboard;
+  adminOnly?: boolean;
+};
+
+const navItems: NavItem[] = [
   { title: 'Dashboard', url: '/', icon: LayoutDashboard },
   { title: 'Inventory', url: '/inventory', icon: Package },
   { title: 'Sales Ledger', url: '/sales', icon: Receipt },
   { title: 'Returns', url: '/returns', icon: RotateCcw },
   { title: 'P&L Statement', url: '/pnl', icon: FileText },
-  { title: 'Settings', url: '/settings', icon: Settings },
+  { title: 'Settings', url: '/settings', icon: Settings, adminOnly: true },
 ];
 
 export function AppSidebar() {
   const { state, isMobile, setOpenMobile } = useSidebar();
   const collapsed = state === 'collapsed';
-  const { signOut, user } = useAuthStore();
+  const { signOut, user, role, isAdmin } = useAuthStore();
+  const admin = isAdmin();
   const closeMobileMenu = () => {
     if (isMobile) setOpenMobile(false);
   };
@@ -53,7 +61,7 @@ export function AppSidebar() {
           <div className="px-4 pt-3 pb-1">
             <span className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300">
               <span className="w-1.5 h-1.5 rounded-full bg-current" />
-              Admin
+              {admin ? 'Admin' : (role ?? 'User')}
             </span>
           </div>
         )}
@@ -62,7 +70,7 @@ export function AppSidebar() {
           <SidebarGroupLabel className="text-xs opacity-50 uppercase tracking-widest px-4">Navigation</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {navItems.map((item) => {
+              {navItems.filter(item => !item.adminOnly || admin).map((item) => {
                 return (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton asChild>

@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { useInventory } from '@/hooks/useData';
+import { useState } from 'react';
+import { useInventory, useCurrentStocks } from '@/hooks/useData';
 import { useAuthStore } from '@/stores/authStore';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
@@ -38,7 +38,7 @@ export default function Inventory() {
   const [search, setSearch] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
-  const [currentStocks, setCurrentStocks] = useState<Record<string, number>>({});
+  const currentStocks = useCurrentStocks();
   const qc = useQueryClient();
   const { toast } = useToast();
   const admin = isAdmin();
@@ -121,13 +121,6 @@ export default function Inventory() {
     }
   };
 
-
-  useEffect(() => {
-    inventory.forEach(async (item) => {
-      const { data } = await supabase.rpc('get_current_stock', { inv_id: item.id });
-      if (data !== null) setCurrentStocks(prev => ({ ...prev, [item.id]: data as number }));
-    });
-  }, [inventory]);
 
   const filtered = inventory.filter(i =>
     i.sku.toLowerCase().includes(search.toLowerCase()) ||

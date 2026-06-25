@@ -25,6 +25,11 @@ import { parseMeeshoReturnsCsv, classifyReturnType, matchInventoryBySku } from '
 
 const schema = z.object({
   inventory_id: z.string().min(1, 'Select a product'),
+  platform: z.enum(['Meesho', 'Flipkart', 'Amazon', 'Offline']).optional(),
+  order_number: z.string().optional(),
+  sub_order_number: z.string().optional(),
+  courier_partner: z.string().optional(),
+  raw_status: z.string().optional(),
   return_type: z.enum(['Customer Return', 'RTO']),
   quantity_returned: z.number().int().min(1),
   return_date: z.string().min(1, 'Return date required'),
@@ -51,7 +56,7 @@ export default function Returns() {
 
   const form = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: { inventory_id: '', return_type: 'Customer Return', quantity_returned: 1, return_date: new Date().toISOString().slice(0, 10) },
+    defaultValues: { inventory_id: '', platform: 'Meesho', order_number: '', sub_order_number: '', courier_partner: '', raw_status: '', return_type: 'Customer Return', quantity_returned: 1, return_date: new Date().toISOString().slice(0, 10) },
   });
 
   const filtered = returns.filter(r => {
@@ -61,6 +66,9 @@ export default function Returns() {
     const matchSearch = search === '' ||
       (inv?.sku && inv.sku.toLowerCase().includes(searchLower)) ||
       (inv?.product_name && inv.product_name.toLowerCase().includes(searchLower)) ||
+      ((r as any).order_number && (r as any).order_number.toLowerCase().includes(searchLower)) ||
+      ((r as any).sub_order_number && (r as any).sub_order_number.toLowerCase().includes(searchLower)) ||
+      ((r as any).courier_partner && (r as any).courier_partner.toLowerCase().includes(searchLower)) ||
       (r.return_type && r.return_type.toLowerCase().includes(searchLower));
     const matchType = typeFilter === 'all' || r.return_type === typeFilter;
     const matchStatus = statusFilter === 'all' || r.delivery_status === statusFilter;
@@ -96,6 +104,14 @@ export default function Returns() {
       const row = {
         sales_id: null,
         inventory_id: values.inventory_id,
+        platform: values.platform || 'Meesho',
+        order_number: values.order_number || null,
+        sub_order_number: values.sub_order_number || null,
+        courier_partner: values.courier_partner || null,
+        raw_status: values.raw_status || null,
+        sku_snapshot: inventory.find(i => i.id === values.inventory_id)?.sku ?? null,
+        product_name_snapshot: inventory.find(i => i.id === values.inventory_id)?.product_name ?? null,
+        source_report: 'Manual',
         return_type: values.return_type,
         quantity_returned: values.quantity_returned,
         return_date: values.return_date,
@@ -152,6 +168,9 @@ export default function Returns() {
           SKU: inv?.sku ?? '',
           'Product Name': inv?.product_name ?? '',
           Platform: sale?.platform ?? '',
+          'Order ID': (r as any).sub_order_number ?? (r as any).order_number ?? sale?.order_number ?? '',
+          'Courier Partner': (r as any).courier_partner ?? sale?.courier_partner ?? '',
+          'Report Status': (r as any).raw_status ?? '',
           'Return Type': r.return_type,
           'Qty Returned': r.quantity_returned,
           'Delivery Status': r.delivery_status,
@@ -205,7 +224,15 @@ export default function Returns() {
       const rows = parseMeeshoReturnsCsv(text);
       if (!rows.length) { toast({ title: 'No return rows detected', description: 'The CSV does not contain a recognisable header row.', variant: 'destructive' }); return; }
 
-      const existing = new Set(returns.map(r => `${(r as any).sales_id ?? ''}|${(r as any).return_date ?? ''}|${(r as any).inventory_id ?? ''}|${(r as any).return_type ?? ''}`));
+      const normOrder = (s: string) => String(s || '').trim().replace(/_\d+$/, '').toLowerCase();
+      const existingByKey = new Map<string, any>();
+      for (const r of returns as any[]) {
+        const sale = (r as any).sales;
+        const order = normOrder(r.sub_order_number || r.order_number || sale?.order_number || '');
+        const invId = r.inventory_id || sale?.inventory_id || '';
+        const key = order ? `${order}|${invId}|${r.return_type}` : `${r.sales_id ?? ''}|${r.return_date ?? ''}|${invId}|${r.return_type}`;
+        existingByKey.set(key, r);
+      }
       // Meesho intransit/RTO report = items currently in transit back to seller.
       // Only mark "Received" when the status EXPLICITLY says the seller has the parcel.
       const isReceivedStatus = (s: string) =>
@@ -215,7 +242,9 @@ export default function Returns() {
         const sale = sales.find((s: any) => s.order_number && (s.order_number === r.subOrderNumber || s.order_number === r.orderNumber));
         const return_type = classifyReturnType(r.typeOfReturn);
         const return_date = r.returnCreatedDate || r.dispatchDate || new Date().toISOString().slice(0, 10);
-        const dedupKey = `${sale?.id ?? ''}|${return_date}|${inv?.id ?? ''}|${return_type}`;
+        const orderKey = normOrder(r.subOrderNumber || r.orderNumber);
+        const dedupKey = orderKey ? `${orderKey}|${inv?.id ?? ''}|${return_type}` : `${sale?.id ?? ''}|${return_date}|${inv?.id ?? ''}|${return_type}`;
+        const existingReturn = existingByKey.get(dedupKey);
         return {
           ...r,
           matchedInventory: inv,
@@ -223,7 +252,9 @@ export default function Returns() {
           return_type,
           return_date,
           delivery_status: isReceivedStatus(r.status) ? 'Received' : 'In Transit',
-          duplicate: existing.has(dedupKey),
+          platform: 'Meesho',
+          existingReturn,
+          duplicate: !!existingReturn,
         };
       });
       setMeeshoPreview(previews);
@@ -238,15 +269,35 @@ export default function Returns() {
 
   const confirmMeeshoImport = async () => {
     if (!meeshoPreview) return;
-    let inserted = 0, salesUpdated = 0, skipped = 0;
+    let inserted = 0, corrected = 0, salesUpdated = 0, skipped = 0;
     const errors: string[] = [];
     for (const p of meeshoPreview) {
       if (!p.matchedInventory) { skipped++; continue; }
-      if (p.duplicate) { skipped++; continue; }
       const penalty_per_unit = p.return_type === 'Customer Return' ? 160 : 0;
+      const reportRow = {
+        sku: p.sku,
+        productName: p.productName,
+        quantity: p.quantity,
+        orderNumber: p.orderNumber,
+        subOrderNumber: p.subOrderNumber,
+        dispatchDate: p.dispatchDate,
+        returnCreatedDate: p.returnCreatedDate,
+        typeOfReturn: p.typeOfReturn,
+        courierPartner: p.courierPartner,
+        status: p.status,
+      };
       const insertRow: any = {
         sales_id: p.matchedSale?.id ?? null,
         inventory_id: p.matchedInventory.id,
+        platform: 'Meesho',
+        order_number: p.orderNumber || null,
+        sub_order_number: p.subOrderNumber || null,
+        courier_partner: p.courierPartner || p.matchedSale?.courier_partner || null,
+        raw_status: p.status || null,
+        sku_snapshot: p.sku || p.matchedInventory.sku,
+        product_name_snapshot: p.productName || p.matchedInventory.product_name,
+        source_report: 'Meesho Returns',
+        report_row: reportRow,
         return_type: p.return_type,
         quantity_returned: p.quantity || 1,
         return_date: p.return_date,
@@ -254,9 +305,22 @@ export default function Returns() {
         delivery_status: p.delivery_status,
         delivered_date: p.delivery_status === 'Received' ? p.return_date : null,
       };
-      const { error } = await supabase.from('returns').insert(insertRow);
-      if (error) { errors.push(`${p.subOrderNumber}: ${error.message}`); continue; }
-      inserted++;
+      if (p.existingReturn?.id) {
+        const needsCorrection =
+          p.existingReturn.delivery_status !== insertRow.delivery_status ||
+          Number(p.existingReturn.quantity_returned) !== Number(insertRow.quantity_returned) ||
+          Number(p.existingReturn.penalty_amount) !== Number(insertRow.penalty_amount) ||
+          (p.existingReturn.sales_id ?? null) !== (insertRow.sales_id ?? null) ||
+          (p.existingReturn.raw_status ?? '') !== (insertRow.raw_status ?? '');
+        if (!needsCorrection) { skipped++; continue; }
+        const { error } = await supabase.from('returns').update(insertRow).eq('id', p.existingReturn.id);
+        if (error) { errors.push(`${p.subOrderNumber}: ${error.message}`); continue; }
+        corrected++;
+      } else {
+        const { error } = await supabase.from('returns').insert(insertRow);
+        if (error) { errors.push(`${p.subOrderNumber}: ${error.message}`); continue; }
+        inserted++;
+      }
 
       // Update sales row's payment_status if we matched a sale.
       if (p.matchedSale?.id) {
@@ -274,7 +338,7 @@ export default function Returns() {
     qc.invalidateQueries({ queryKey: ['cash_movements'] });
     toast({
       title: `Imported ${inserted} returns`,
-      description: `${salesUpdated} sales rows updated · ${skipped} skipped (duplicate or unmatched SKU)${errors.length ? ` · ${errors.length} errors` : ''}`,
+      description: `${corrected} corrected · ${salesUpdated} sales rows updated · ${skipped} skipped${errors.length ? ` · ${errors.length} errors` : ''}`,
     });
     setMeeshoPreviewOpen(false);
     setMeeshoPreview(null);
@@ -305,6 +369,25 @@ export default function Returns() {
                 <DialogHeader><DialogTitle>Log Return</DialogTitle></DialogHeader>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                   <div><Label>Return Date</Label><Input type="date" {...form.register('return_date')} /></div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label>Platform</Label>
+                      <Controller name="platform" control={form.control} render={({ field }) => (
+                        <Select value={field.value ?? 'Meesho'} onValueChange={field.onChange}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {['Meesho', 'Flipkart', 'Amazon', 'Offline'].map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      )} />
+                    </div>
+                    <div><Label>Courier Partner</Label><Input {...form.register('courier_partner')} placeholder="Valmo / Delhivery…" /></div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><Label>Order ID</Label><Input {...form.register('order_number')} placeholder="Order number" /></div>
+                    <div><Label>Sub Order ID</Label><Input {...form.register('sub_order_number')} placeholder="Meesho sub order" /></div>
+                  </div>
+                  <div><Label>Report Status</Label><Input {...form.register('raw_status')} placeholder="Intransit / Return initiated / Delivered…" /></div>
                   <div>
                     <Label>Product</Label>
                     <Controller name="inventory_id" control={form.control} render={({ field }) => (
@@ -402,6 +485,8 @@ export default function Returns() {
                 <TableHead className="font-semibold">SKU</TableHead>
                 <TableHead className="font-semibold">Product</TableHead>
                 <TableHead className="font-semibold">Platform</TableHead>
+                <TableHead className="font-semibold">Order ID</TableHead>
+                <TableHead className="font-semibold">Courier</TableHead>
                 <TableHead className="font-semibold">Type</TableHead>
                 <TableHead className="text-right font-semibold">Qty</TableHead>
                 <TableHead className="font-semibold">Status</TableHead>
@@ -419,7 +504,9 @@ export default function Returns() {
                     <TableCell className="text-muted-foreground text-sm">{r.return_date ?? '—'}</TableCell>
                     <TableCell className="font-mono text-xs font-medium text-primary">{inv?.sku ?? '—'}</TableCell>
                     <TableCell className="font-medium">{inv?.product_name ?? '—'}</TableCell>
-                    <TableCell><Badge variant="secondary" className="text-xs">{sale?.platform ?? '—'}</Badge></TableCell>
+                    <TableCell><Badge variant="secondary" className="text-xs">{(r as any).platform ?? sale?.platform ?? '—'}</Badge></TableCell>
+                    <TableCell className="font-mono text-[10px] text-muted-foreground max-w-[120px] truncate" title={(r as any).sub_order_number ?? (r as any).order_number ?? sale?.order_number ?? ''}>{(r as any).sub_order_number ?? (r as any).order_number ?? sale?.order_number ?? '—'}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{(r as any).courier_partner ?? sale?.courier_partner ?? '—'}</TableCell>
                     <TableCell>
                       <Badge variant={r.return_type === 'RTO' ? 'outline' : 'secondary'} className={`text-xs ${r.return_type === 'Customer Return' ? 'bg-red-50 text-red-700 border-red-200 dark:bg-red-950 dark:text-red-300' : ''}` }>{r.return_type}</Badge>
                     </TableCell>
@@ -443,7 +530,7 @@ export default function Returns() {
               })}
               {filtered.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={admin ? 10 : 9} className="py-16">
+                    <TableCell colSpan={admin ? 12 : 11} className="py-16">
                     <EmptyState icon={<RotateCcw className="h-8 w-8" />} title="No returns found" description="Log a return or adjust your filters." />
                   </TableCell>
                 </TableRow>
@@ -485,7 +572,7 @@ export default function Returns() {
                     <TableCell className="text-xs">{p.status}</TableCell>
                     <TableCell className="text-xs">
                       {!p.matchedInventory ? <Badge variant="destructive" className="text-[10px]">No SKU match</Badge>
-                        : p.duplicate ? <Badge variant="secondary" className="text-[10px]">Already logged</Badge>
+                        : p.duplicate ? <Badge variant="secondary" className="text-[10px]">Will cross-check</Badge>
                         : p.matchedSale ? <Badge className="text-[10px] bg-emerald-600">Will link sale</Badge>
                         : <Badge variant="outline" className="text-[10px]">New return</Badge>}
                     </TableCell>

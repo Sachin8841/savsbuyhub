@@ -41,7 +41,7 @@ export default function Forecast() {
         setForecastData((forecastRes.data as any) ?? []);
       } catch (err: any) {
         console.error(err);
-        setErrorMsg('Please run the phase5_fixes.sql database migration script in your Supabase SQL Editor. The public forecast page requires secure RPC functions to operate.');
+        setErrorMsg('The public forecast functions are unavailable. Please retry after the backend finishes updating.');
       } finally {
         setLoading(false);
       }
@@ -181,11 +181,8 @@ export default function Forecast() {
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 space-y-6">
         {errorMsg && (
           <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 text-destructive text-sm space-y-2">
-            <p className="font-semibold flex items-center gap-2">⚠️ Database Migration Required</p>
+            <p className="font-semibold flex items-center gap-2">⚠️ Forecast data unavailable</p>
             <p className="text-muted-foreground">{errorMsg}</p>
-            <p className="text-xs font-mono bg-muted p-2 rounded border max-w-lg">
-              {"To resolve this: Open your Supabase Dashboard -> SQL Editor -> Create New Query -> Paste all contents of \"phase5_fixes.sql\" and click \"Run\"."}
-            </p>
           </div>
         )}
            {/* Live Market Share Price & History */}

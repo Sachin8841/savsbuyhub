@@ -25,6 +25,11 @@ import { parseMeeshoReturnsCsv, classifyReturnType, matchInventoryBySku } from '
 
 const schema = z.object({
   inventory_id: z.string().min(1, 'Select a product'),
+  platform: z.enum(['Meesho', 'Flipkart', 'Amazon', 'Offline']).optional(),
+  order_number: z.string().optional(),
+  sub_order_number: z.string().optional(),
+  courier_partner: z.string().optional(),
+  raw_status: z.string().optional(),
   return_type: z.enum(['Customer Return', 'RTO']),
   quantity_returned: z.number().int().min(1),
   return_date: z.string().min(1, 'Return date required'),
@@ -51,7 +56,7 @@ export default function Returns() {
 
   const form = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: { inventory_id: '', return_type: 'Customer Return', quantity_returned: 1, return_date: new Date().toISOString().slice(0, 10) },
+    defaultValues: { inventory_id: '', platform: 'Meesho', order_number: '', sub_order_number: '', courier_partner: '', raw_status: '', return_type: 'Customer Return', quantity_returned: 1, return_date: new Date().toISOString().slice(0, 10) },
   });
 
   const filtered = returns.filter(r => {
@@ -99,6 +104,14 @@ export default function Returns() {
       const row = {
         sales_id: null,
         inventory_id: values.inventory_id,
+        platform: values.platform || 'Meesho',
+        order_number: values.order_number || null,
+        sub_order_number: values.sub_order_number || null,
+        courier_partner: values.courier_partner || null,
+        raw_status: values.raw_status || null,
+        sku_snapshot: inventory.find(i => i.id === values.inventory_id)?.sku ?? null,
+        product_name_snapshot: inventory.find(i => i.id === values.inventory_id)?.product_name ?? null,
+        source_report: 'Manual',
         return_type: values.return_type,
         quantity_returned: values.quantity_returned,
         return_date: values.return_date,
@@ -344,6 +357,25 @@ export default function Returns() {
                 <DialogHeader><DialogTitle>Log Return</DialogTitle></DialogHeader>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                   <div><Label>Return Date</Label><Input type="date" {...form.register('return_date')} /></div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label>Platform</Label>
+                      <Controller name="platform" control={form.control} render={({ field }) => (
+                        <Select value={field.value ?? 'Meesho'} onValueChange={field.onChange}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {['Meesho', 'Flipkart', 'Amazon', 'Offline'].map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      )} />
+                    </div>
+                    <div><Label>Courier Partner</Label><Input {...form.register('courier_partner')} placeholder="Valmo / Delhivery…" /></div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><Label>Order ID</Label><Input {...form.register('order_number')} placeholder="Order number" /></div>
+                    <div><Label>Sub Order ID</Label><Input {...form.register('sub_order_number')} placeholder="Meesho sub order" /></div>
+                  </div>
+                  <div><Label>Report Status</Label><Input {...form.register('raw_status')} placeholder="Intransit / Return initiated / Delivered…" /></div>
                   <div>
                     <Label>Product</Label>
                     <Controller name="inventory_id" control={form.control} render={({ field }) => (

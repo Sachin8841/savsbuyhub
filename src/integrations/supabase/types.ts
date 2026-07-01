@@ -14,6 +14,69 @@ export type Database = {
   }
   public: {
     Tables: {
+      accounting_reconciliations: {
+        Row: {
+          account_holding_value_snapshot: number
+          actual_net_worth: number
+          created_at: string
+          created_by: string | null
+          expected_net_worth: number
+          expenses_total: number
+          hot_cash_snapshot: number
+          id: string
+          ledger_sales_total: number
+          notes: string | null
+          period_name: string
+          reconciliation_date: string
+          return_penalties_total: number
+          settlement_total: number
+          status: string
+          stock_holding_value: number
+          updated_at: string
+          variance: number
+        }
+        Insert: {
+          account_holding_value_snapshot?: number
+          actual_net_worth?: number
+          created_at?: string
+          created_by?: string | null
+          expected_net_worth?: number
+          expenses_total?: number
+          hot_cash_snapshot?: number
+          id?: string
+          ledger_sales_total?: number
+          notes?: string | null
+          period_name: string
+          reconciliation_date?: string
+          return_penalties_total?: number
+          settlement_total?: number
+          status?: string
+          stock_holding_value?: number
+          updated_at?: string
+          variance?: number
+        }
+        Update: {
+          account_holding_value_snapshot?: number
+          actual_net_worth?: number
+          created_at?: string
+          created_by?: string | null
+          expected_net_worth?: number
+          expenses_total?: number
+          hot_cash_snapshot?: number
+          id?: string
+          ledger_sales_total?: number
+          notes?: string | null
+          period_name?: string
+          reconciliation_date?: string
+          return_penalties_total?: number
+          settlement_total?: number
+          status?: string
+          stock_holding_value?: number
+          updated_at?: string
+          variance?: number
+        }
+        Relationships: []
+      }
       ad_expenses: {
         Row: {
           amount: number
@@ -535,6 +598,10 @@ export type Database = {
         Returns: boolean
       }
       ensure_capital_account: { Args: never; Returns: undefined }
+      execute_accounting_reconciliation: {
+        Args: { _notes?: string; _period_name?: string }
+        Returns: string
+      }
       execute_monthly_disclosure: {
         Args: {
           _dividend_declared?: number
@@ -553,6 +620,14 @@ export type Database = {
         }[]
       }
       get_public_share_price: { Args: never; Returns: number }
+      get_sale_realized_amount: {
+        Args: {
+          _quantity: number
+          _selling_price: number
+          _settlement_amount: number
+        }
+        Returns: number
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

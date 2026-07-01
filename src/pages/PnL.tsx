@@ -14,7 +14,7 @@ import { PageHeader, StatCard, SectionCard } from '@/components/PageHeader';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { AlertTriangle, TrendingUp, TrendingDown, DollarSign, Landmark } from 'lucide-react';
+import { AlertTriangle, TrendingUp, TrendingDown, DollarSign, Landmark, Scale, RefreshCw, Link2 } from 'lucide-react';
 import { useEffect } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid, Line, Area, AreaChart } from 'recharts';
 
@@ -36,16 +36,27 @@ export default function PnL() {
 
   
   const [disclosedPeriods, setDisclosedPeriods] = useState<any[]>([]);
+  const [accountingRecs, setAccountingRecs] = useState<any[]>([]);
+  const [reconciling, setReconciling] = useState(false);
   const [selectedDisclosedPeriod, setSelectedDisclosedPeriod] = useState<string>('active');
   const currentStocks = useCurrentStocks();
 
   const qc = useQueryClient();
   const { toast } = useToast();
 
+  const loadDisclosureRegister = async () => {
+    const res = await supabase.from('disclosed_periods').select('*').order('created_at', { ascending: false });
+    if (res.data) setDisclosedPeriods(res.data);
+  };
+
+  const loadAccountingReconciliations = async () => {
+    const res = await supabase.from('accounting_reconciliations').select('*').order('created_at', { ascending: false }).limit(12);
+    if (res.data) setAccountingRecs(res.data);
+  };
+
   useEffect(() => {
-    supabase.from('disclosed_periods').select('*').order('created_at', { ascending: false }).then(res => {
-      if (res.data) setDisclosedPeriods(res.data);
-    });
+    loadDisclosureRegister();
+    loadAccountingReconciliations();
   }, []);
 
   // Determine which data to use (Active ledger vs Archived snapshot)
@@ -54,6 +65,10 @@ export default function PnL() {
   const currentSales = activePeriod ? activePeriod.sales_data : sales;
   const currentReturns = activePeriod ? activePeriod.returns_data : returns;
   const currentAdExpenses = activePeriod ? activePeriod.ad_expenses_data : adExpenses;
+  const currentInventory = activePeriod ? activePeriod.inventory_snapshot || [] : inventory;
+
+  const inventoryById = useMemo(() => new Map((currentInventory as any[]).map((i: any) => [i.id, i])), [currentInventory]);
+  const saleById = useMemo(() => new Map((currentSales as any[]).map((s: any) => [s.id, s])), [currentSales]);
 
   const { from: filterFrom, to: filterTo } = getFilterDate(period, dateRange);
 
@@ -63,35 +78,36 @@ export default function PnL() {
     return d >= filterFrom && (!filterTo || d <= filterTo);
   };
 
-  const filteredSales = currentSales.filter((s: any) => inRange(s.dispatch_date) && s.payment_status !== 'Cancelled');
-  const filteredReturns = currentReturns.filter((r: any) => inRange(r.return_date));
-  const filteredAdExpenses = currentAdExpenses.filter((e: any) => inRange(e.expense_date));
+  const filteredSales = useMemo(() => currentSales.filter((s: any) => inRange(s.dispatch_date) && s.payment_status !== 'Cancelled'), [currentSales, filterFrom, filterTo]);
+  const filteredReturns = useMemo(() => currentReturns.filter((r: any) => inRange(r.return_date)), [currentReturns, filterFrom, filterTo]);
+  const filteredAdExpenses = useMemo(() => currentAdExpenses.filter((e: any) => inRange(e.expense_date)), [currentAdExpenses, filterFrom, filterTo]);
+
+  const realizedAmount = (s: any) => Number(s?.settlement_amount ?? (Number(s?.quantity_sold ?? 0) * Number(s?.average_selling_price ?? 0)));
+  const realizedUnitPrice = (s: any) => Number(s?.quantity_sold ?? 0) > 0 ? realizedAmount(s) / Number(s.quantity_sold) : Number(s?.average_selling_price ?? 0);
 
   const pnl = useMemo(() => {
-    const currentInventory = activePeriod ? activePeriod.inventory_snapshot || [] : inventory;
-
     const returnedRevenue = filteredReturns.reduce((sum, r) => {
-      const sale = currentSales.find((s: any) => s.id === r.sales_id);
-      return sum + r.quantity_returned * (sale?.average_selling_price ?? 0);
+      const sale = saleById.get(r.sales_id) as any;
+      return sum + r.quantity_returned * realizedUnitPrice(sale);
     }, 0);
 
     const returnedCogs = filteredReturns.reduce((sum, r) => {
-      const sale = currentSales.find((s: any) => s.id === r.sales_id);
+      const sale = saleById.get(r.sales_id) as any;
       const invId = r.inventory_id || sale?.inventory_id;
-      const inv = currentInventory.find((i: any) => i.id === invId);
+      const inv = inventoryById.get(invId) as any;
       const costPrice = sale?.cost_price ?? inv?.average_cost_price ?? 0;
       return sum + r.quantity_returned * costPrice;
     }, 0);
     
-    const revenue = filteredSales.reduce((sum, s) => sum + s.quantity_sold * s.average_selling_price, 0) - returnedRevenue;
+    const revenue = filteredSales.reduce((sum, s) => sum + realizedAmount(s), 0) - returnedRevenue;
     const units = filteredSales.reduce((sum, s) => sum + s.quantity_sold, 0);
     const cogs = filteredSales.reduce((sum, s) => {
-      const inv = currentInventory.find((i: any) => i.id === s.inventory_id);
+      const inv = inventoryById.get(s.inventory_id) as any;
       const costPrice = s.cost_price ?? inv?.average_cost_price ?? 0;
       return sum + s.quantity_sold * costPrice;
     }, 0) - returnedCogs;
     const deliveryFees = filteredSales.reduce((sum, s) => {
-      const inv = currentInventory.find((i: any) => i.id === s.inventory_id);
+      const inv = inventoryById.get(s.inventory_id) as any;
       const feePerUnit = inv ? (inv.delivery_fee || 0) / (inv.total_bulk_stock_in || 1) : 0;
       return sum + s.quantity_sold * feePerUnit;
     }, 0);
@@ -117,9 +133,9 @@ export default function PnL() {
     // Platform breakdown
     const platforms = ['Meesho', 'Flipkart', 'Amazon', 'Offline'].map(p => {
       const pSales = filteredSales.filter(s => s.platform === p);
-      const pRev = pSales.reduce((sum, s) => sum + s.quantity_sold * s.average_selling_price, 0);
+      const pRev = pSales.reduce((sum, s) => sum + realizedAmount(s), 0);
       const pCost = pSales.reduce((sum, s) => {
-        const inv = currentInventory.find((i: any) => i.id === s.inventory_id);
+        const inv = inventoryById.get(s.inventory_id) as any;
         const cp = s.cost_price ?? inv?.average_cost_price ?? 0;
         return sum + s.quantity_sold * cp;
       }, 0);
@@ -133,7 +149,7 @@ export default function PnL() {
     }, 0);
 
     return { revenue, units, cogs, deliveryFees, inventoryDeliveryFees, grossProfit, returnPenalties, returnedUnits, adSpend, freightExpenses, packagingExpenses, otherExpenses, totalExpenses, netProfit, profitPerUnit, platforms, stockHoldingValue };
-  }, [filteredSales, filteredReturns, filteredAdExpenses, currentStocks, activePeriod, inventory]);
+  }, [filteredSales, filteredReturns, filteredAdExpenses, currentStocks, activePeriod, currentInventory, inventoryById, saleById]);
 
   // -------- Monthly trend (last 6 months in filtered range) --------
   const monthlyTrend = useMemo(() => {
@@ -145,13 +161,12 @@ export default function PnL() {
       if (!buckets[k]) buckets[k] = { month: label(d), revenue: 0, cogs: 0, expenses: 0, profit: 0 };
       return buckets[k];
     };
-    const currentInventory = activePeriod ? activePeriod.inventory_snapshot || [] : inventory;
     filteredSales.forEach((s: any) => {
       if (!s.dispatch_date) return;
       const b = ensure(new Date(s.dispatch_date));
-      const inv = currentInventory.find((i: any) => i.id === s.inventory_id);
+      const inv = inventoryById.get(s.inventory_id) as any;
       const cp = s.cost_price ?? inv?.average_cost_price ?? 0;
-      b.revenue += s.quantity_sold * s.average_selling_price;
+      b.revenue += realizedAmount(s);
       b.cogs += s.quantity_sold * cp;
     });
     filteredReturns.forEach((r: any) => {
@@ -171,24 +186,23 @@ export default function PnL() {
     });
     Object.values(buckets).forEach(b => { b.profit = b.revenue - b.cogs - b.expenses; });
     return Object.entries(buckets).sort(([a], [b]) => a.localeCompare(b)).slice(-6).map(([, v]) => v);
-  }, [filteredSales, filteredReturns, filteredAdExpenses, activePeriod, inventory]);
+  }, [filteredSales, filteredReturns, filteredAdExpenses, currentInventory, inventoryById]);
 
   // -------- Per-SKU profitability --------
   const skuPnl = useMemo(() => {
-    const currentInventory = activePeriod ? activePeriod.inventory_snapshot || [] : inventory;
     const map: Record<string, { sku: string; product: string; units: number; revenue: number; cogs: number; returns: number; penalties: number; profit: number; margin: number; returnRate: number }> = {};
     filteredSales.forEach((s: any) => {
-      const inv = currentInventory.find((i: any) => i.id === s.inventory_id);
+      const inv = inventoryById.get(s.inventory_id) as any;
       if (!inv) return;
       const id = inv.id;
       const cp = s.cost_price ?? inv.average_cost_price ?? 0;
       const row = map[id] || (map[id] = { sku: inv.sku, product: inv.product_name, units: 0, revenue: 0, cogs: 0, returns: 0, penalties: 0, profit: 0, margin: 0, returnRate: 0 });
       row.units += s.quantity_sold;
-      row.revenue += s.quantity_sold * s.average_selling_price;
+      row.revenue += realizedAmount(s);
       row.cogs += s.quantity_sold * cp;
     });
     filteredReturns.forEach((r: any) => {
-      const invId = r.inventory_id || currentSales.find((s: any) => s.id === r.sales_id)?.inventory_id;
+      const invId = r.inventory_id || (saleById.get(r.sales_id) as any)?.inventory_id;
       if (!invId || !map[invId]) return;
       map[invId].returns += r.quantity_returned;
       map[invId].penalties += r.penalty_amount || 0;
@@ -199,7 +213,7 @@ export default function PnL() {
       r.returnRate = r.units > 0 ? (r.returns / r.units) * 100 : 0;
       return r;
     }).sort((a, b) => b.profit - a.profit);
-  }, [filteredSales, filteredReturns, activePeriod, inventory, currentSales]);
+  }, [filteredSales, filteredReturns, inventoryById, saleById]);
 
   // -------- Payment status breakdown --------
   const paymentBreakdown = useMemo(() => {
@@ -208,10 +222,31 @@ export default function PnL() {
       const st = s.payment_status || 'Unknown';
       const g = groups[st] || (groups[st] = { status: st, orders: 0, value: 0 });
       g.orders += 1;
-      g.value += s.quantity_sold * s.average_selling_price;
+      g.value += realizedAmount(s);
     });
     return Object.values(groups).sort((a, b) => b.value - a.value);
   }, [filteredSales]);
+
+  const paymentBreakdownTotal = useMemo(() => paymentBreakdown.reduce((s, x) => s + x.value, 0), [paymentBreakdown]);
+
+  const returnStatementLinks = useMemo(() => filteredReturns.slice(0, 50).map((r: any) => {
+    const sale = saleById.get(r.sales_id) as any;
+    const inv = (inventoryById.get(r.inventory_id || sale?.inventory_id) as any) ?? sale?.inventory;
+    const unitRevenue = realizedUnitPrice(sale);
+    const unitCost = Number(sale?.cost_price ?? inv?.average_cost_price ?? 0);
+    return {
+      id: r.id,
+      date: r.return_date,
+      order: r.sub_order_number ?? r.order_number ?? sale?.order_number ?? '—',
+      sku: r.sku_snapshot ?? inv?.sku ?? '—',
+      status: r.delivery_status,
+      type: r.return_type,
+      qty: Number(r.quantity_returned ?? 0),
+      revenueReversal: Number(r.quantity_returned ?? 0) * unitRevenue,
+      cogsReversal: Number(r.quantity_returned ?? 0) * unitCost,
+      penalty: Number(r.penalty_amount ?? 0),
+    };
+  }), [filteredReturns, saleById, inventoryById]);
 
   const historicalTotals = useMemo(() => disclosedPeriods.reduce((acc, p) => {
     acc.netProfit += Number(p.net_profit ?? 0);
@@ -309,6 +344,23 @@ export default function PnL() {
     }
   };
 
+  const handleAccountingReconciliation = async () => {
+    setReconciling(true);
+    try {
+      const { error } = await supabase.rpc('execute_accounting_reconciliation', {
+        _period_name: `Reconciliation ${new Date().toLocaleDateString()}`,
+        _notes: 'Generated from P&L control room before monthly disclosure review.'
+      });
+      if (error) throw error;
+      await loadAccountingReconciliations();
+      toast({ title: 'Accounting reconciliation saved', description: 'Expected collections, penalties, expenses, cash, bank, and stock were reconciled.' });
+    } catch (err: any) {
+      toast({ title: 'Reconciliation failed', description: err.message || String(err), variant: 'destructive' });
+    } finally {
+      setReconciling(false);
+    }
+  };
+
   return (
     <div className="space-y-5 animate-in">
       <PageHeader
@@ -334,10 +386,10 @@ export default function PnL() {
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle className="text-destructive">⚠️ Monthly Disclosure — Zero Accounts</DialogTitle>
+                <DialogTitle className="text-destructive">⚠️ Save Monthly Disclosure — Zero Accounts</DialogTitle>
               </DialogHeader>
               <p className="text-sm text-muted-foreground">
-                This will permanently archive and delete <strong>ALL sales, returns, and expenses</strong> from the active ledger to start a new period. This action is irreversible.
+                This will save the statement snapshot, link returns to their ledger rows, then clear <strong>sales, returns, and expenses</strong> from the active ledger to start a new period. This action is irreversible.
               </p>
               <div className="mt-4 space-y-4">
                 <div>
@@ -355,10 +407,14 @@ export default function PnL() {
               </div>
               <DialogFooter className="mt-4">
                 <Button variant="outline" onClick={() => setDisclosureOpen(false)}>Cancel</Button>
-                <Button variant="destructive" onClick={handleMonthlyDisclosure}>Archive Period</Button>
+                <Button variant="destructive" onClick={handleMonthlyDisclosure}>Save Disclosure</Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
+          <Button variant="outline" size="sm" onClick={handleAccountingReconciliation} disabled={reconciling} className="h-9 gap-1">
+            {reconciling ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Scale className="h-4 w-4" />}
+            Reconcile
+          </Button>
           <PeriodSelector value={period} onChange={setPeriod} dateRange={dateRange} onDateRangeChange={setDateRange} />
           <Button variant="outline" size="sm" onClick={handleExport} className="h-9"><Download className="mr-1 h-4 w-4" />Export Statement</Button>
         </>}
@@ -557,9 +613,8 @@ export default function PnL() {
         <SectionCard title="Payment Status Breakdown" description="Order count & value by collection status">
           {paymentBreakdown.length > 0 ? (
             <div className="space-y-2">
-              {paymentBreakdown.map(p => {
-                const total = paymentBreakdown.reduce((s, x) => s + x.value, 0);
-                const pct = total > 0 ? (p.value / total) * 100 : 0;
+                {paymentBreakdown.map(p => {
+                const pct = paymentBreakdownTotal > 0 ? (p.value / paymentBreakdownTotal) * 100 : 0;
                 const color =
                   p.status === 'Settled' ? 'bg-emerald-500' :
                   p.status === 'Pending' ? 'bg-amber-500' :
@@ -581,6 +636,74 @@ export default function PnL() {
           ) : (
             <p className="text-sm text-muted-foreground py-8 text-center">No sales in selected period.</p>
           )}
+        </SectionCard>
+      </div>
+
+      {/* Accounting reconciliation */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <SectionCard title="Accounting Reconciliation Register" description="Saved checks comparing expected statement value against actual cash, bank, and stock." noPadding>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/30">
+                  <TableHead className="font-semibold text-xs">Date</TableHead>
+                  <TableHead className="font-semibold text-xs">Period</TableHead>
+                  <TableHead className="text-right font-semibold text-xs">Expected</TableHead>
+                  <TableHead className="text-right font-semibold text-xs">Actual</TableHead>
+                  <TableHead className="text-right font-semibold text-xs">Variance</TableHead>
+                  <TableHead className="font-semibold text-xs">Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {accountingRecs.map((r: any) => (
+                  <TableRow key={r.id} className="hover:bg-primary/5 transition-colors">
+                    <TableCell className="text-xs text-muted-foreground">{r.reconciliation_date}</TableCell>
+                    <TableCell className="text-xs font-medium max-w-[180px] truncate">{r.period_name}</TableCell>
+                    <TableCell className="text-right tabular-nums text-xs">{fmt(Number(r.expected_net_worth ?? 0))}</TableCell>
+                    <TableCell className="text-right tabular-nums text-xs">{fmt(Number(r.actual_net_worth ?? 0))}</TableCell>
+                    <TableCell className={`text-right tabular-nums text-xs font-semibold ${Math.abs(Number(r.variance ?? 0)) <= 1 ? 'text-emerald-600' : 'text-red-600'}`}>{fmt(Number(r.variance ?? 0))}</TableCell>
+                    <TableCell><Badge variant={r.status === 'balanced' ? 'default' : 'destructive'} className="text-[10px]">{r.status}</Badge></TableCell>
+                  </TableRow>
+                ))}
+                {accountingRecs.length === 0 && (
+                  <TableRow><TableCell colSpan={6} className="py-8 text-center text-sm text-muted-foreground">No reconciliations saved yet.</TableCell></TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </SectionCard>
+
+        <SectionCard title="Return Statement Links" description="Returns tied back to order, SKU, revenue reversal, COGS reversal, and penalty." noPadding>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/30">
+                  <TableHead className="font-semibold text-xs">Order / SKU</TableHead>
+                  <TableHead className="font-semibold text-xs">Status</TableHead>
+                  <TableHead className="text-right font-semibold text-xs">Qty</TableHead>
+                  <TableHead className="text-right font-semibold text-xs">Revenue Rev.</TableHead>
+                  <TableHead className="text-right font-semibold text-xs">Penalty</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {returnStatementLinks.map((r: any) => (
+                  <TableRow key={r.id} className="hover:bg-primary/5 transition-colors">
+                    <TableCell>
+                      <div className="flex items-center gap-1 text-xs font-medium"><Link2 className="h-3 w-3 text-primary" />{r.order}</div>
+                      <div className="font-mono text-[10px] text-muted-foreground">{r.sku} · {r.date}</div>
+                    </TableCell>
+                    <TableCell><Badge variant={r.status === 'Received' ? 'default' : 'outline'} className="text-[10px]">{r.type || r.status}</Badge></TableCell>
+                    <TableCell className="text-right tabular-nums text-xs">{r.qty}</TableCell>
+                    <TableCell className="text-right tabular-nums text-xs text-red-600">-{fmt(r.revenueReversal)}</TableCell>
+                    <TableCell className="text-right tabular-nums text-xs text-red-600">-{fmt(r.penalty)}</TableCell>
+                  </TableRow>
+                ))}
+                {returnStatementLinks.length === 0 && (
+                  <TableRow><TableCell colSpan={5} className="py-8 text-center text-sm text-muted-foreground">No returns in selected period.</TableCell></TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
         </SectionCard>
       </div>
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useSales, useInventory } from '@/hooks/useData';
 import { useAuthStore } from '@/stores/authStore';
 import { supabase } from '@/integrations/supabase/client';
@@ -83,33 +83,41 @@ export default function Sales() {
     }
   }, [selectedInvId]);
 
-  const filtered = sales.filter(s => {
+  const filtered = useMemo(() => sales.filter(s => {
     const inv = (Array.isArray(s.inventory) ? s.inventory[0] : s.inventory) as any;
     const matchSearch = search === '' || inv?.sku?.toLowerCase().includes(search.toLowerCase()) || inv?.product_name?.toLowerCase().includes(search.toLowerCase()) || (s.courier_partner ?? '').toLowerCase().includes(search.toLowerCase()) || ((s as any).order_number ?? '').toLowerCase().includes(search.toLowerCase());
     const matchPlatform = platformFilter === 'all' || s.platform === platformFilter;
     const matchStatus = statusFilter === 'all' || s.payment_status === statusFilter;
     return matchSearch && matchPlatform && matchStatus;
-  });
+  }), [sales, search, platformFilter, statusFilter]);
 
-  const totalRevenue = filtered.reduce((sum, s) => sum + s.quantity_sold * s.average_selling_price, 0);
-  const pendingAmount = filtered.filter(s => s.payment_status === 'Pending').reduce((sum, s) => sum + s.quantity_sold * s.average_selling_price, 0);
-  const settledAmount = filtered
-    .filter(s => s.payment_status === 'Settled')
-    .reduce((sum, s) => sum + Number((s as any).settlement_amount ?? (s.quantity_sold * s.average_selling_price)), 0);
-  const totalCostPrice = filtered.filter(s => s.payment_status !== 'Cancelled').reduce((sum, s) => {
-    const inv = (Array.isArray(s.inventory) ? s.inventory[0] : s.inventory) as any;
-    const cp = s.cost_price ?? inv?.average_cost_price ?? 0;
-    return sum + s.quantity_sold * cp;
-  }, 0);
-  const nonCancelledRevenue = filtered.filter(s => s.payment_status !== 'Cancelled').reduce((sum, s) => sum + s.quantity_sold * s.average_selling_price, 0);
-  const totalProfit = nonCancelledRevenue - totalCostPrice;
+  const visibleSales = useMemo(() => filtered.slice(0, 250), [filtered]);
+
+  const metrics = useMemo(() => {
+    let totalRevenue = 0, pendingAmount = 0, settledAmount = 0, totalCostPrice = 0, nonCancelledRevenue = 0;
+    for (const s of filtered as any[]) {
+      const realized = Number(s.settlement_amount ?? (s.quantity_sold * s.average_selling_price));
+      const listed = Number(s.quantity_sold * s.average_selling_price);
+      totalRevenue += realized;
+      if (s.payment_status === 'Pending') pendingAmount += listed;
+      if (s.payment_status === 'Settled') settledAmount += realized;
+      if (s.payment_status !== 'Cancelled') {
+        const inv = (Array.isArray(s.inventory) ? s.inventory[0] : s.inventory) as any;
+        const cp = s.cost_price ?? inv?.average_cost_price ?? 0;
+        totalCostPrice += s.quantity_sold * cp;
+        nonCancelledRevenue += realized;
+      }
+    }
+    return { totalRevenue, pendingAmount, settledAmount, totalProfit: nonCancelledRevenue - totalCostPrice };
+  }, [filtered]);
+  const { totalRevenue, pendingAmount, settledAmount, totalProfit } = metrics;
   const fmt = (n: number) => '₹' + n.toLocaleString('en-IN', { maximumFractionDigits: 0 });
 
   // Generate data for Sales Velocity Chart
   const salesByDate = filtered.reduce((acc: any, curr) => {
     const date = curr.dispatch_date;
     if (!acc[date]) acc[date] = { date, revenue: 0, orders: 0 };
-    acc[date].revenue += curr.quantity_sold * curr.average_selling_price;
+    acc[date].revenue += Number((curr as any).settlement_amount ?? (curr.quantity_sold * curr.average_selling_price));
     acc[date].orders += curr.quantity_sold;
     return acc;
   }, {});
@@ -513,6 +521,7 @@ export default function Sales() {
         payment_status: 'Settled',
         settlement_date: p.paymentDate || new Date().toISOString().slice(0, 10),
         settlement_amount: Number(p.finalSettlementAmount ?? 0),
+        average_selling_price: Number(p.finalSettlementAmount ?? 0) / Math.max(1, Number(p.matchedSale.quantity_sold ?? 1)),
         payment_report_amount: Number(p.totalSaleAmount ?? 0),
         payment_report_date: p.paymentDate || new Date().toISOString().slice(0, 10),
         payment_report_status: p.liveStatus || null,
@@ -938,7 +947,7 @@ export default function Sales() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map(s => {
+              {visibleSales.map(s => {
                 const inv = (Array.isArray(s.inventory) ? s.inventory[0] : s.inventory) as any;
                 const cp = s.cost_price ?? inv?.average_cost_price ?? 0;
                 const sp = s.average_selling_price;
@@ -1023,6 +1032,13 @@ export default function Sales() {
                   </TableRow>
                 );
               })}
+              {filtered.length > visibleSales.length && (
+                <TableRow>
+                  <TableCell colSpan={admin ? 13 : 12} className="py-3 text-center text-xs text-muted-foreground">
+                    Showing latest {visibleSales.length} of {filtered.length} matching rows. Use search/status filters or export for full ledger to keep the page smooth.
+                  </TableCell>
+                </TableRow>
+              )}
               {filtered.length === 0 && (
                 <TableRow>
                     <TableCell colSpan={admin ? 13 : 12} className="py-16">
@@ -1082,8 +1098,9 @@ export default function Sales() {
                 <TableHead className="text-xs">Product</TableHead>
                 <TableHead className="text-xs">Payment Date</TableHead>
                 <TableHead className="text-right text-xs">Settlement</TableHead>
+                <TableHead className="text-right text-xs">Actual / Unit</TableHead>
                 <TableHead className="text-xs">Live Status</TableHead>
-                <TableHead className="text-right text-xs">Expected</TableHead>
+                <TableHead className="text-right text-xs">Listed</TableHead>
                 <TableHead className="text-right text-xs">Δ</TableHead>
                 <TableHead className="text-xs">Result</TableHead>
               </TableRow></TableHeader>
@@ -1091,6 +1108,7 @@ export default function Sales() {
                 {payPreview?.map((p, i) => {
                   const expected = p.matchedSale ? Number(p.matchedSale.quantity_sold ?? 0) * Number(p.matchedSale.average_selling_price ?? 0) : 0;
                   const delta = Number(p.finalSettlementAmount ?? 0) - expected;
+                  const actualUnit = p.matchedSale ? Number(p.finalSettlementAmount ?? 0) / Math.max(1, Number(p.matchedSale.quantity_sold ?? 1)) : 0;
                   return (
                   <TableRow key={i} className={p.action === 'unmatched' ? 'opacity-50' : p.action === 'already' ? 'opacity-60' : ''}>
                     <TableCell className="font-mono text-[10px]">{p.subOrderNo}</TableCell>
@@ -1098,6 +1116,7 @@ export default function Sales() {
                     <TableCell className="text-xs max-w-[200px] truncate">{p.productName}</TableCell>
                     <TableCell className="text-xs">{p.paymentDate}</TableCell>
                     <TableCell className="text-right font-mono text-xs">₹{p.finalSettlementAmount.toFixed(2)}</TableCell>
+                    <TableCell className="text-right font-mono text-xs">{p.matchedSale ? fmt(actualUnit) : '—'}</TableCell>
                     <TableCell className="text-xs">{p.liveStatus}</TableCell>
                     <TableCell className="text-right font-mono text-xs">{p.matchedSale ? fmt(expected) : '—'}</TableCell>
                     <TableCell className={`text-right font-mono text-xs ${delta < 0 ? 'text-red-600' : delta > 0 ? 'text-emerald-600' : 'text-muted-foreground'}`}>{p.matchedSale ? fmt(delta) : '—'}</TableCell>

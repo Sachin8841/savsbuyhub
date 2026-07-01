@@ -52,6 +52,8 @@ export default function SettingsPage() {
   // Low Stock & Current Stocks state
   const currentStocks = useCurrentStocks();
   const [disclosedPeriods, setDisclosedPeriods] = useState<any[]>([]);
+  const inventoryById = useMemo(() => new Map((inventory as any[]).map(i => [i.id, i])), [inventory]);
+  const salesById = useMemo(() => new Map((sales as any[]).map(s => [s.id, s])), [sales]);
 
   const lowStockItems = useMemo(() => {
     return inventory
@@ -192,25 +194,25 @@ export default function SettingsPage() {
       }, 0);
       
       const returnedRevenue = returns.reduce((sum, r) => {
-        const sale = sales.find(s => s.id === r.sales_id);
+        const sale = salesById.get(r.sales_id) as any;
         return sum + r.quantity_returned * (sale?.average_selling_price ?? 0);
       }, 0);
       const returnedCogs = returns.reduce((sum, r) => {
-        const sale = sales.find(s => s.id === r.sales_id);
+        const sale = salesById.get(r.sales_id) as any;
         const invId = r.inventory_id || sale?.inventory_id;
-        const inv = inventory.find(i => i.id === invId);
+        const inv = inventoryById.get(invId) as any;
         const costPrice = sale?.cost_price ?? inv?.average_cost_price ?? 0;
         return sum + r.quantity_returned * costPrice;
       }, 0);
       const nonCancelledSales = sales.filter(s => s.payment_status !== 'Cancelled');
-      const activeRevenue = nonCancelledSales.reduce((sum, s) => sum + s.quantity_sold * s.average_selling_price, 0) - returnedRevenue;
+      const activeRevenue = nonCancelledSales.reduce((sum, s: any) => sum + Number(s.settlement_amount ?? (s.quantity_sold * s.average_selling_price)), 0) - returnedRevenue;
       const activeCogs = nonCancelledSales.reduce((sum, s) => {
-        const inv = inventory.find(i => i.id === s.inventory_id);
+        const inv = inventoryById.get(s.inventory_id) as any;
         const costPrice = s.cost_price ?? inv?.average_cost_price ?? 0;
         return sum + s.quantity_sold * costPrice;
       }, 0) - returnedCogs;
       const activeDeliveryFees = nonCancelledSales.reduce((sum, s) => {
-        const inv = inventory.find(i => i.id === s.inventory_id);
+        const inv = inventoryById.get(s.inventory_id) as any;
         const feePerUnit = inv ? (inv.delivery_fee || 0) / (inv.total_bulk_stock_in || 1) : 0;
         return sum + s.quantity_sold * feePerUnit;
       }, 0);
@@ -234,30 +236,30 @@ export default function SettingsPage() {
         setSimDaysSinceSale(Math.max(0, diffDays));
       }
     }
-  }, [inventory, sales, returns, adExpenses, currentStocks, disclosedPeriods]);
+  }, [inventory, sales, returns, adExpenses, currentStocks, disclosedPeriods, inventoryById, salesById]);
 
   // Compute Platform performance breakdown
   const platformData = useMemo(() => {
     const nonCancelled = sales.filter(s => s.payment_status !== 'Cancelled');
     return ['Meesho', 'Flipkart', 'Amazon', 'Offline'].map(p => {
       const pSales = nonCancelled.filter(s => s.platform === p);
-      const revenue = pSales.reduce((sum, s) => sum + s.quantity_sold * s.average_selling_price, 0);
+      const revenue = pSales.reduce((sum, s: any) => sum + Number(s.settlement_amount ?? (s.quantity_sold * s.average_selling_price)), 0);
       
       const returnedRevenue = returns.filter(r => {
-        const sale = sales.find(s => s.id === r.sales_id);
+        const sale = salesById.get(r.sales_id) as any;
         return sale?.platform === p;
       }).reduce((sum, r) => {
-        const sale = sales.find(s => s.id === r.sales_id);
+        const sale = salesById.get(r.sales_id) as any;
         return sum + r.quantity_returned * (sale?.average_selling_price ?? 0);
       }, 0);
       
       const returnedCogs = returns.filter(r => {
-        const sale = sales.find(s => s.id === r.sales_id);
+        const sale = salesById.get(r.sales_id) as any;
         return sale?.platform === p;
       }).reduce((sum, r) => {
-        const sale = sales.find(s => s.id === r.sales_id);
+        const sale = salesById.get(r.sales_id) as any;
         const invId = r.inventory_id || sale?.inventory_id;
-        const inv = inventory.find(i => i.id === invId);
+        const inv = inventoryById.get(invId) as any;
         const costPrice = sale?.cost_price ?? inv?.average_cost_price ?? 0;
         return sum + r.quantity_returned * costPrice;
       }, 0);
@@ -265,14 +267,14 @@ export default function SettingsPage() {
       const netRev = revenue - returnedRevenue;
 
       const cost = pSales.reduce((sum, s) => {
-        const inv = inventory.find(i => i.id === s.inventory_id);
+        const inv = inventoryById.get(s.inventory_id) as any;
         const feePerUnit = inv ? (inv.delivery_fee || 0) / (inv.total_bulk_stock_in || 1) : 0;
         const cp = s.cost_price ?? (inv as any)?.average_cost_price ?? 0;
         return sum + s.quantity_sold * (cp + feePerUnit);
       }, 0) - returnedCogs;
 
       const pReturns = returns.filter(r => {
-        const sale = sales.find(s => s.id === r.sales_id);
+        const sale = salesById.get(r.sales_id) as any;
         return sale?.platform === p;
       });
       const penalty = pReturns.reduce((sum, r) => sum + r.penalty_amount, 0);
@@ -285,7 +287,7 @@ export default function SettingsPage() {
 
       return { platform: p, revenue: netRev, cost, penalty, profit: netProfit, units, returnRate, margin };
     }).filter(p => p.units > 0);
-  }, [sales, inventory, returns]);
+  }, [sales, inventory, returns, inventoryById, salesById]);
 
 
 

@@ -60,6 +60,7 @@ export default function Dashboard() {
   const totalCost = finance.cogs;
   const totalAdSpend = finance.adSpend;
   const totalDeliveryFees = finance.inboundFreight;
+  const totalInventoryDeliveryFees = finance.inboundFreight;
   const netProfit = finance.netProfit;
   const profitMargin = finance.margin.toFixed(1);
   const returnRate = finance.returnRate.toFixed(1);
@@ -77,55 +78,77 @@ export default function Dashboard() {
   ].filter(d => d.value > 0);
 
   const buildTrendData = (p: string, dr: { from?: Date; to?: Date }) => {
-    const fSales = filterSalesByPeriod(p, dr);
+    const { from, to } = getFilterDate(p, dr);
+    const inRange = (value: string | null | undefined) => {
+      if (!from) return true;
+      if (!value) return false;
+      const d = new Date(value);
+      return d >= from && (!to || d <= to);
+    };
+    const fSales = sales.filter(s => s.payment_status !== 'Cancelled' && inRange(s.dispatch_date));
     const dataMap: Record<string, { label: string; revenue: number; cost: number; investment: number; profit: number; units: number; orders: number; profitPerUnit: number }> = {};
+    const keyFor = (value: string | null | undefined) => {
+      const date = new Date(value || new Date().toISOString());
+      if (p === 'day') return `${date.getHours().toString().padStart(2, '0')}:00`;
+      if (p === 'week' || p === 'month' || p === 'custom') return value || date.toISOString().slice(0, 10);
+      return value?.slice(0, 7) ?? date.toISOString().slice(0, 7);
+    };
+    const ensure = (key: string) => dataMap[key] ||= { label: key, revenue: 0, cost: 0, investment: 0, profit: 0, units: 0, orders: 0, profitPerUnit: 0 };
     fSales.forEach(s => {
-      let key: string;
-      const date = new Date(s.dispatch_date);
-      if (p === 'day') key = `${date.getHours().toString().padStart(2, '0')}:00`;
-      else if (p === 'week' || p === 'month' || p === 'custom') key = s.dispatch_date;
-      else key = s.dispatch_date?.slice(0, 7) ?? date.toISOString().slice(0, 7);
-      if (!dataMap[key]) dataMap[key] = { label: key, revenue: 0, cost: 0, investment: 0, profit: 0, units: 0, orders: 0, profitPerUnit: 0 };
-      
-      const inv = inventory.find(i => i.id === s.inventory_id);
-      const rev = s.quantity_sold * s.average_selling_price;
-      const cp = s.cost_price ?? (inv as any)?.average_cost_price ?? 0;
-      const cost = s.quantity_sold * cp;
-      const deliveryFee = s.quantity_sold * (inv ? (inv.delivery_fee || 0) / (inv.total_bulk_stock_in || 1) : 0);
-
-      
-      dataMap[key].revenue += rev;
-      dataMap[key].cost += cost;
-      dataMap[key].investment += cost + deliveryFee;
-      dataMap[key].units += s.quantity_sold;
-      dataMap[key].orders += 1;
+      const inv = inventoryById.get(s.inventory_id);
+      const qty = saleQuantity(s);
+      const row = ensure(keyFor(s.dispatch_date));
+      const rev = saleRealizedAmount(s);
+      const cost = qty * saleUnitCost(s, inv);
+      const deliveryFee = qty * inventoryUnitFreight(inv);
+      row.revenue += rev;
+      row.cost += cost;
+      row.investment += cost + deliveryFee;
+      row.units += qty;
+      row.orders += 1;
+    });
+    returns.filter(r => inRange(r.return_date)).forEach(r => {
+      const sale = salesById.get(r.sales_id);
+      const inv = inventoryById.get(r.inventory_id || sale?.inventory_id);
+      const qty = Number(r.quantity_returned || 0);
+      const row = ensure(keyFor(r.return_date));
+      row.revenue -= qty * (sale ? saleUnitRevenue(sale) : Number(inv?.average_selling_price || 0));
+      row.cost -= qty * saleUnitCost(sale, inv);
+      row.investment -= qty * (saleUnitCost(sale, inv) + inventoryUnitFreight(inv));
+      row.profit -= Number(r.penalty_amount || 0);
+      row.units -= qty;
+    });
+    adExpenses.filter(e => inRange(e.expense_date)).forEach(e => {
+      ensure(keyFor(e.expense_date)).investment += Number(e.amount || 0);
     });
     const arr = Object.values(dataMap).sort((a, b) => a.label.localeCompare(b.label));
     arr.forEach(m => {
-      m.profit = m.revenue - m.investment;
+      m.profit += m.revenue - m.investment;
       m.profitPerUnit = m.units > 0 ? Math.round(m.profit / m.units) : 0;
     });
     return arr;
   };
 
-  const trendData = useMemo(() => buildTrendData(trendPeriod, trendDateRange), [sales, trendPeriod, trendDateRange, inventory]);
-  const profitTrendData = useMemo(() => buildTrendData(profitPeriod, profitDateRange), [sales, profitPeriod, profitDateRange, inventory]);
-  const unitsTrendData = useMemo(() => buildTrendData(unitsPeriod, unitsDateRange), [sales, unitsPeriod, unitsDateRange, inventory]);
+  const trendData = useMemo(() => buildTrendData(trendPeriod, trendDateRange), [sales, returns, adExpenses, trendPeriod, trendDateRange, inventoryById, salesById]);
+  const profitTrendData = useMemo(() => buildTrendData(profitPeriod, profitDateRange), [sales, returns, adExpenses, profitPeriod, profitDateRange, inventoryById, salesById]);
+  const unitsTrendData = useMemo(() => buildTrendData(unitsPeriod, unitsDateRange), [sales, returns, adExpenses, unitsPeriod, unitsDateRange, inventoryById, salesById]);
 
   const topProducts = useMemo(() => {
     const map: Record<string, { name: string; sku: string; revenue: number; units: number; profit: number; profitPerUnit: number }> = {};
     filteredSales.forEach(s => {
-      const inv = inventory.find(i => i.id === s.inventory_id);
+      const inv = inventoryById.get(s.inventory_id);
       if (!inv) return;
       if (!map[inv.sku]) map[inv.sku] = { name: inv.product_name, sku: inv.sku, revenue: 0, units: 0, profit: 0, profitPerUnit: 0 };
-      const cp = s.cost_price ?? inv.average_cost_price ?? 0;
-      map[inv.sku].revenue += s.quantity_sold * s.average_selling_price;
-      map[inv.sku].units += s.quantity_sold;
-      map[inv.sku].profit += s.quantity_sold * (s.average_selling_price - cp);
+      const qty = saleQuantity(s);
+      const revenue = saleRealizedAmount(s);
+      const unitCost = saleUnitCost(s, inv) + inventoryUnitFreight(inv);
+      map[inv.sku].revenue += revenue;
+      map[inv.sku].units += qty;
+      map[inv.sku].profit += revenue - (qty * unitCost);
     });
     Object.values(map).forEach(p => { p.profitPerUnit = p.units > 0 ? Math.round(p.profit / p.units) : 0; });
     return Object.values(map).sort((a, b) => b.revenue - a.revenue).slice(0, 6);
-  }, [filteredSales, inventory]);
+  }, [filteredSales, inventoryById]);
 
   // Courier performance table data
   const courierData = useMemo(() => {
@@ -134,28 +157,28 @@ export default function Dashboard() {
       const key = s.courier_partner || 'Unknown';
       if (!map[key]) map[key] = { courier: key, orders: 0, units: 0, revenue: 0, penalties: 0 };
       map[key].orders += 1;
-      map[key].units += s.quantity_sold;
-      map[key].revenue += s.quantity_sold * s.average_selling_price;
+      map[key].units += saleQuantity(s);
+      map[key].revenue += saleRealizedAmount(s);
     });
     filteredReturns.forEach(r => {
-      const sale = sales.find(s => s.id === r.sales_id);
+      const sale = salesById.get(r.sales_id);
       const key = (sale as any)?.courier_partner || 'Unknown';
       if (map[key]) map[key].penalties += r.penalty_amount;
     });
     return Object.values(map).sort((a, b) => b.orders - a.orders).slice(0, 8);
-  }, [filteredSales, filteredReturns, sales]);
+  }, [filteredSales, filteredReturns, salesById]);
 
   // Expenses breakdown for pie chart
   const expensePieData = useMemo(() => {
-    const adSpend = filteredAdExpenses.filter(e => e.category === 'Ads' || !e.category || e.category === 'Other' || e.category === 'Packaging' || e.category === 'Software').reduce((s, e) => s + e.amount, 0);
-    const deliveryExpenses = filteredAdExpenses.filter(e => (e.category as string)?.includes('Delivery') || (e.category as string)?.includes('Freight')).reduce((s, e) => s + e.amount, 0) + totalInventoryDeliveryFees;
+    const adSpend = finance.adSpend + finance.packagingExpenses + finance.softwareExpenses + finance.otherExpenses;
+    const deliveryExpenses = finance.freightExpenses + finance.inboundFreight;
     const penaltiesTotal = totalPenalties;
     return [
       { name: 'Ads & Marketing', value: Math.round(adSpend), color: 'hsl(224, 76%, 48%)' },
       { name: 'Delivery Fees', value: Math.round(deliveryExpenses), color: 'hsl(38, 92%, 50%)' },
       { name: 'Return Penalties', value: Math.round(penaltiesTotal), color: 'hsl(0, 84%, 60%)' },
     ].filter(d => d.value > 0);
-  }, [filteredAdExpenses, totalInventoryDeliveryFees, totalPenalties]);
+  }, [finance, totalPenalties]);
 
   const handleAdSubmit = async () => {
     if (!adForm.platform || !adForm.amount) return;

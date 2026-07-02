@@ -17,6 +17,7 @@ import { Label } from '@/components/ui/label';
 import { AlertTriangle, TrendingUp, TrendingDown, DollarSign, Landmark, Scale, RefreshCw, Link2 } from 'lucide-react';
 import { useEffect } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid, Line, Area, AreaChart } from 'recharts';
+import { inventoryUnitFreight, saleQuantity, saleRealizedAmount, saleUnitCost, saleUnitRevenue, summarizeFinancials } from '@/lib/finance';
 
 const fmt = (n: number) => '₹' + n.toLocaleString('en-IN', { maximumFractionDigits: 0 });
 
@@ -74,82 +75,36 @@ export default function PnL() {
 
   const inRange = (dateStr: string) => {
     if (!filterFrom) return true;
+    if (!dateStr) return false;
     const d = new Date(dateStr);
     return d >= filterFrom && (!filterTo || d <= filterTo);
   };
 
-  const filteredSales = useMemo(() => currentSales.filter((s: any) => inRange(s.dispatch_date) && s.payment_status !== 'Cancelled'), [currentSales, filterFrom, filterTo]);
-  const filteredReturns = useMemo(() => currentReturns.filter((r: any) => inRange(r.return_date)), [currentReturns, filterFrom, filterTo]);
-  const filteredAdExpenses = useMemo(() => currentAdExpenses.filter((e: any) => inRange(e.expense_date)), [currentAdExpenses, filterFrom, filterTo]);
-
-  const realizedAmount = (s: any) => Number(s?.settlement_amount ?? (Number(s?.quantity_sold ?? 0) * Number(s?.average_selling_price ?? 0)));
-  const realizedUnitPrice = (s: any) => Number(s?.quantity_sold ?? 0) > 0 ? realizedAmount(s) / Number(s.quantity_sold) : Number(s?.average_selling_price ?? 0);
+  const realizedAmount = saleRealizedAmount;
+  const realizedUnitPrice = saleUnitRevenue;
 
   const pnl = useMemo(() => {
-    const returnedRevenue = filteredReturns.reduce((sum, r) => {
-      const sale = saleById.get(r.sales_id) as any;
-      return sum + r.quantity_returned * realizedUnitPrice(sale);
-    }, 0);
+    const summary = summarizeFinancials({
+      sales: currentSales as any[],
+      returns: currentReturns as any[],
+      inventory: currentInventory as any[],
+      expenses: currentAdExpenses as any[],
+      currentStocks: activePeriod ? undefined : currentStocks,
+      from: filterFrom,
+      to: filterTo,
+    });
+    return {
+      ...summary,
+      units: summary.unitsSold,
+      deliveryFees: summary.inboundFreight,
+      inventoryDeliveryFees: 0,
+      totalExpenses: summary.operatingExpenses,
+    };
+  }, [currentSales, currentReturns, currentAdExpenses, currentInventory, currentStocks, activePeriod, filterFrom, filterTo]);
 
-    const returnedCogs = filteredReturns.reduce((sum, r) => {
-      const sale = saleById.get(r.sales_id) as any;
-      const invId = r.inventory_id || sale?.inventory_id;
-      const inv = inventoryById.get(invId) as any;
-      const costPrice = sale?.cost_price ?? inv?.average_cost_price ?? 0;
-      return sum + r.quantity_returned * costPrice;
-    }, 0);
-    
-    const revenue = filteredSales.reduce((sum, s) => sum + realizedAmount(s), 0) - returnedRevenue;
-    const units = filteredSales.reduce((sum, s) => sum + s.quantity_sold, 0);
-    const cogs = filteredSales.reduce((sum, s) => {
-      const inv = inventoryById.get(s.inventory_id) as any;
-      const costPrice = s.cost_price ?? inv?.average_cost_price ?? 0;
-      return sum + s.quantity_sold * costPrice;
-    }, 0) - returnedCogs;
-    const deliveryFees = filteredSales.reduce((sum, s) => {
-      const inv = inventoryById.get(s.inventory_id) as any;
-      const feePerUnit = inv ? (inv.delivery_fee || 0) / (inv.total_bulk_stock_in || 1) : 0;
-      return sum + s.quantity_sold * feePerUnit;
-    }, 0);
-    const grossProfit = revenue - cogs;
-    const returnPenalties = filteredReturns.reduce((sum, r) => sum + r.penalty_amount, 0);
-    const returnedUnits = filteredReturns.reduce((sum, r) => sum + r.quantity_returned, 0);
-    
-    const filteredInventoryForDelivery = filterFrom
-      ? currentInventory.filter((i: any) => !i.stock_added_date || new Date(i.stock_added_date) >= filterFrom)
-      : currentInventory;
-    const inventoryDeliveryFees = filteredInventoryForDelivery.reduce((sum: number, i: any) => sum + (i.delivery_fee || 0), 0);
-
-    const adSpend = filteredAdExpenses.filter(e => e.category === 'Ads' || !e.category).reduce((sum, e) => sum + e.amount, 0);
-    const freightExpenses = filteredAdExpenses.filter(e => e.category === 'Delivery/Freight').reduce((sum, e) => sum + e.amount, 0);
-    const packagingExpenses = filteredAdExpenses.filter(e => e.category === 'Packaging').reduce((sum, e) => sum + e.amount, 0);
-    const otherExpenses = filteredAdExpenses.filter(e => !['Ads', 'Delivery/Freight', 'Packaging'].includes(e.category) && e.category).reduce((sum, e) => sum + e.amount, 0);
-
-    const totalExpenses = deliveryFees + inventoryDeliveryFees + returnPenalties + adSpend + freightExpenses + packagingExpenses + otherExpenses;
-    const netProfit = grossProfit - totalExpenses;
-    const netUnits = units - returnedUnits;
-    const profitPerUnit = netUnits > 0 ? netProfit / netUnits : 0;
-
-    // Platform breakdown
-    const platforms = ['Meesho', 'Flipkart', 'Amazon', 'Offline'].map(p => {
-      const pSales = filteredSales.filter(s => s.platform === p);
-      const pRev = pSales.reduce((sum, s) => sum + realizedAmount(s), 0);
-      const pCost = pSales.reduce((sum, s) => {
-        const inv = inventoryById.get(s.inventory_id) as any;
-        const cp = s.cost_price ?? inv?.average_cost_price ?? 0;
-        return sum + s.quantity_sold * cp;
-      }, 0);
-      const pUnits = pSales.reduce((sum, s) => sum + s.quantity_sold, 0);
-      return { platform: p, revenue: pRev, cost: pCost, profit: pRev - pCost, units: pUnits };
-    }).filter(p => p.revenue > 0);
-
-    const stockHoldingValue = currentInventory.reduce((sum: number, item: any) => {
-      const stock = activePeriod ? (item.total_bulk_stock_in || 0) : (currentStocks[item.id] ?? 0);
-      return sum + stock * (item.average_cost_price || 0);
-    }, 0);
-
-    return { revenue, units, cogs, deliveryFees, inventoryDeliveryFees, grossProfit, returnPenalties, returnedUnits, adSpend, freightExpenses, packagingExpenses, otherExpenses, totalExpenses, netProfit, profitPerUnit, platforms, stockHoldingValue };
-  }, [filteredSales, filteredReturns, filteredAdExpenses, currentStocks, activePeriod, currentInventory, inventoryById, saleById]);
+  const filteredSales = pnl.sales as any[];
+  const filteredReturns = pnl.returns as any[];
+  const filteredAdExpenses = pnl.expenses as any[];
 
   // -------- Monthly trend (last 6 months in filtered range) --------
   const monthlyTrend = useMemo(() => {
@@ -165,24 +120,24 @@ export default function PnL() {
       if (!s.dispatch_date) return;
       const b = ensure(new Date(s.dispatch_date));
       const inv = inventoryById.get(s.inventory_id) as any;
-      const cp = s.cost_price ?? inv?.average_cost_price ?? 0;
+      const qty = saleQuantity(s);
       b.revenue += realizedAmount(s);
-      b.cogs += s.quantity_sold * cp;
+      b.cogs += qty * (saleUnitCost(s, inv) + inventoryUnitFreight(inv));
     });
     filteredReturns.forEach((r: any) => {
       if (!r.return_date) return;
       const b = ensure(new Date(r.return_date));
+      const sale = saleById.get(r.sales_id) as any;
+      const inv = inventoryById.get(r.inventory_id || sale?.inventory_id) as any;
+      const qty = Number(r.quantity_returned || 0);
+      b.revenue -= qty * realizedUnitPrice(sale);
+      b.cogs -= qty * (saleUnitCost(sale, inv) + inventoryUnitFreight(inv));
       b.expenses += r.penalty_amount || 0;
     });
     filteredAdExpenses.forEach((e: any) => {
       if (!e.expense_date) return;
       const b = ensure(new Date(e.expense_date));
       b.expenses += e.amount || 0;
-    });
-    currentInventory.forEach((i: any) => {
-      if (!i.stock_added_date || !i.delivery_fee) return;
-      const b = ensure(new Date(i.stock_added_date));
-      b.expenses += i.delivery_fee || 0;
     });
     Object.values(buckets).forEach(b => { b.profit = b.revenue - b.cogs - b.expenses; });
     return Object.entries(buckets).sort(([a], [b]) => a.localeCompare(b)).slice(-6).map(([, v]) => v);
@@ -195,16 +150,21 @@ export default function PnL() {
       const inv = inventoryById.get(s.inventory_id) as any;
       if (!inv) return;
       const id = inv.id;
-      const cp = s.cost_price ?? inv.average_cost_price ?? 0;
       const row = map[id] || (map[id] = { sku: inv.sku, product: inv.product_name, units: 0, revenue: 0, cogs: 0, returns: 0, penalties: 0, profit: 0, margin: 0, returnRate: 0 });
-      row.units += s.quantity_sold;
+      const qty = saleQuantity(s);
+      row.units += qty;
       row.revenue += realizedAmount(s);
-      row.cogs += s.quantity_sold * cp;
+      row.cogs += qty * (saleUnitCost(s, inv) + inventoryUnitFreight(inv));
     });
     filteredReturns.forEach((r: any) => {
-      const invId = r.inventory_id || (saleById.get(r.sales_id) as any)?.inventory_id;
+      const sale = saleById.get(r.sales_id) as any;
+      const invId = r.inventory_id || sale?.inventory_id;
       if (!invId || !map[invId]) return;
-      map[invId].returns += r.quantity_returned;
+      const inv = inventoryById.get(invId) as any;
+      const qty = Number(r.quantity_returned || 0);
+      map[invId].returns += qty;
+      map[invId].revenue -= qty * realizedUnitPrice(sale);
+      map[invId].cogs -= qty * (saleUnitCost(sale, inv) + inventoryUnitFreight(inv));
       map[invId].penalties += r.penalty_amount || 0;
     });
     return Object.values(map).map(r => {
@@ -233,7 +193,7 @@ export default function PnL() {
     const sale = saleById.get(r.sales_id) as any;
     const inv = (inventoryById.get(r.inventory_id || sale?.inventory_id) as any) ?? sale?.inventory;
     const unitRevenue = realizedUnitPrice(sale);
-    const unitCost = Number(sale?.cost_price ?? inv?.average_cost_price ?? 0);
+    const unitCost = saleUnitCost(sale, inv) + inventoryUnitFreight(inv);
     return {
       id: r.id,
       date: r.return_date,

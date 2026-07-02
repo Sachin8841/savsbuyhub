@@ -75,82 +75,36 @@ export default function PnL() {
 
   const inRange = (dateStr: string) => {
     if (!filterFrom) return true;
+    if (!dateStr) return false;
     const d = new Date(dateStr);
     return d >= filterFrom && (!filterTo || d <= filterTo);
   };
 
-  const filteredSales = useMemo(() => currentSales.filter((s: any) => inRange(s.dispatch_date) && s.payment_status !== 'Cancelled'), [currentSales, filterFrom, filterTo]);
-  const filteredReturns = useMemo(() => currentReturns.filter((r: any) => inRange(r.return_date)), [currentReturns, filterFrom, filterTo]);
-  const filteredAdExpenses = useMemo(() => currentAdExpenses.filter((e: any) => inRange(e.expense_date)), [currentAdExpenses, filterFrom, filterTo]);
-
-  const realizedAmount = (s: any) => Number(s?.settlement_amount ?? (Number(s?.quantity_sold ?? 0) * Number(s?.average_selling_price ?? 0)));
-  const realizedUnitPrice = (s: any) => Number(s?.quantity_sold ?? 0) > 0 ? realizedAmount(s) / Number(s.quantity_sold) : Number(s?.average_selling_price ?? 0);
+  const realizedAmount = saleRealizedAmount;
+  const realizedUnitPrice = saleUnitRevenue;
 
   const pnl = useMemo(() => {
-    const returnedRevenue = filteredReturns.reduce((sum, r) => {
-      const sale = saleById.get(r.sales_id) as any;
-      return sum + r.quantity_returned * realizedUnitPrice(sale);
-    }, 0);
+    const summary = summarizeFinancials({
+      sales: currentSales as any[],
+      returns: currentReturns as any[],
+      inventory: currentInventory as any[],
+      expenses: currentAdExpenses as any[],
+      currentStocks: activePeriod ? undefined : currentStocks,
+      from: filterFrom,
+      to: filterTo,
+    });
+    return {
+      ...summary,
+      units: summary.unitsSold,
+      deliveryFees: summary.inboundFreight,
+      inventoryDeliveryFees: 0,
+      totalExpenses: summary.operatingExpenses,
+    };
+  }, [currentSales, currentReturns, currentAdExpenses, currentInventory, currentStocks, activePeriod, filterFrom, filterTo]);
 
-    const returnedCogs = filteredReturns.reduce((sum, r) => {
-      const sale = saleById.get(r.sales_id) as any;
-      const invId = r.inventory_id || sale?.inventory_id;
-      const inv = inventoryById.get(invId) as any;
-      const costPrice = sale?.cost_price ?? inv?.average_cost_price ?? 0;
-      return sum + r.quantity_returned * costPrice;
-    }, 0);
-    
-    const revenue = filteredSales.reduce((sum, s) => sum + realizedAmount(s), 0) - returnedRevenue;
-    const units = filteredSales.reduce((sum, s) => sum + s.quantity_sold, 0);
-    const cogs = filteredSales.reduce((sum, s) => {
-      const inv = inventoryById.get(s.inventory_id) as any;
-      const costPrice = s.cost_price ?? inv?.average_cost_price ?? 0;
-      return sum + s.quantity_sold * costPrice;
-    }, 0) - returnedCogs;
-    const deliveryFees = filteredSales.reduce((sum, s) => {
-      const inv = inventoryById.get(s.inventory_id) as any;
-      const feePerUnit = inv ? (inv.delivery_fee || 0) / (inv.total_bulk_stock_in || 1) : 0;
-      return sum + s.quantity_sold * feePerUnit;
-    }, 0);
-    const grossProfit = revenue - cogs;
-    const returnPenalties = filteredReturns.reduce((sum, r) => sum + r.penalty_amount, 0);
-    const returnedUnits = filteredReturns.reduce((sum, r) => sum + r.quantity_returned, 0);
-    
-    const filteredInventoryForDelivery = filterFrom
-      ? currentInventory.filter((i: any) => !i.stock_added_date || new Date(i.stock_added_date) >= filterFrom)
-      : currentInventory;
-    const inventoryDeliveryFees = filteredInventoryForDelivery.reduce((sum: number, i: any) => sum + (i.delivery_fee || 0), 0);
-
-    const adSpend = filteredAdExpenses.filter(e => e.category === 'Ads' || !e.category).reduce((sum, e) => sum + e.amount, 0);
-    const freightExpenses = filteredAdExpenses.filter(e => e.category === 'Delivery/Freight').reduce((sum, e) => sum + e.amount, 0);
-    const packagingExpenses = filteredAdExpenses.filter(e => e.category === 'Packaging').reduce((sum, e) => sum + e.amount, 0);
-    const otherExpenses = filteredAdExpenses.filter(e => !['Ads', 'Delivery/Freight', 'Packaging'].includes(e.category) && e.category).reduce((sum, e) => sum + e.amount, 0);
-
-    const totalExpenses = deliveryFees + inventoryDeliveryFees + returnPenalties + adSpend + freightExpenses + packagingExpenses + otherExpenses;
-    const netProfit = grossProfit - totalExpenses;
-    const netUnits = units - returnedUnits;
-    const profitPerUnit = netUnits > 0 ? netProfit / netUnits : 0;
-
-    // Platform breakdown
-    const platforms = ['Meesho', 'Flipkart', 'Amazon', 'Offline'].map(p => {
-      const pSales = filteredSales.filter(s => s.platform === p);
-      const pRev = pSales.reduce((sum, s) => sum + realizedAmount(s), 0);
-      const pCost = pSales.reduce((sum, s) => {
-        const inv = inventoryById.get(s.inventory_id) as any;
-        const cp = s.cost_price ?? inv?.average_cost_price ?? 0;
-        return sum + s.quantity_sold * cp;
-      }, 0);
-      const pUnits = pSales.reduce((sum, s) => sum + s.quantity_sold, 0);
-      return { platform: p, revenue: pRev, cost: pCost, profit: pRev - pCost, units: pUnits };
-    }).filter(p => p.revenue > 0);
-
-    const stockHoldingValue = currentInventory.reduce((sum: number, item: any) => {
-      const stock = activePeriod ? (item.total_bulk_stock_in || 0) : (currentStocks[item.id] ?? 0);
-      return sum + stock * (item.average_cost_price || 0);
-    }, 0);
-
-    return { revenue, units, cogs, deliveryFees, inventoryDeliveryFees, grossProfit, returnPenalties, returnedUnits, adSpend, freightExpenses, packagingExpenses, otherExpenses, totalExpenses, netProfit, profitPerUnit, platforms, stockHoldingValue };
-  }, [filteredSales, filteredReturns, filteredAdExpenses, currentStocks, activePeriod, currentInventory, inventoryById, saleById]);
+  const filteredSales = pnl.sales as any[];
+  const filteredReturns = pnl.returns as any[];
+  const filteredAdExpenses = pnl.expenses as any[];
 
   // -------- Monthly trend (last 6 months in filtered range) --------
   const monthlyTrend = useMemo(() => {

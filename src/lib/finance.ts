@@ -30,7 +30,7 @@ export const saleUnitCost = (sale: AnyRow | undefined | null, inventory?: AnyRow
 
 export const saleInventory = (sale: AnyRow | undefined | null, inventoryById: Map<string, AnyRow>) => {
   const related = Array.isArray(sale?.inventory) ? sale.inventory[0] : sale?.inventory;
-  return inventoryById.get(sale?.inventory_id) ?? related ?? null;
+  return (sale?.inventory_id ? inventoryById.get(sale.inventory_id) : undefined) ?? related ?? null;
 };
 
 export const expenseCategory = (expense: AnyRow) => String(expense?.category || 'Ads');

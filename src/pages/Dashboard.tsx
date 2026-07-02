@@ -59,8 +59,7 @@ export default function Dashboard() {
   const totalReturnedQty = finance.returnedUnits;
   const totalCost = finance.cogs;
   const totalAdSpend = finance.adSpend;
-  const totalDeliveryFees = finance.inboundFreight;
-  const totalInventoryDeliveryFees = finance.inboundFreight;
+  const totalExpenses = finance.operatingExpenses;
   const netProfit = finance.netProfit;
   const profitMargin = finance.margin.toFixed(1);
   const returnRate = finance.returnRate.toFixed(1);
@@ -262,7 +261,7 @@ export default function Dashboard() {
 
   const handleDownload = () => exportDashboardReport(sales, inventory, returns, adExpenses, currentStocks);
 
-  const roi = totalCost > 0 ? ((netProfit / totalCost) * 100).toFixed(1) : '0';
+  const roi = finance.roi.toFixed(1);
   const hotCash = capitalAccounts?.hot_cash ?? 0;
   const accountHoldingValue = capitalAccounts?.account_holding_value ?? 0;
   const availableCapital = hotCash + accountHoldingValue;
@@ -274,7 +273,7 @@ export default function Dashboard() {
     { title: 'Account Value', value: fmt(accountHoldingValue), subtitle: 'Bank / account holding', icon: Landmark, color: 'text-primary', bg: 'bg-primary/10' },
     { title: 'Available Capital', value: fmt(availableCapital), subtitle: 'Cash + account', icon: ArrowRightLeft, color: 'text-emerald-600', bg: 'bg-emerald-50 dark:bg-emerald-950' },
     { title: 'Net Worth', value: fmt(netWorth), subtitle: 'Cash + Bank + Stock', icon: Landmark, color: 'text-primary', bg: 'bg-primary/10' },
-    { title: 'Total Investment', value: fmt(totalCost + stockHoldingValue + totalAdSpend + totalInventoryDeliveryFees), subtitle: 'COGS + Stock + Ads + Delivery', icon: Package, color: 'text-amber-600', bg: 'bg-amber-50 dark:bg-amber-950' },
+    { title: 'Total Investment', value: fmt(totalCost + stockHoldingValue + totalExpenses), subtitle: 'COGS + Stock + Operating Expenses', icon: Package, color: 'text-amber-600', bg: 'bg-amber-50 dark:bg-amber-950' },
     { title: 'Net Profit', value: fmt(netProfit), subtitle: `${profitMargin}% margin`, icon: netProfit >= 0 ? ArrowUpRight : ArrowDownRight, color: netProfit >= 0 ? 'text-emerald-600' : 'text-destructive', bg: netProfit >= 0 ? 'bg-emerald-50 dark:bg-emerald-950' : 'bg-destructive/10' },
     { title: 'Total Orders', value: totalOrders.toLocaleString(), subtitle: `${totalUnits} units · Avg ${fmt(Math.round(avgUnitValue))}/unit`, icon: ShoppingCart, color: 'text-primary', bg: 'bg-primary/10' },
     { title: 'Profit/Unit', value: fmt(Math.round(profitPerUnit)), icon: TrendingUp, color: profitPerUnit >= 0 ? 'text-emerald-600' : 'text-destructive', bg: profitPerUnit >= 0 ? 'bg-emerald-50 dark:bg-emerald-950' : 'bg-destructive/10' },
@@ -282,7 +281,7 @@ export default function Dashboard() {
     { title: 'Pending Payments', value: fmt(pendingPayments), icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50 dark:bg-amber-950' },
     { title: 'Stock Value', value: fmt(stockHoldingValue), icon: Warehouse, color: 'text-primary', bg: 'bg-primary/10' },
     { title: 'Returns', value: `${totalReturnedQty} units`, subtitle: `${returnRate}% rate · ${fmt(totalPenalties)} penalty`, icon: AlertTriangle, color: 'text-destructive', bg: 'bg-destructive/10' },
-    { title: 'Total Expenses', value: fmt(totalAdSpend + totalInventoryDeliveryFees + totalPenalties), subtitle: `Ads ${fmt(totalAdSpend)} · Del ${fmt(totalInventoryDeliveryFees)} · Pen ${fmt(totalPenalties)}`, icon: Megaphone, color: 'text-amber-600', bg: 'bg-amber-50 dark:bg-amber-950' },
+    { title: 'Total Expenses', value: fmt(totalExpenses), subtitle: `Ads ${fmt(totalAdSpend)} · Freight ${fmt(finance.inboundFreight + finance.freightExpenses)} · Pen ${fmt(totalPenalties)}`, icon: Megaphone, color: 'text-amber-600', bg: 'bg-amber-50 dark:bg-amber-950' },
   ];
 
   const CustomTooltip = ({ active, payload, label }: any) => {

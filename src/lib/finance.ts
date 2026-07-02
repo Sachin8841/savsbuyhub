@@ -2,20 +2,20 @@ type AnyRow = Record<string, any>;
 
 const n = (value: any) => Number(value ?? 0) || 0;
 
-export const isCancelledSale = (sale: AnyRow) => sale?.payment_status === 'Cancelled';
+export const isCancelledSale = (sale: AnyRow | undefined | null) => sale?.payment_status === 'Cancelled';
 
-export const saleQuantity = (sale: AnyRow) => Math.max(0, n(sale?.quantity_sold));
+export const saleQuantity = (sale: AnyRow | undefined | null) => Math.max(0, n(sale?.quantity_sold));
 
-export const saleListedAmount = (sale: AnyRow) => saleQuantity(sale) * n(sale?.average_selling_price);
+export const saleListedAmount = (sale: AnyRow | undefined | null) => saleQuantity(sale) * n(sale?.average_selling_price);
 
-export const saleRealizedAmount = (sale: AnyRow) => {
+export const saleRealizedAmount = (sale: AnyRow | undefined | null) => {
   if (!sale) return 0;
   return sale.settlement_amount !== null && sale.settlement_amount !== undefined
     ? n(sale.settlement_amount)
     : saleListedAmount(sale);
 };
 
-export const saleUnitRevenue = (sale: AnyRow) => {
+export const saleUnitRevenue = (sale: AnyRow | undefined | null) => {
   const qty = saleQuantity(sale);
   return qty > 0 ? saleRealizedAmount(sale) / qty : n(sale?.average_selling_price);
 };
@@ -26,9 +26,9 @@ export const inventoryUnitFreight = (inventory: AnyRow | undefined | null) => {
   return n(inventory.delivery_fee) / baseQty;
 };
 
-export const saleUnitCost = (sale: AnyRow, inventory?: AnyRow | null) => n(sale?.cost_price ?? inventory?.average_cost_price);
+export const saleUnitCost = (sale: AnyRow | undefined | null, inventory?: AnyRow | null) => n(sale?.cost_price ?? inventory?.average_cost_price);
 
-export const saleInventory = (sale: AnyRow, inventoryById: Map<string, AnyRow>) => {
+export const saleInventory = (sale: AnyRow | undefined | null, inventoryById: Map<string, AnyRow>) => {
   const related = Array.isArray(sale?.inventory) ? sale.inventory[0] : sale?.inventory;
   return inventoryById.get(sale?.inventory_id) ?? related ?? null;
 };

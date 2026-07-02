@@ -50,6 +50,7 @@ const emptyPlatform = (platform: string) => ({
   expenses: 0,
   penalty: 0,
   profit: 0,
+  orders: 0,
   units: 0,
   returnedUnits: 0,
   returnRate: 0,
@@ -142,6 +143,7 @@ export function summarizeFinancials({
     row.revenue += revenue;
     row.cost += cost;
     row.delivery += freight;
+    row.orders += 1;
     row.units += qty;
     platformMap.set(platform, row);
   }

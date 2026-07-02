@@ -120,24 +120,24 @@ export default function PnL() {
       if (!s.dispatch_date) return;
       const b = ensure(new Date(s.dispatch_date));
       const inv = inventoryById.get(s.inventory_id) as any;
-      const cp = s.cost_price ?? inv?.average_cost_price ?? 0;
+      const qty = saleQuantity(s);
       b.revenue += realizedAmount(s);
-      b.cogs += s.quantity_sold * cp;
+      b.cogs += qty * (saleUnitCost(s, inv) + inventoryUnitFreight(inv));
     });
     filteredReturns.forEach((r: any) => {
       if (!r.return_date) return;
       const b = ensure(new Date(r.return_date));
+      const sale = saleById.get(r.sales_id) as any;
+      const inv = inventoryById.get(r.inventory_id || sale?.inventory_id) as any;
+      const qty = Number(r.quantity_returned || 0);
+      b.revenue -= qty * realizedUnitPrice(sale);
+      b.cogs -= qty * (saleUnitCost(sale, inv) + inventoryUnitFreight(inv));
       b.expenses += r.penalty_amount || 0;
     });
     filteredAdExpenses.forEach((e: any) => {
       if (!e.expense_date) return;
       const b = ensure(new Date(e.expense_date));
       b.expenses += e.amount || 0;
-    });
-    currentInventory.forEach((i: any) => {
-      if (!i.stock_added_date || !i.delivery_fee) return;
-      const b = ensure(new Date(i.stock_added_date));
-      b.expenses += i.delivery_fee || 0;
     });
     Object.values(buckets).forEach(b => { b.profit = b.revenue - b.cogs - b.expenses; });
     return Object.entries(buckets).sort(([a], [b]) => a.localeCompare(b)).slice(-6).map(([, v]) => v);
@@ -150,16 +150,21 @@ export default function PnL() {
       const inv = inventoryById.get(s.inventory_id) as any;
       if (!inv) return;
       const id = inv.id;
-      const cp = s.cost_price ?? inv.average_cost_price ?? 0;
       const row = map[id] || (map[id] = { sku: inv.sku, product: inv.product_name, units: 0, revenue: 0, cogs: 0, returns: 0, penalties: 0, profit: 0, margin: 0, returnRate: 0 });
-      row.units += s.quantity_sold;
+      const qty = saleQuantity(s);
+      row.units += qty;
       row.revenue += realizedAmount(s);
-      row.cogs += s.quantity_sold * cp;
+      row.cogs += qty * (saleUnitCost(s, inv) + inventoryUnitFreight(inv));
     });
     filteredReturns.forEach((r: any) => {
-      const invId = r.inventory_id || (saleById.get(r.sales_id) as any)?.inventory_id;
+      const sale = saleById.get(r.sales_id) as any;
+      const invId = r.inventory_id || sale?.inventory_id;
       if (!invId || !map[invId]) return;
-      map[invId].returns += r.quantity_returned;
+      const inv = inventoryById.get(invId) as any;
+      const qty = Number(r.quantity_returned || 0);
+      map[invId].returns += qty;
+      map[invId].revenue -= qty * realizedUnitPrice(sale);
+      map[invId].cogs -= qty * (saleUnitCost(sale, inv) + inventoryUnitFreight(inv));
       map[invId].penalties += r.penalty_amount || 0;
     });
     return Object.values(map).map(r => {
@@ -188,7 +193,7 @@ export default function PnL() {
     const sale = saleById.get(r.sales_id) as any;
     const inv = (inventoryById.get(r.inventory_id || sale?.inventory_id) as any) ?? sale?.inventory;
     const unitRevenue = realizedUnitPrice(sale);
-    const unitCost = Number(sale?.cost_price ?? inv?.average_cost_price ?? 0);
+    const unitCost = saleUnitCost(sale, inv) + inventoryUnitFreight(inv);
     return {
       id: r.id,
       date: r.return_date,

@@ -15,6 +15,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { exportDashboardReport } from '@/lib/xlsx-export';
 import { AlertNotifications } from '@/components/AlertNotifications';
 import { PeriodSelector, getFilterDate } from '@/components/DateRangePicker';
+import { inventoryUnitFreight, saleQuantity, saleRealizedAmount, saleUnitCost, saleUnitRevenue, summarizeFinancials } from '@/lib/finance';
 
 const fmt = (n: number) => '₹' + n.toLocaleString('en-IN', { maximumFractionDigits: 0 });
 

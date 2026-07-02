@@ -43,80 +43,31 @@ export default function Dashboard() {
   const [movementForm, setMovementForm] = useState({ type: 'cash_to_account', amount: '', notes: '' });
   const currentStocks = useCurrentStocks();
 
-  const filterSalesByPeriod = (p: string, dr: { from?: Date; to?: Date }) => {
-    const { from, to } = getFilterDate(p, dr);
-    const nonCancelled = sales.filter(s => s.payment_status !== 'Cancelled');
-    if (!from) return nonCancelled;
-    return nonCancelled.filter(s => {
-      const d = new Date(s.dispatch_date);
-      return d >= from && (!to || d <= to);
-    });
-  };
+  const { from: filterFrom, to: filterTo } = getFilterDate(trendPeriod, trendDateRange);
+  const finance = useMemo(() => summarizeFinancials({ sales, returns, inventory, expenses: adExpenses, currentStocks, from: filterFrom, to: filterTo }), [sales, returns, inventory, adExpenses, currentStocks, filterFrom, filterTo]);
+  const filteredSales = finance.sales;
+  const filteredReturns = finance.returns;
+  const filteredAdExpenses = finance.expenses;
+  const inventoryById = useMemo(() => new Map(inventory.map(i => [i.id, i])), [inventory]);
+  const salesById = useMemo(() => new Map(sales.map(s => [s.id, s])), [sales]);
 
-  const filteredSales = filterSalesByPeriod(trendPeriod, trendDateRange);
-  const { from: filterFrom } = getFilterDate(trendPeriod, trendDateRange);
-  const filteredReturns = filterFrom ? returns.filter(r => new Date(r.return_date) >= filterFrom) : returns;
-  const filteredAdExpenses = filterFrom ? adExpenses.filter(e => new Date(e.expense_date) >= filterFrom) : adExpenses;
+  const totalRevenue = finance.revenue;
+  const totalUnits = finance.unitsSold;
+  const totalOrders = finance.orders;
+  const pendingPayments = finance.pendingRevenue;
+  const totalPenalties = finance.returnPenalties;
+  const totalReturnedQty = finance.returnedUnits;
+  const totalCost = finance.cogs;
+  const totalAdSpend = finance.adSpend;
+  const totalDeliveryFees = finance.inboundFreight;
+  const netProfit = finance.netProfit;
+  const profitMargin = finance.margin.toFixed(1);
+  const returnRate = finance.returnRate.toFixed(1);
+  const avgUnitValue = finance.averageUnitValue;
+  const profitPerUnit = finance.profitPerUnit;
+  const stockHoldingValue = finance.stockHoldingValue;
 
-  const returnedRevenue = filteredReturns.reduce((sum, r) => {
-    const sale = sales.find(s => s.id === r.sales_id);
-    return sum + r.quantity_returned * (sale?.average_selling_price ?? 0);
-  }, 0);
-  const returnedCogs = filteredReturns.reduce((sum, r) => {
-    const sale = sales.find(s => s.id === r.sales_id);
-    const invId = r.inventory_id || sale?.inventory_id;
-    const inv = inventory.find(i => i.id === invId);
-    const costPrice = sale?.cost_price ?? inv?.average_cost_price ?? 0;
-    return sum + r.quantity_returned * costPrice;
-  }, 0);
-  
-  const totalRevenue = filteredSales.reduce((sum, s) => sum + s.quantity_sold * s.average_selling_price, 0) - returnedRevenue;
-  const totalUnits = filteredSales.reduce((sum, s) => sum + s.quantity_sold, 0);
-  const totalOrders = filteredSales.length;
-  const pendingPayments = filteredSales.filter(s => s.payment_status === 'Pending').reduce((sum, s) => sum + s.quantity_sold * s.average_selling_price, 0);
-  const totalPenalties = filteredReturns.reduce((sum, r) => sum + r.penalty_amount, 0);
-  const totalReturnedQty = filteredReturns.reduce((sum, r) => sum + r.quantity_returned, 0);
-  const totalCost = filteredSales.reduce((sum, s) => {
-    const inv = inventory.find(i => i.id === s.inventory_id);
-    const costPrice = s.cost_price ?? inv?.average_cost_price ?? 0;
-    return sum + s.quantity_sold * costPrice;
-  }, 0) - returnedCogs;
-  const totalAdSpend = filteredAdExpenses.reduce((sum, e) => sum + e.amount, 0);
-  const totalInventoryDeliveryFees = useMemo(() => {
-    const filteredInventory = filterFrom
-      ? inventory.filter(i => i.stock_added_date && new Date(i.stock_added_date) >= filterFrom)
-      : inventory;
-    return filteredInventory.reduce((sum, i) => sum + (i.delivery_fee || 0), 0);
-  }, [inventory, filterFrom]);
-  const totalDeliveryFees = filteredSales.reduce((sum, s) => {
-    const inv = inventory.find(i => i.id === s.inventory_id);
-    const feePerUnit = inv ? (inv.delivery_fee || 0) / (inv.total_bulk_stock_in || 1) : 0;
-    return sum + s.quantity_sold * feePerUnit;
-  }, 0);
-  const netProfit = totalRevenue - totalCost - totalPenalties - totalAdSpend - totalDeliveryFees - totalInventoryDeliveryFees;
-  const profitMargin = totalRevenue > 0 ? ((netProfit / totalRevenue) * 100).toFixed(1) : '0';
-  const returnRate = totalUnits > 0 ? ((totalReturnedQty / totalUnits) * 100).toFixed(1) : '0';
-  const grossRevenue = filteredSales.reduce((sum, s) => sum + s.quantity_sold * s.average_selling_price, 0);
-  const avgUnitValue = totalUnits > 0 ? grossRevenue / totalUnits : 0;
-  const netUnits = totalUnits - totalReturnedQty;
-  const profitPerUnit = netUnits > 0 ? netProfit / netUnits : 0;
-
-  const stockHoldingValue = inventory.reduce((sum, item) => {
-    const stock = currentStocks[item.id] ?? 0;
-    return sum + stock * (item.average_cost_price || 0);
-  }, 0);
-
-  const platformData = useMemo(() => ['Meesho', 'Flipkart', 'Amazon', 'Offline'].map(p => {
-    const platSales = filteredSales.filter(s => s.platform === p);
-    const revenue = platSales.reduce((sum, s) => sum + s.quantity_sold * s.average_selling_price, 0);
-    const cost = platSales.reduce((sum, s) => {
-      const inv = inventory.find(i => i.id === s.inventory_id);
-      const cp = s.cost_price ?? (inv as any)?.average_cost_price ?? 0;
-      return sum + s.quantity_sold * cp;
-    }, 0);
-    const units = platSales.reduce((sum, s) => sum + s.quantity_sold, 0);
-    return { platform: p, revenue, cost, profit: revenue - cost, orders: platSales.length, units };
-  }), [filteredSales, inventory]);
+  const platformData = finance.platforms;
 
   const customerReturns = filteredReturns.filter(r => r.return_type === 'Customer Return');
   const rtoReturns = filteredReturns.filter(r => r.return_type === 'RTO');

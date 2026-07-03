@@ -447,14 +447,24 @@ export default function Sales() {
   const confirmBillImport = async () => {
     if (!billPreview) return;
     const today = new Date().toISOString().slice(0, 10);
+    const existingOrderIds = new Set(
+      (sales as any[])
+        .map(s => String(s.order_number ?? '').trim().toLowerCase())
+        .filter(Boolean)
+    );
     const rows: any[] = [];
     const skipped: string[] = [];
+    const alreadyLogged: string[] = [];
     for (const it of billPreview) {
       if (!it.matched_inventory_id) { skipped.push(it.product_name || it.sku || 'unknown'); continue; }
+      const orderKey = String(it.order_number ?? '').trim().toLowerCase();
+      if (orderKey && existingOrderIds.has(orderKey)) {
+        alreadyLogged.push(it.order_number);
+        continue;
+      }
       const inv = inventory.find(i => i.id === it.matched_inventory_id) as any;
       const qty = Math.max(1, parseInt(it.quantity ?? 1, 10));
       const unit_price = inv?.average_selling_price ?? 0;
-      // Each order on the bill = one row, with its quantity (1x/2x/...)
       rows.push({
         dispatch_date: today,
         platform: ['Meesho', 'Flipkart', 'Amazon', 'Offline'].includes(it.platform) ? it.platform : 'Meesho',
@@ -467,6 +477,7 @@ export default function Sales() {
         payment_method: it.payment_method ?? null,
         order_number: it.order_number ?? null,
       });
+      if (orderKey) existingOrderIds.add(orderKey);
     }
     if (rows.length) {
       let { error } = await supabase.from('sales').insert(rows);
@@ -481,7 +492,13 @@ export default function Sales() {
     qc.invalidateQueries({ queryKey: ['inventory'] });
     qc.invalidateQueries({ queryKey: ['capital_accounts'] });
     qc.invalidateQueries({ queryKey: ['cash_movements'] });
-    toast({ title: `Imported ${rows.length} order${rows.length !== 1 ? 's' : ''}`, description: skipped.length ? `Skipped (no SKU match): ${skipped.join(', ')}` : undefined });
+    const parts: string[] = [];
+    if (alreadyLogged.length) parts.push(`${alreadyLogged.length} already logged`);
+    if (skipped.length) parts.push(`${skipped.length} unmatched SKU`);
+    toast({
+      title: `Imported ${rows.length} order${rows.length !== 1 ? 's' : ''}`,
+      description: parts.length ? parts.join(' · ') : undefined,
+    });
     setBillPreviewOpen(false);
     setBillPreview(null);
   };

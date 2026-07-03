@@ -986,7 +986,7 @@ export default function Sales() {
                   <TableRow key={s.id} className="hover:bg-primary/5 transition-colors group">
                     <TableCell className="text-sm font-medium text-muted-foreground">{s.dispatch_date}</TableCell>
                     <TableCell><Badge variant="outline" className="px-1.5 py-0 text-[10px] uppercase font-bold tracking-wider">{s.platform}</Badge></TableCell>
-                    <TableCell className="font-mono text-xs text-muted-foreground max-w-[120px] truncate" title={(s as any).order_number ?? ''}>{(s as any).order_number ?? <span className="text-muted-foreground/40">—</span>}</TableCell>
+                    <TableCell className="font-mono text-xs text-muted-foreground whitespace-nowrap" title={(s as any).order_number ?? ''}>{(s as any).order_number ?? <span className="text-muted-foreground/40">—</span>}</TableCell>
                     <TableCell className="font-mono text-xs text-primary font-medium">{inv?.sku}</TableCell>
                     <TableCell className="max-w-[200px] truncate font-medium">{inv?.product_name}</TableCell>
                     <TableCell className="text-right tabular-nums font-semibold">{qty}</TableCell>

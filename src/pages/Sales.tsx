@@ -18,7 +18,6 @@ import { exportToXlsx } from '@/lib/xlsx-export';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Plus, Download, Pencil, Trash2, Search, DollarSign, Clock, FileUp, Loader2, SplitSquareHorizontal, TrendingUp, Copy, Banknote } from 'lucide-react';
 import { PageHeader, StatCard, SectionCard, EmptyState } from '@/components/PageHeader';
-import { PageHeader, StatCard, SectionCard, EmptyState } from '@/components/PageHeader';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';

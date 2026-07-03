@@ -14,7 +14,7 @@ import { exportToXlsx } from '@/lib/xlsx-export';
 import { Card, CardContent } from '@/components/ui/card';
 import { Plus, Download, Pencil, Trash2, Search, AlertTriangle, PackagePlus, Package, Boxes, TrendingUp, BarChart2 } from 'lucide-react';
 import { PageHeader, StatCard, SectionCard, EmptyState } from '@/components/PageHeader';
-import { CsvImportButton } from '@/components/CsvImportButton';
+
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';

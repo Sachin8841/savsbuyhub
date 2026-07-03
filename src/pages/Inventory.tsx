@@ -207,7 +207,7 @@ export default function Inventory() {
         icon={<Package className="h-5 w-5 text-indigo-500" />}
         actions={<>
           <Button variant="outline" size="sm" onClick={handleExport}><Download className="mr-1 h-4 w-4" />Export Excel</Button>
-          {admin && <CsvImportButton onImport={handleImport} expectedColumns={['sku', 'product_name', 'average_cost_price', 'average_selling_price', 'total_bulk_stock_in']} label="Import CSV" />}
+          
           {admin && (
             <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) { setEditId(null); form.reset(); } }}>
               <DialogTrigger asChild>

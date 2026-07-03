@@ -240,56 +240,48 @@ export default function Inventory() {
                 <DialogHeader>
                   <DialogTitle className="flex items-center gap-2 text-indigo-600">
                     <PackagePlus className="h-5 w-5" />
-                    Restock Item (New Batch)
+                    Restock "{restockItem?.product_name}"
                   </DialogTitle>
                   <div className="text-xs text-muted-foreground mt-1">
-                    New batch from "{restockItem?.product_name}". This batch is logged as its own <b>unique SKU</b> with its own cost basis so resale margins stay accurate.
+                    Adds units to the <b>existing SKU</b>. Cost basis is recomputed as a weighted average of your old and new cost. Freight is added to the item's delivery fee.
                   </div>
                 </DialogHeader>
                 <form onSubmit={restockForm.handleSubmit(onRestockSubmit)} className="space-y-4 pt-2">
                   <div>
-                    <Label>Batch SKU *</Label>
-                    <Input {...restockForm.register('sku')} />
-                    {restockForm.formState.errors.sku && <p className="text-sm text-destructive">{restockForm.formState.errors.sku.message}</p>}
+                    <Label>SKU (read-only)</Label>
+                    <Input {...restockForm.register('sku')} readOnly className="bg-muted/40" />
                   </div>
                   <div>
-                    <Label>Product Name *</Label>
-                    <Input {...restockForm.register('product_name')} />
-                    {restockForm.formState.errors.product_name && <p className="text-sm text-destructive">{restockForm.formState.errors.product_name.message}</p>}
+                    <Label>Product Name (read-only)</Label>
+                    <Input {...restockForm.register('product_name')} readOnly className="bg-muted/40" />
                   </div>
                   <div>
-                    <Label>Aliases (comma-separated)</Label>
+                    <Label>Aliases (comma-separated, optional)</Label>
                     <Input placeholder="e.g. Blue Tee, Cotton T-shirt Blue" {...restockForm.register('aliases')} />
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <Label>New Cost Price (₹) *</Label>
+                      <Label>New Batch Cost/Unit (₹) *</Label>
                       <Input type="number" step="0.01" {...restockForm.register('average_cost_price', { valueAsNumber: true })} />
                       {restockForm.formState.errors.average_cost_price && <p className="text-sm text-destructive">{restockForm.formState.errors.average_cost_price.message}</p>}
                     </div>
                     <div>
-                      <Label>Selling Price (₹) *</Label>
+                      <Label>Selling Price (₹, optional update)</Label>
                       <Input type="number" step="0.01" {...restockForm.register('average_selling_price', { valueAsNumber: true })} />
-                      {restockForm.formState.errors.average_selling_price && <p className="text-sm text-destructive">{restockForm.formState.errors.average_selling_price.message}</p>}
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <Label>Bulk Stock In *</Label>
+                      <Label>Units Added *</Label>
                       <Input type="number" {...restockForm.register('total_bulk_stock_in', { valueAsNumber: true })} />
                       {restockForm.formState.errors.total_bulk_stock_in && <p className="text-sm text-destructive">{restockForm.formState.errors.total_bulk_stock_in.message}</p>}
                     </div>
                     <div>
-                      <Label>Delivery Fee (₹) *</Label>
+                      <Label>Additional Freight (₹)</Label>
                       <Input type="number" step="0.01" {...restockForm.register('delivery_fee', { valueAsNumber: true })} />
-                      {restockForm.formState.errors.delivery_fee && <p className="text-sm text-destructive">{restockForm.formState.errors.delivery_fee.message}</p>}
                     </div>
                   </div>
-                  <div>
-                    <Label>Stock Added Date</Label>
-                    <Input type="date" {...restockForm.register('stock_added_date')} />
-                  </div>
-                  <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white">Add Batch Stock</Button>
+                  <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white">Merge Restock</Button>
                 </form>
               </DialogContent>
             </Dialog>

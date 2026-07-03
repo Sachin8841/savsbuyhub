@@ -103,21 +103,24 @@ export default function Sales() {
   const visibleSales = useMemo(() => filtered.slice(0, 250), [filtered]);
 
   const metrics = useMemo(() => {
-    let totalRevenue = 0, pendingAmount = 0, settledAmount = 0, totalCostPrice = 0, nonCancelledRevenue = 0;
+    let totalRevenue = 0, pendingAmount = 0, settledAmount = 0, totalCostPrice = 0, totalFreight = 0;
     for (const s of filtered as any[]) {
-      const realized = Number(s.settlement_amount ?? (s.quantity_sold * s.average_selling_price));
+      if (s.payment_status === 'Cancelled') continue;
       const listed = Number(s.quantity_sold * s.average_selling_price);
+      const realized = s.payment_status === 'Settled'
+        ? Number(s.settlement_amount ?? listed)
+        : listed;
       totalRevenue += realized;
-      if (s.payment_status === 'Pending') pendingAmount += listed;
-      if (s.payment_status === 'Settled') settledAmount += realized;
-      if (s.payment_status !== 'Cancelled') {
-        const inv = (Array.isArray(s.inventory) ? s.inventory[0] : s.inventory) as any;
-        const cp = s.cost_price ?? inv?.average_cost_price ?? 0;
-        totalCostPrice += s.quantity_sold * cp;
-        nonCancelledRevenue += realized;
-      }
+      if (['Pending', 'Packed', 'Dispatched', 'In Transit'].includes(s.payment_status)) pendingAmount += listed;
+      if (s.payment_status === 'Settled') settledAmount += Number(s.settlement_amount ?? listed);
+      const inv = (Array.isArray(s.inventory) ? s.inventory[0] : s.inventory) as any;
+      const cp = s.cost_price ?? inv?.average_cost_price ?? 0;
+      const baseStock = Math.max(1, Number(inv?.total_bulk_stock_in ?? 1));
+      const unitFreight = Number(inv?.delivery_fee ?? 0) / baseStock;
+      totalCostPrice += s.quantity_sold * cp;
+      totalFreight += s.quantity_sold * unitFreight;
     }
-    return { totalRevenue, pendingAmount, settledAmount, totalProfit: nonCancelledRevenue - totalCostPrice };
+    return { totalRevenue, pendingAmount, settledAmount, totalProfit: totalRevenue - totalCostPrice - totalFreight };
   }, [filtered]);
   const { totalRevenue, pendingAmount, settledAmount, totalProfit } = metrics;
   const fmt = (n: number) => '₹' + n.toLocaleString('en-IN', { maximumFractionDigits: 0 });

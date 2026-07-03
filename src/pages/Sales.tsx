@@ -690,7 +690,7 @@ export default function Sales() {
         icon={<DollarSign className="h-5 w-5 text-indigo-500" />}
         actions={<>
           <Button variant="outline" size="sm" onClick={handleExport}><Download className="mr-1 h-4 w-4" />Export Excel</Button>
-          {admin && <CsvImportButton onImport={handleImport} expectedColumns={['sku', 'dispatch_date', 'platform', 'quantity_sold', 'average_selling_price']} label="Import CSV" />}
+          
           {admin && (
             <>
               <input ref={billFileRef} type="file" accept="application/pdf,image/*" className="sr-only" disabled={billUploading} onChange={(e) => { const f = e.target.files?.[0]; if (f) { handleBillUpload(f); e.target.value = ''; } }} />

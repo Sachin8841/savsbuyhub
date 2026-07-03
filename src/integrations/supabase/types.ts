@@ -635,6 +635,17 @@ export type Database = {
         }
         Returns: boolean
       }
+      merge_restock: {
+        Args: {
+          _added_freight?: number
+          _added_qty: number
+          _inventory_id: string
+          _new_cost: number
+          _new_selling_price?: number
+        }
+        Returns: string
+      }
+      next_offline_order_id: { Args: never; Returns: string }
       record_cash_movement: {
         Args: {
           _account_delta: number

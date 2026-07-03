@@ -128,6 +128,7 @@ export function summarizeFinancials({
   for (const sale of filteredSales) {
     const inv = saleInventory(sale, inventoryById);
     const qty = saleQuantity(sale);
+    const listed = saleListedAmount(sale);
     const revenue = saleRealizedAmount(sale);
     const cost = qty * saleUnitCost(sale, inv);
     const freight = qty * inventoryUnitFreight(inv);
@@ -136,7 +137,7 @@ export function summarizeFinancials({
     salesInboundFreight += freight;
     unitsSold += qty;
     if (sale.payment_status === 'Settled') realizedRevenue += revenue;
-    else if (!['Return', 'Order RTO'].includes(String(sale.payment_status))) pendingRevenue += revenue;
+    else if (!['Return', 'Order RTO'].includes(String(sale.payment_status))) pendingRevenue += listed;
 
     const platform = String(sale.platform || 'Offline');
     const row = platformMap.get(platform) ?? emptyPlatform(platform);

@@ -15,7 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 import { exportToXlsx } from '@/lib/xlsx-export';
 import { Plus, Download, Trash2, Search, AlertTriangle, Package, Activity, Frown, RotateCcw, FileUp, Loader2 } from 'lucide-react';
 import { PageHeader, StatCard, SectionCard, EmptyState } from '@/components/PageHeader';
-import { CsvImportButton } from '@/components/CsvImportButton';
+
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -353,7 +353,7 @@ export default function Returns() {
         icon={<RotateCcw className="h-5 w-5 text-red-500" />}
         actions={<>
           <Button variant="outline" size="sm" onClick={handleExport} className="gap-1.5"><Download className="h-4 w-4" />Export</Button>
-          {admin && <CsvImportButton onImport={handleImport} expectedColumns={['sku', 'return_type', 'quantity_returned', 'return_date']} label="Import CSV" />}
+          {admin && false && null}
           {admin && (
             <>
               <input ref={meeshoFileRef} type="file" accept=".csv,text/csv" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleMeeshoFile(f); }} />

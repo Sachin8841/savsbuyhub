@@ -17,7 +17,6 @@ import { useToast } from '@/hooks/use-toast';
 import { exportToXlsx } from '@/lib/xlsx-export';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Plus, Download, Pencil, Trash2, Search, DollarSign, Clock, FileUp, Loader2, SplitSquareHorizontal, TrendingUp, Copy, Banknote } from 'lucide-react';
-import { CsvImportButton } from '@/components/CsvImportButton';
 import { PageHeader, StatCard, SectionCard, EmptyState } from '@/components/PageHeader';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useForm, Controller } from 'react-hook-form';
@@ -84,32 +83,44 @@ export default function Sales() {
     }
   }, [selectedInvId]);
 
-  const filtered = useMemo(() => sales.filter(s => {
-    const inv = (Array.isArray(s.inventory) ? s.inventory[0] : s.inventory) as any;
-    const matchSearch = search === '' || inv?.sku?.toLowerCase().includes(search.toLowerCase()) || inv?.product_name?.toLowerCase().includes(search.toLowerCase()) || (s.courier_partner ?? '').toLowerCase().includes(search.toLowerCase()) || ((s as any).order_number ?? '').toLowerCase().includes(search.toLowerCase());
-    const matchPlatform = platformFilter === 'all' || s.platform === platformFilter;
-    const matchStatus = statusFilter === 'all' || s.payment_status === statusFilter;
-    return matchSearch && matchPlatform && matchStatus;
-  }), [sales, search, platformFilter, statusFilter]);
+  const normalize = (s: any) => String(s ?? '').toLowerCase().replace(/[\s_\-/]+/g, '');
+  const filtered = useMemo(() => {
+    const raw = search.trim().toLowerCase();
+    const compact = normalize(search);
+    const tokens = raw.split(/\s+/).filter(Boolean);
+    return sales.filter(s => {
+      const inv = (Array.isArray(s.inventory) ? s.inventory[0] : s.inventory) as any;
+      const parts = [inv?.sku, inv?.product_name, s.courier_partner, (s as any).order_number, s.platform, s.payment_status, ...(inv?.aliases ?? [])];
+      const raw_hay = parts.map(p => String(p ?? '').toLowerCase()).join(' ');
+      const compact_hay = normalize(parts.join(' '));
+      const matchSearch = raw === '' || compact_hay.includes(compact) || tokens.every(t => raw_hay.includes(t));
+      const matchPlatform = platformFilter === 'all' || s.platform === platformFilter;
+      const matchStatus = statusFilter === 'all' || s.payment_status === statusFilter;
+      return matchSearch && matchPlatform && matchStatus;
+    });
+  }, [sales, search, platformFilter, statusFilter]);
 
   const visibleSales = useMemo(() => filtered.slice(0, 250), [filtered]);
 
   const metrics = useMemo(() => {
-    let totalRevenue = 0, pendingAmount = 0, settledAmount = 0, totalCostPrice = 0, nonCancelledRevenue = 0;
+    let totalRevenue = 0, pendingAmount = 0, settledAmount = 0, totalCostPrice = 0, totalFreight = 0;
     for (const s of filtered as any[]) {
-      const realized = Number(s.settlement_amount ?? (s.quantity_sold * s.average_selling_price));
+      if (s.payment_status === 'Cancelled') continue;
       const listed = Number(s.quantity_sold * s.average_selling_price);
+      const realized = s.payment_status === 'Settled'
+        ? Number(s.settlement_amount ?? listed)
+        : listed;
       totalRevenue += realized;
-      if (s.payment_status === 'Pending') pendingAmount += listed;
-      if (s.payment_status === 'Settled') settledAmount += realized;
-      if (s.payment_status !== 'Cancelled') {
-        const inv = (Array.isArray(s.inventory) ? s.inventory[0] : s.inventory) as any;
-        const cp = s.cost_price ?? inv?.average_cost_price ?? 0;
-        totalCostPrice += s.quantity_sold * cp;
-        nonCancelledRevenue += realized;
-      }
+      if (['Pending', 'Packed', 'Dispatched', 'In Transit'].includes(s.payment_status)) pendingAmount += listed;
+      if (s.payment_status === 'Settled') settledAmount += Number(s.settlement_amount ?? listed);
+      const inv = (Array.isArray(s.inventory) ? s.inventory[0] : s.inventory) as any;
+      const cp = s.cost_price ?? inv?.average_cost_price ?? 0;
+      const baseStock = Math.max(1, Number(inv?.total_bulk_stock_in ?? 1));
+      const unitFreight = Number(inv?.delivery_fee ?? 0) / baseStock;
+      totalCostPrice += s.quantity_sold * cp;
+      totalFreight += s.quantity_sold * unitFreight;
     }
-    return { totalRevenue, pendingAmount, settledAmount, totalProfit: nonCancelledRevenue - totalCostPrice };
+    return { totalRevenue, pendingAmount, settledAmount, totalProfit: totalRevenue - totalCostPrice - totalFreight };
   }, [filtered]);
   const { totalRevenue, pendingAmount, settledAmount, totalProfit } = metrics;
   const fmt = (n: number) => '₹' + n.toLocaleString('en-IN', { maximumFractionDigits: 0 });
@@ -436,14 +447,24 @@ export default function Sales() {
   const confirmBillImport = async () => {
     if (!billPreview) return;
     const today = new Date().toISOString().slice(0, 10);
+    const existingOrderIds = new Set(
+      (sales as any[])
+        .map(s => String(s.order_number ?? '').trim().toLowerCase())
+        .filter(Boolean)
+    );
     const rows: any[] = [];
     const skipped: string[] = [];
+    const alreadyLogged: string[] = [];
     for (const it of billPreview) {
       if (!it.matched_inventory_id) { skipped.push(it.product_name || it.sku || 'unknown'); continue; }
+      const orderKey = String(it.order_number ?? '').trim().toLowerCase();
+      if (orderKey && existingOrderIds.has(orderKey)) {
+        alreadyLogged.push(it.order_number);
+        continue;
+      }
       const inv = inventory.find(i => i.id === it.matched_inventory_id) as any;
       const qty = Math.max(1, parseInt(it.quantity ?? 1, 10));
       const unit_price = inv?.average_selling_price ?? 0;
-      // Each order on the bill = one row, with its quantity (1x/2x/...)
       rows.push({
         dispatch_date: today,
         platform: ['Meesho', 'Flipkart', 'Amazon', 'Offline'].includes(it.platform) ? it.platform : 'Meesho',
@@ -456,6 +477,7 @@ export default function Sales() {
         payment_method: it.payment_method ?? null,
         order_number: it.order_number ?? null,
       });
+      if (orderKey) existingOrderIds.add(orderKey);
     }
     if (rows.length) {
       let { error } = await supabase.from('sales').insert(rows);
@@ -470,7 +492,13 @@ export default function Sales() {
     qc.invalidateQueries({ queryKey: ['inventory'] });
     qc.invalidateQueries({ queryKey: ['capital_accounts'] });
     qc.invalidateQueries({ queryKey: ['cash_movements'] });
-    toast({ title: `Imported ${rows.length} order${rows.length !== 1 ? 's' : ''}`, description: skipped.length ? `Skipped (no SKU match): ${skipped.join(', ')}` : undefined });
+    const parts: string[] = [];
+    if (alreadyLogged.length) parts.push(`${alreadyLogged.length} already logged`);
+    if (skipped.length) parts.push(`${skipped.length} unmatched SKU`);
+    toast({
+      title: `Imported ${rows.length} order${rows.length !== 1 ? 's' : ''}`,
+      description: parts.length ? parts.join(' · ') : undefined,
+    });
     setBillPreviewOpen(false);
     setBillPreview(null);
   };
@@ -691,7 +719,7 @@ export default function Sales() {
         icon={<DollarSign className="h-5 w-5 text-indigo-500" />}
         actions={<>
           <Button variant="outline" size="sm" onClick={handleExport}><Download className="mr-1 h-4 w-4" />Export Excel</Button>
-          {admin && <CsvImportButton onImport={handleImport} expectedColumns={['sku', 'dispatch_date', 'platform', 'quantity_sold', 'average_selling_price']} label="Import CSV" />}
+          
           {admin && (
             <>
               <input ref={billFileRef} type="file" accept="application/pdf,image/*" className="sr-only" disabled={billUploading} onChange={(e) => { const f = e.target.files?.[0]; if (f) { handleBillUpload(f); e.target.value = ''; } }} />
@@ -958,7 +986,7 @@ export default function Sales() {
                   <TableRow key={s.id} className="hover:bg-primary/5 transition-colors group">
                     <TableCell className="text-sm font-medium text-muted-foreground">{s.dispatch_date}</TableCell>
                     <TableCell><Badge variant="outline" className="px-1.5 py-0 text-[10px] uppercase font-bold tracking-wider">{s.platform}</Badge></TableCell>
-                    <TableCell className="font-mono text-xs text-muted-foreground max-w-[120px] truncate" title={(s as any).order_number ?? ''}>{(s as any).order_number ?? <span className="text-muted-foreground/40">—</span>}</TableCell>
+                    <TableCell className="font-mono text-xs text-muted-foreground whitespace-nowrap" title={(s as any).order_number ?? ''}>{(s as any).order_number ?? <span className="text-muted-foreground/40">—</span>}</TableCell>
                     <TableCell className="font-mono text-xs text-primary font-medium">{inv?.sku}</TableCell>
                     <TableCell className="max-w-[200px] truncate font-medium">{inv?.product_name}</TableCell>
                     <TableCell className="text-right tabular-nums font-semibold">{qty}</TableCell>
@@ -993,7 +1021,7 @@ export default function Sales() {
                     </TableCell>
                     {admin && (
                       <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex items-center justify-end gap-0.5">
                           {s.quantity_sold > 1 && (
                             <Button variant="ghost" size="icon" className="h-8 w-8 text-indigo-500 hover:text-indigo-700 hover:bg-indigo-50" title="Split into individual orders" onClick={async () => {
                               if (!confirm(`Split this row of ${s.quantity_sold} units into ${s.quantity_sold} separate orders of qty 1?`)) return;

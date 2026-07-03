@@ -14,7 +14,7 @@ import { exportToXlsx } from '@/lib/xlsx-export';
 import { Card, CardContent } from '@/components/ui/card';
 import { Plus, Download, Pencil, Trash2, Search, AlertTriangle, PackagePlus, Package, Boxes, TrendingUp, BarChart2 } from 'lucide-react';
 import { PageHeader, StatCard, SectionCard, EmptyState } from '@/components/PageHeader';
-import { CsvImportButton } from '@/components/CsvImportButton';
+
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -53,38 +53,13 @@ export default function Inventory() {
     defaultValues: { sku: '', product_name: '', aliases: '', average_cost_price: 0, average_selling_price: 0, total_bulk_stock_in: 0, delivery_fee: 0, stock_added_date: new Date().toISOString().slice(0, 10) }
   });
 
-  const getNextBatchSkuAndName = (item: any, inventoryList: any[]) => {
-    const baseSku = item.sku.replace(/_B\d+$/, '');
-    const baseName = item.product_name.replace(/\s*\(Batch\s*\d+\)$/, '');
-    
-    let maxBatch = 1;
-    inventoryList.forEach(i => {
-      if (i.sku === baseSku) {
-        // base batch
-      } else {
-        const match = i.sku.match(new RegExp(`^${baseSku}_B(\\d+)$`));
-        if (match) {
-          const num = parseInt(match[1], 10);
-          if (num > maxBatch) maxBatch = num;
-        }
-      }
-    });
-    
-    const nextBatch = maxBatch + 1;
-    return {
-      sku: `${baseSku}_B${nextBatch}`,
-      product_name: `${baseName} (Batch ${nextBatch})`
-    };
-  };
-
   const handleRestockInit = (item: any) => {
     setRestockItem(item);
-    const { sku, product_name } = getNextBatchSkuAndName(item, inventory);
     restockForm.reset({
-      sku,
-      product_name,
+      sku: item.sku,
+      product_name: item.product_name,
       aliases: (item.aliases ?? []).join(', '),
-      average_cost_price: 0,
+      average_cost_price: item.average_cost_price ?? 0,
       average_selling_price: item.average_selling_price ?? 0,
       total_bulk_stock_in: 0,
       delivery_fee: 0,
@@ -94,24 +69,25 @@ export default function Inventory() {
   };
 
   const onRestockSubmit = async (values: FormData) => {
+    if (!restockItem) return;
     try {
-      const aliases = (values.aliases ?? '').split(',').map(s => s.trim()).filter(Boolean);
-      // Each restock is its OWN unique SKU (no parent linking) so batches are
-      // independently tracked, costed and sold against.
-      const payload = {
-        sku: values.sku,
-        product_name: values.product_name,
-        parent_inventory_id: null,
-        aliases,
-        average_cost_price: values.average_cost_price,
-        average_selling_price: values.average_selling_price,
-        total_bulk_stock_in: values.total_bulk_stock_in,
-        delivery_fee: values.delivery_fee,
-        stock_added_date: values.stock_added_date || new Date().toISOString().slice(0, 10),
-      };
-      const { error } = await supabase.from('inventory').insert(payload);
+      // Merge into existing SKU using weighted-average cost — no duplicate rows.
+      const { error } = await supabase.rpc('merge_restock', {
+        _inventory_id: restockItem.id,
+        _added_qty: values.total_bulk_stock_in,
+        _new_cost: values.average_cost_price,
+        _added_freight: values.delivery_fee ?? 0,
+        _new_selling_price: values.average_selling_price || null,
+      });
       if (error) throw error;
-      toast({ title: 'New batch added as unique SKU' });
+
+      // Update aliases separately if changed.
+      const aliases = (values.aliases ?? '').split(',').map(s => s.trim()).filter(Boolean);
+      if (aliases.length) {
+        await supabase.from('inventory').update({ aliases } as any).eq('id', restockItem.id);
+      }
+
+      toast({ title: 'Restock merged', description: `+${values.total_bulk_stock_in} units · weighted-avg cost applied` });
       qc.invalidateQueries({ queryKey: ['inventory'] });
       setRestockDialogOpen(false);
       setRestockItem(null);
@@ -231,7 +207,7 @@ export default function Inventory() {
         icon={<Package className="h-5 w-5 text-indigo-500" />}
         actions={<>
           <Button variant="outline" size="sm" onClick={handleExport}><Download className="mr-1 h-4 w-4" />Export Excel</Button>
-          {admin && <CsvImportButton onImport={handleImport} expectedColumns={['sku', 'product_name', 'average_cost_price', 'average_selling_price', 'total_bulk_stock_in']} label="Import CSV" />}
+          
           {admin && (
             <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) { setEditId(null); form.reset(); } }}>
               <DialogTrigger asChild>
@@ -264,56 +240,48 @@ export default function Inventory() {
                 <DialogHeader>
                   <DialogTitle className="flex items-center gap-2 text-indigo-600">
                     <PackagePlus className="h-5 w-5" />
-                    Restock Item (New Batch)
+                    Restock "{restockItem?.product_name}"
                   </DialogTitle>
                   <div className="text-xs text-muted-foreground mt-1">
-                    New batch from "{restockItem?.product_name}". This batch is logged as its own <b>unique SKU</b> with its own cost basis so resale margins stay accurate.
+                    Adds units to the <b>existing SKU</b>. Cost basis is recomputed as a weighted average of your old and new cost. Freight is added to the item's delivery fee.
                   </div>
                 </DialogHeader>
                 <form onSubmit={restockForm.handleSubmit(onRestockSubmit)} className="space-y-4 pt-2">
                   <div>
-                    <Label>Batch SKU *</Label>
-                    <Input {...restockForm.register('sku')} />
-                    {restockForm.formState.errors.sku && <p className="text-sm text-destructive">{restockForm.formState.errors.sku.message}</p>}
+                    <Label>SKU (read-only)</Label>
+                    <Input {...restockForm.register('sku')} readOnly className="bg-muted/40" />
                   </div>
                   <div>
-                    <Label>Product Name *</Label>
-                    <Input {...restockForm.register('product_name')} />
-                    {restockForm.formState.errors.product_name && <p className="text-sm text-destructive">{restockForm.formState.errors.product_name.message}</p>}
+                    <Label>Product Name (read-only)</Label>
+                    <Input {...restockForm.register('product_name')} readOnly className="bg-muted/40" />
                   </div>
                   <div>
-                    <Label>Aliases (comma-separated)</Label>
+                    <Label>Aliases (comma-separated, optional)</Label>
                     <Input placeholder="e.g. Blue Tee, Cotton T-shirt Blue" {...restockForm.register('aliases')} />
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <Label>New Cost Price (₹) *</Label>
+                      <Label>New Batch Cost/Unit (₹) *</Label>
                       <Input type="number" step="0.01" {...restockForm.register('average_cost_price', { valueAsNumber: true })} />
                       {restockForm.formState.errors.average_cost_price && <p className="text-sm text-destructive">{restockForm.formState.errors.average_cost_price.message}</p>}
                     </div>
                     <div>
-                      <Label>Selling Price (₹) *</Label>
+                      <Label>Selling Price (₹, optional update)</Label>
                       <Input type="number" step="0.01" {...restockForm.register('average_selling_price', { valueAsNumber: true })} />
-                      {restockForm.formState.errors.average_selling_price && <p className="text-sm text-destructive">{restockForm.formState.errors.average_selling_price.message}</p>}
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <Label>Bulk Stock In *</Label>
+                      <Label>Units Added *</Label>
                       <Input type="number" {...restockForm.register('total_bulk_stock_in', { valueAsNumber: true })} />
                       {restockForm.formState.errors.total_bulk_stock_in && <p className="text-sm text-destructive">{restockForm.formState.errors.total_bulk_stock_in.message}</p>}
                     </div>
                     <div>
-                      <Label>Delivery Fee (₹) *</Label>
+                      <Label>Additional Freight (₹)</Label>
                       <Input type="number" step="0.01" {...restockForm.register('delivery_fee', { valueAsNumber: true })} />
-                      {restockForm.formState.errors.delivery_fee && <p className="text-sm text-destructive">{restockForm.formState.errors.delivery_fee.message}</p>}
                     </div>
                   </div>
-                  <div>
-                    <Label>Stock Added Date</Label>
-                    <Input type="date" {...restockForm.register('stock_added_date')} />
-                  </div>
-                  <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white">Add Batch Stock</Button>
+                  <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white">Merge Restock</Button>
                 </form>
               </DialogContent>
             </Dialog>

@@ -1021,7 +1021,7 @@ export default function Sales() {
                     </TableCell>
                     {admin && (
                       <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex items-center justify-end gap-0.5">
                           {s.quantity_sold > 1 && (
                             <Button variant="ghost" size="icon" className="h-8 w-8 text-indigo-500 hover:text-indigo-700 hover:bg-indigo-50" title="Split into individual orders" onClick={async () => {
                               if (!confirm(`Split this row of ${s.quantity_sold} units into ${s.quantity_sold} separate orders of qty 1?`)) return;

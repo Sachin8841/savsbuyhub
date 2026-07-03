@@ -83,13 +83,18 @@ export default function Sales() {
     }
   }, [selectedInvId]);
 
-  const filtered = useMemo(() => sales.filter(s => {
-    const inv = (Array.isArray(s.inventory) ? s.inventory[0] : s.inventory) as any;
-    const matchSearch = search === '' || inv?.sku?.toLowerCase().includes(search.toLowerCase()) || inv?.product_name?.toLowerCase().includes(search.toLowerCase()) || (s.courier_partner ?? '').toLowerCase().includes(search.toLowerCase()) || ((s as any).order_number ?? '').toLowerCase().includes(search.toLowerCase());
-    const matchPlatform = platformFilter === 'all' || s.platform === platformFilter;
-    const matchStatus = statusFilter === 'all' || s.payment_status === statusFilter;
-    return matchSearch && matchPlatform && matchStatus;
-  }), [sales, search, platformFilter, statusFilter]);
+  const normalize = (s: any) => String(s ?? '').toLowerCase().replace(/[\s_\-/]+/g, '');
+  const filtered = useMemo(() => {
+    const needle = normalize(search);
+    return sales.filter(s => {
+      const inv = (Array.isArray(s.inventory) ? s.inventory[0] : s.inventory) as any;
+      const haystack = normalize([inv?.sku, inv?.product_name, s.courier_partner, (s as any).order_number, s.platform, s.payment_status, (inv?.aliases ?? []).join(' ')].join(' '));
+      const matchSearch = needle === '' || haystack.includes(needle) || needle.split('').every((c, i, arr) => i === 0 || arr[i] !== arr[i-1] ? haystack.includes(c) : true) && haystack.includes(needle.slice(0, Math.max(3, Math.floor(needle.length * 0.6))));
+      const matchPlatform = platformFilter === 'all' || s.platform === platformFilter;
+      const matchStatus = statusFilter === 'all' || s.payment_status === statusFilter;
+      return matchSearch && matchPlatform && matchStatus;
+    });
+  }, [sales, search, platformFilter, statusFilter]);
 
   const visibleSales = useMemo(() => filtered.slice(0, 250), [filtered]);
 

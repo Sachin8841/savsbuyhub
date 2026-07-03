@@ -15,7 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 import { exportToXlsx } from '@/lib/xlsx-export';
 import { Plus, Download, Trash2, Search, AlertTriangle, Package, Activity, Frown, RotateCcw, FileUp, Loader2 } from 'lucide-react';
 import { PageHeader, StatCard, SectionCard, EmptyState } from '@/components/PageHeader';
-import { CsvImportButton } from '@/components/CsvImportButton';
+
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';

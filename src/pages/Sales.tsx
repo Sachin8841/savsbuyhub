@@ -60,6 +60,8 @@ export default function Sales() {
   const [payBusy, setPayBusy] = useState(false);
   const [payPreview, setPayPreview] = useState<any[] | null>(null);
   const [payPreviewOpen, setPayPreviewOpen] = useState(false);
+  const [createInvOpen, setCreateInvOpen] = useState(false);
+  const [createInvRow, setCreateInvRow] = useState<{ index: number; sku: string; product_name: string; cost: string; price: string; freight: string } | null>(null);
   const billFileRef = useRef<HTMLInputElement>(null);
   const payFileRef = useRef<HTMLInputElement>(null);
   const qc = useQueryClient();
@@ -525,14 +527,23 @@ export default function Sales() {
       const previews = rows.map((r) => {
         const sub = r.subOrderNo;
         const sale = salesByOrder.get(sub) || salesByOrder.get(sub.replace(/_\d+$/, ''));
-        let action: 'settle' | 'already' | 'unmatched' | 'change' = 'unmatched';
+        const status = String(r.liveStatus || '').toLowerCase();
+        const isRto = /rto|courier[_ ]?return/.test(status);
+        const isCustReturn = /customer[_ ]?return|return\b/.test(status) && !isRto;
+        const returnKind: 'RTO' | 'Customer Return' | null = isRto ? 'RTO' : (isCustReturn ? 'Customer Return' : null);
+        const shortfall = Math.max(0, -Number(r.finalSettlementAmount ?? 0));
+        let action: 'settle' | 'already' | 'unmatched' | 'change' | 'return' = 'unmatched';
         if (sale) {
-          const sameAmount = Number(sale.settlement_amount ?? sale.quantity_sold * sale.average_selling_price) === Number(r.finalSettlementAmount ?? 0);
-          if (sale.payment_status === 'Settled' && sale.settlement_date === r.paymentDate && sameAmount) action = 'already';
-          else if (sale.payment_status === 'Settled') action = 'change';
-          else action = 'settle';
+          if (returnKind) {
+            action = 'return';
+          } else {
+            const sameAmount = Number(sale.settlement_amount ?? sale.quantity_sold * sale.average_selling_price) === Number(r.finalSettlementAmount ?? 0);
+            if (sale.payment_status === 'Settled' && sale.settlement_date === r.paymentDate && sameAmount) action = 'already';
+            else if (sale.payment_status === 'Settled') action = 'change';
+            else action = 'settle';
+          }
         }
-        return { ...r, matchedSale: sale, action };
+        return { ...r, matchedSale: sale, action, returnKind, shortfall };
       });
       setPayPreview(previews);
       setPayPreviewOpen(true);
@@ -546,10 +557,53 @@ export default function Sales() {
 
   const confirmPaymentImport = async () => {
     if (!payPreview) return;
-    let updated = 0, skipped = 0;
+    let updated = 0, returnsLogged = 0, skipped = 0;
     const errors: string[] = [];
     for (const p of payPreview) {
-      if (!p.matchedSale || p.action === 'already') { skipped++; continue; }
+      if (!p.matchedSale) { skipped++; continue; }
+      if (p.action === 'already') { skipped++; continue; }
+
+      if (p.action === 'return' && p.returnKind) {
+        // Process a return / RTO row from the payment report.
+        const penaltyPerUnit = p.returnKind === 'Customer Return' ? 160 : 0;
+        const qty = Math.max(1, Number(p.matchedSale.quantity_sold ?? 1));
+        const penalty = penaltyPerUnit * qty + Number(p.shortfall ?? 0);
+        const newSaleStatus = p.returnKind === 'RTO' ? 'Order RTO' : 'Return';
+        const { error: sErr } = await supabase.from('sales').update({
+          payment_status: newSaleStatus as any,
+          settlement_amount: Number(p.finalSettlementAmount ?? 0),
+          settlement_date: p.paymentDate || new Date().toISOString().slice(0, 10),
+          payment_report_amount: Number(p.totalSaleAmount ?? 0),
+          payment_report_date: p.paymentDate || new Date().toISOString().slice(0, 10),
+          payment_report_status: p.liveStatus || null,
+        } as any).eq('id', p.matchedSale.id);
+        if (sErr) { errors.push(`${p.subOrderNo}: ${sErr.message}`); continue; }
+
+        // Upsert a returns row for this sale.
+        const { data: existing } = await supabase.from('returns').select('id').eq('sales_id', p.matchedSale.id).maybeSingle();
+        const retRow: any = {
+          sales_id: p.matchedSale.id,
+          inventory_id: p.matchedSale.inventory_id,
+          platform: 'Meesho',
+          order_number: p.matchedSale.order_number ?? null,
+          sub_order_number: p.subOrderNo ?? null,
+          raw_status: p.liveStatus ?? null,
+          source_report: 'Meesho Payment',
+          return_type: p.returnKind,
+          quantity_returned: qty,
+          return_date: p.paymentDate || new Date().toISOString().slice(0, 10),
+          penalty_amount: penalty,
+          delivery_status: p.returnKind === 'RTO' ? 'In Transit' : 'In Transit',
+        };
+        const { error: rErr } = existing?.id
+          ? await supabase.from('returns').update(retRow).eq('id', existing.id)
+          : await supabase.from('returns').insert(retRow);
+        if (rErr) { errors.push(`${p.subOrderNo} (return): ${rErr.message}`); continue; }
+        returnsLogged++;
+        continue;
+      }
+
+      // Regular settlement — actual per-unit price replaces catalog price.
       const patch: any = {
         payment_status: 'Settled',
         settlement_date: p.paymentDate || new Date().toISOString().slice(0, 10),
@@ -564,11 +618,13 @@ export default function Sales() {
       else updated++;
     }
     qc.invalidateQueries({ queryKey: ['sales'] });
+    qc.invalidateQueries({ queryKey: ['returns'] });
+    qc.invalidateQueries({ queryKey: ['inventory'] });
     qc.invalidateQueries({ queryKey: ['capital_accounts'] });
     qc.invalidateQueries({ queryKey: ['cash_movements'] });
     toast({
-      title: `Settled ${updated} orders`,
-      description: `${skipped} skipped (already settled or unmatched)${errors.length ? ` · ${errors.length} errors` : ''}`,
+      title: `Settled ${updated} · Returns ${returnsLogged}`,
+      description: `${skipped} skipped${errors.length ? ` · ${errors.length} errors` : ''}`,
     });
     setPayPreviewOpen(false);
     setPayPreview(null);
@@ -1099,12 +1155,12 @@ export default function Sales() {
           <p className="text-sm text-muted-foreground">Date will be today ({new Date().toISOString().slice(0,10)}). Rows without an SKU match are skipped.</p>
           <div className="overflow-x-auto rounded border max-h-[400px] overflow-y-auto">
             <Table>
-              <TableHeader><TableRow><TableHead>SKU</TableHead><TableHead>Product</TableHead><TableHead>Qty</TableHead><TableHead>Order #</TableHead><TableHead>Catalog Price</TableHead><TableHead>Pay</TableHead><TableHead>Courier</TableHead><TableHead>Platform</TableHead></TableRow></TableHeader>
+              <TableHeader><TableRow><TableHead>SKU</TableHead><TableHead>Product</TableHead><TableHead>Qty</TableHead><TableHead>Order #</TableHead><TableHead>Catalog Price</TableHead><TableHead>Pay</TableHead><TableHead>Courier</TableHead><TableHead>Platform</TableHead><TableHead></TableHead></TableRow></TableHeader>
               <TableBody>
                 {billPreview?.map((it, i) => {
                   const matchedInv = it.matched_inventory_id ? inventory.find(inv => inv.id === it.matched_inventory_id) : null;
                   return (
-                    <TableRow key={i} className={!it.matched_inventory_id ? 'opacity-50' : ''}>
+                    <TableRow key={i} className={!it.matched_inventory_id ? 'opacity-70' : ''}>
                       <TableCell className="font-mono text-xs">{it.matched_sku || it.sku || '—'}</TableCell>
                       <TableCell className="text-sm">{it.matched_name || it.product_name || '—'}</TableCell>
                       <TableCell>{it.quantity}</TableCell>
@@ -1113,6 +1169,14 @@ export default function Sales() {
                       <TableCell>{it.payment_method || '—'}</TableCell>
                       <TableCell className="text-xs">{it.courier_partner || '—'}</TableCell>
                       <TableCell className="text-xs">{it.platform || '—'}</TableCell>
+                      <TableCell>
+                        {!it.matched_inventory_id && admin && (
+                          <Button size="sm" variant="outline" className="h-7 text-[10px]" onClick={() => {
+                            setCreateInvRow({ index: i, sku: it.sku || '', product_name: it.product_name || '', cost: '', price: '', freight: '0' });
+                            setCreateInvOpen(true);
+                          }}>+ Create</Button>
+                        )}
+                      </TableCell>
                     </TableRow>
                   );
                 })}
@@ -1167,6 +1231,7 @@ export default function Sales() {
                       {p.action === 'already' && <Badge variant="secondary" className="text-[10px]">Already settled</Badge>}
                       {p.action === 'settle' && <Badge className="text-[10px] bg-emerald-600">Will settle exact</Badge>}
                       {p.action === 'change' && <Badge className="text-[10px] bg-amber-600">Will adjust exact</Badge>}
+                      {p.action === 'return' && <Badge className="text-[10px] bg-red-600">Will log {p.returnKind}</Badge>}
                     </TableCell>
                   </TableRow>
                   );
@@ -1177,12 +1242,58 @@ export default function Sales() {
           <div className="flex justify-end gap-2 mt-3">
             <Button variant="outline" onClick={() => setPayPreviewOpen(false)}>Cancel</Button>
             <Button onClick={confirmPaymentImport}>
-              Apply {payPreview?.filter(p => p.action === 'settle' || p.action === 'change').length ?? 0} settlements
+              Apply {payPreview?.filter(p => ['settle','change','return'].includes(p.action)).length ?? 0} updates
             </Button>
           </div>
         </DialogContent>
       </Dialog>
 
+      {/* Create-inventory-from-bill dialog (trains model with new SKU) */}
+      <Dialog open={createInvOpen} onOpenChange={(o) => { setCreateInvOpen(o); if (!o) setCreateInvRow(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Create new product</DialogTitle></DialogHeader>
+          <p className="text-xs text-muted-foreground">
+            Adds this SKU to Inventory with 0 opening stock so future bills auto-match.
+          </p>
+          {createInvRow && (
+            <div className="space-y-3 py-2">
+              <div><Label className="text-xs">SKU</Label><Input value={createInvRow.sku} onChange={(e) => setCreateInvRow({ ...createInvRow, sku: e.target.value })} /></div>
+              <div><Label className="text-xs">Product name</Label><Input value={createInvRow.product_name} onChange={(e) => setCreateInvRow({ ...createInvRow, product_name: e.target.value })} /></div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><Label className="text-xs">Cost / unit</Label><Input type="number" value={createInvRow.cost} onChange={(e) => setCreateInvRow({ ...createInvRow, cost: e.target.value })} /></div>
+                <div><Label className="text-xs">Selling price</Label><Input type="number" value={createInvRow.price} onChange={(e) => setCreateInvRow({ ...createInvRow, price: e.target.value })} /></div>
+              </div>
+              <div><Label className="text-xs">Inbound freight (total)</Label><Input type="number" value={createInvRow.freight} onChange={(e) => setCreateInvRow({ ...createInvRow, freight: e.target.value })} /></div>
+            </div>
+          )}
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setCreateInvOpen(false)}>Cancel</Button>
+            <Button onClick={async () => {
+              if (!createInvRow) return;
+              if (!createInvRow.sku.trim() || !createInvRow.product_name.trim()) {
+                toast({ title: 'SKU and name are required', variant: 'destructive' });
+                return;
+              }
+              const { data, error } = await supabase.from('inventory').insert({
+                sku: createInvRow.sku.trim(),
+                product_name: createInvRow.product_name.trim(),
+                total_bulk_stock_in: 0,
+                average_cost_price: Number(createInvRow.cost) || 0,
+                average_selling_price: Number(createInvRow.price) || 0,
+                delivery_fee: Number(createInvRow.freight) || 0,
+                stock_added_date: new Date().toISOString().slice(0, 10),
+              } as any).select().single();
+              if (error) { toast({ title: 'Create failed', description: error.message, variant: 'destructive' }); return; }
+              // Attach to the preview row and refresh inventory cache
+              setBillPreview((prev) => prev?.map((r, idx) => idx === createInvRow.index ? { ...r, matched_inventory_id: data.id, matched_sku: data.sku, matched_name: data.product_name } : r) ?? null);
+              qc.invalidateQueries({ queryKey: ['inventory'] });
+              toast({ title: `Added ${data.sku} to Inventory` });
+              setCreateInvOpen(false);
+              setCreateInvRow(null);
+            }}>Create</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
     </div>
   );

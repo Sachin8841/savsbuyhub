@@ -287,7 +287,8 @@ export default function Returns() {
     const errors: string[] = [];
     for (const p of meeshoPreview) {
       if (!p.matchedInventory) { skipped++; continue; }
-      const penalty_per_unit = p.return_type === 'Customer Return' ? 160 : 0;
+      if (p.duplicate && !p.existingReturn) { skipped++; continue; }
+
       const reportRow = {
         sku: p.sku,
         productName: p.productName,

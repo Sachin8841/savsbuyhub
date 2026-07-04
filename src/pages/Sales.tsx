@@ -1155,12 +1155,12 @@ export default function Sales() {
           <p className="text-sm text-muted-foreground">Date will be today ({new Date().toISOString().slice(0,10)}). Rows without an SKU match are skipped.</p>
           <div className="overflow-x-auto rounded border max-h-[400px] overflow-y-auto">
             <Table>
-              <TableHeader><TableRow><TableHead>SKU</TableHead><TableHead>Product</TableHead><TableHead>Qty</TableHead><TableHead>Order #</TableHead><TableHead>Catalog Price</TableHead><TableHead>Pay</TableHead><TableHead>Courier</TableHead><TableHead>Platform</TableHead></TableRow></TableHeader>
+              <TableHeader><TableRow><TableHead>SKU</TableHead><TableHead>Product</TableHead><TableHead>Qty</TableHead><TableHead>Order #</TableHead><TableHead>Catalog Price</TableHead><TableHead>Pay</TableHead><TableHead>Courier</TableHead><TableHead>Platform</TableHead><TableHead></TableHead></TableRow></TableHeader>
               <TableBody>
                 {billPreview?.map((it, i) => {
                   const matchedInv = it.matched_inventory_id ? inventory.find(inv => inv.id === it.matched_inventory_id) : null;
                   return (
-                    <TableRow key={i} className={!it.matched_inventory_id ? 'opacity-50' : ''}>
+                    <TableRow key={i} className={!it.matched_inventory_id ? 'opacity-70' : ''}>
                       <TableCell className="font-mono text-xs">{it.matched_sku || it.sku || '—'}</TableCell>
                       <TableCell className="text-sm">{it.matched_name || it.product_name || '—'}</TableCell>
                       <TableCell>{it.quantity}</TableCell>
@@ -1169,6 +1169,14 @@ export default function Sales() {
                       <TableCell>{it.payment_method || '—'}</TableCell>
                       <TableCell className="text-xs">{it.courier_partner || '—'}</TableCell>
                       <TableCell className="text-xs">{it.platform || '—'}</TableCell>
+                      <TableCell>
+                        {!it.matched_inventory_id && admin && (
+                          <Button size="sm" variant="outline" className="h-7 text-[10px]" onClick={() => {
+                            setCreateInvRow({ index: i, sku: it.sku || '', product_name: it.product_name || '', cost: '', price: '', freight: '0' });
+                            setCreateInvOpen(true);
+                          }}>+ Create</Button>
+                        )}
+                      </TableCell>
                     </TableRow>
                   );
                 })}

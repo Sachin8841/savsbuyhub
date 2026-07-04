@@ -447,18 +447,22 @@ export default function Sales() {
   const confirmBillImport = async () => {
     if (!billPreview) return;
     const today = new Date().toISOString().slice(0, 10);
-    const existingOrderIds = new Set(
-      (sales as any[])
-        .map(s => String(s.order_number ?? '').trim().toLowerCase())
-        .filter(Boolean)
-    );
+    // Normalize IDs so trained parser variants (order_id vs sub_order_id, batch suffixes,
+    // stray spaces/dashes/case) collapse to the same key.
+    const normId = (s: any) => String(s ?? '').trim().toLowerCase().replace(/[\s\-]+/g, '').replace(/_\d+$/, '');
+    const existingOrderIds = new Set<string>();
+    for (const s of sales as any[]) {
+      const k = normId(s.order_number);
+      if (k) existingOrderIds.add(k);
+    }
     const rows: any[] = [];
     const skipped: string[] = [];
     const alreadyLogged: string[] = [];
+    const seenInFile = new Set<string>();
     for (const it of billPreview) {
       if (!it.matched_inventory_id) { skipped.push(it.product_name || it.sku || 'unknown'); continue; }
-      const orderKey = String(it.order_number ?? '').trim().toLowerCase();
-      if (orderKey && existingOrderIds.has(orderKey)) {
+      const orderKey = normId(it.order_number);
+      if (orderKey && (existingOrderIds.has(orderKey) || seenInFile.has(orderKey))) {
         alreadyLogged.push(it.order_number);
         continue;
       }
@@ -477,7 +481,7 @@ export default function Sales() {
         payment_method: it.payment_method ?? null,
         order_number: it.order_number ?? null,
       });
-      if (orderKey) existingOrderIds.add(orderKey);
+      if (orderKey) { existingOrderIds.add(orderKey); seenInFile.add(orderKey); }
     }
     if (rows.length) {
       let { error } = await supabase.from('sales').insert(rows);

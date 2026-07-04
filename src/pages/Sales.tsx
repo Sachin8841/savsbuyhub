@@ -525,14 +525,23 @@ export default function Sales() {
       const previews = rows.map((r) => {
         const sub = r.subOrderNo;
         const sale = salesByOrder.get(sub) || salesByOrder.get(sub.replace(/_\d+$/, ''));
-        let action: 'settle' | 'already' | 'unmatched' | 'change' = 'unmatched';
+        const status = String(r.liveStatus || '').toLowerCase();
+        const isRto = /rto|courier[_ ]?return/.test(status);
+        const isCustReturn = /customer[_ ]?return|return\b/.test(status) && !isRto;
+        const returnKind: 'RTO' | 'Customer Return' | null = isRto ? 'RTO' : (isCustReturn ? 'Customer Return' : null);
+        const shortfall = Math.max(0, -Number(r.finalSettlementAmount ?? 0));
+        let action: 'settle' | 'already' | 'unmatched' | 'change' | 'return' = 'unmatched';
         if (sale) {
-          const sameAmount = Number(sale.settlement_amount ?? sale.quantity_sold * sale.average_selling_price) === Number(r.finalSettlementAmount ?? 0);
-          if (sale.payment_status === 'Settled' && sale.settlement_date === r.paymentDate && sameAmount) action = 'already';
-          else if (sale.payment_status === 'Settled') action = 'change';
-          else action = 'settle';
+          if (returnKind) {
+            action = 'return';
+          } else {
+            const sameAmount = Number(sale.settlement_amount ?? sale.quantity_sold * sale.average_selling_price) === Number(r.finalSettlementAmount ?? 0);
+            if (sale.payment_status === 'Settled' && sale.settlement_date === r.paymentDate && sameAmount) action = 'already';
+            else if (sale.payment_status === 'Settled') action = 'change';
+            else action = 'settle';
+          }
         }
-        return { ...r, matchedSale: sale, action };
+        return { ...r, matchedSale: sale, action, returnKind, shortfall };
       });
       setPayPreview(previews);
       setPayPreviewOpen(true);
@@ -546,10 +555,53 @@ export default function Sales() {
 
   const confirmPaymentImport = async () => {
     if (!payPreview) return;
-    let updated = 0, skipped = 0;
+    let updated = 0, returnsLogged = 0, skipped = 0;
     const errors: string[] = [];
     for (const p of payPreview) {
-      if (!p.matchedSale || p.action === 'already') { skipped++; continue; }
+      if (!p.matchedSale) { skipped++; continue; }
+      if (p.action === 'already') { skipped++; continue; }
+
+      if (p.action === 'return' && p.returnKind) {
+        // Process a return / RTO row from the payment report.
+        const penaltyPerUnit = p.returnKind === 'Customer Return' ? 160 : 0;
+        const qty = Math.max(1, Number(p.matchedSale.quantity_sold ?? 1));
+        const penalty = penaltyPerUnit * qty + Number(p.shortfall ?? 0);
+        const newSaleStatus = p.returnKind === 'RTO' ? 'Order RTO' : 'Return';
+        const { error: sErr } = await supabase.from('sales').update({
+          payment_status: newSaleStatus as any,
+          settlement_amount: Number(p.finalSettlementAmount ?? 0),
+          settlement_date: p.paymentDate || new Date().toISOString().slice(0, 10),
+          payment_report_amount: Number(p.totalSaleAmount ?? 0),
+          payment_report_date: p.paymentDate || new Date().toISOString().slice(0, 10),
+          payment_report_status: p.liveStatus || null,
+        } as any).eq('id', p.matchedSale.id);
+        if (sErr) { errors.push(`${p.subOrderNo}: ${sErr.message}`); continue; }
+
+        // Upsert a returns row for this sale.
+        const { data: existing } = await supabase.from('returns').select('id').eq('sales_id', p.matchedSale.id).maybeSingle();
+        const retRow: any = {
+          sales_id: p.matchedSale.id,
+          inventory_id: p.matchedSale.inventory_id,
+          platform: 'Meesho',
+          order_number: p.matchedSale.order_number ?? null,
+          sub_order_number: p.subOrderNo ?? null,
+          raw_status: p.liveStatus ?? null,
+          source_report: 'Meesho Payment',
+          return_type: p.returnKind,
+          quantity_returned: qty,
+          return_date: p.paymentDate || new Date().toISOString().slice(0, 10),
+          penalty_amount: penalty,
+          delivery_status: p.returnKind === 'RTO' ? 'In Transit' : 'In Transit',
+        };
+        const { error: rErr } = existing?.id
+          ? await supabase.from('returns').update(retRow).eq('id', existing.id)
+          : await supabase.from('returns').insert(retRow);
+        if (rErr) { errors.push(`${p.subOrderNo} (return): ${rErr.message}`); continue; }
+        returnsLogged++;
+        continue;
+      }
+
+      // Regular settlement — actual per-unit price replaces catalog price.
       const patch: any = {
         payment_status: 'Settled',
         settlement_date: p.paymentDate || new Date().toISOString().slice(0, 10),
@@ -564,11 +616,13 @@ export default function Sales() {
       else updated++;
     }
     qc.invalidateQueries({ queryKey: ['sales'] });
+    qc.invalidateQueries({ queryKey: ['returns'] });
+    qc.invalidateQueries({ queryKey: ['inventory'] });
     qc.invalidateQueries({ queryKey: ['capital_accounts'] });
     qc.invalidateQueries({ queryKey: ['cash_movements'] });
     toast({
-      title: `Settled ${updated} orders`,
-      description: `${skipped} skipped (already settled or unmatched)${errors.length ? ` · ${errors.length} errors` : ''}`,
+      title: `Settled ${updated} · Returns ${returnsLogged}`,
+      description: `${skipped} skipped${errors.length ? ` · ${errors.length} errors` : ''}`,
     });
     setPayPreviewOpen(false);
     setPayPreview(null);

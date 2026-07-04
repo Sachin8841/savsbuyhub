@@ -1232,7 +1232,7 @@ export default function Sales() {
           <div className="flex justify-end gap-2 mt-3">
             <Button variant="outline" onClick={() => setPayPreviewOpen(false)}>Cancel</Button>
             <Button onClick={confirmPaymentImport}>
-              Apply {payPreview?.filter(p => p.action === 'settle' || p.action === 'change').length ?? 0} settlements
+              Apply {payPreview?.filter(p => ['settle','change','return'].includes(p.action)).length ?? 0} updates
             </Button>
           </div>
         </DialogContent>

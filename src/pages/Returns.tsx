@@ -288,6 +288,8 @@ export default function Returns() {
     for (const p of meeshoPreview) {
       if (!p.matchedInventory) { skipped++; continue; }
       if (p.duplicate && !p.existingReturn) { skipped++; continue; }
+      const penalty_per_unit = p.return_type === 'Customer Return' ? 160 : 0;
+
 
       const reportRow = {
         sku: p.sku,

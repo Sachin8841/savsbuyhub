@@ -1248,6 +1248,52 @@ export default function Sales() {
         </DialogContent>
       </Dialog>
 
+      {/* Create-inventory-from-bill dialog (trains model with new SKU) */}
+      <Dialog open={createInvOpen} onOpenChange={(o) => { setCreateInvOpen(o); if (!o) setCreateInvRow(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Create new product</DialogTitle></DialogHeader>
+          <p className="text-xs text-muted-foreground">
+            Adds this SKU to Inventory with 0 opening stock so future bills auto-match.
+          </p>
+          {createInvRow && (
+            <div className="space-y-3 py-2">
+              <div><Label className="text-xs">SKU</Label><Input value={createInvRow.sku} onChange={(e) => setCreateInvRow({ ...createInvRow, sku: e.target.value })} /></div>
+              <div><Label className="text-xs">Product name</Label><Input value={createInvRow.product_name} onChange={(e) => setCreateInvRow({ ...createInvRow, product_name: e.target.value })} /></div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><Label className="text-xs">Cost / unit</Label><Input type="number" value={createInvRow.cost} onChange={(e) => setCreateInvRow({ ...createInvRow, cost: e.target.value })} /></div>
+                <div><Label className="text-xs">Selling price</Label><Input type="number" value={createInvRow.price} onChange={(e) => setCreateInvRow({ ...createInvRow, price: e.target.value })} /></div>
+              </div>
+              <div><Label className="text-xs">Inbound freight (total)</Label><Input type="number" value={createInvRow.freight} onChange={(e) => setCreateInvRow({ ...createInvRow, freight: e.target.value })} /></div>
+            </div>
+          )}
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setCreateInvOpen(false)}>Cancel</Button>
+            <Button onClick={async () => {
+              if (!createInvRow) return;
+              if (!createInvRow.sku.trim() || !createInvRow.product_name.trim()) {
+                toast({ title: 'SKU and name are required', variant: 'destructive' });
+                return;
+              }
+              const { data, error } = await supabase.from('inventory').insert({
+                sku: createInvRow.sku.trim(),
+                product_name: createInvRow.product_name.trim(),
+                total_bulk_stock_in: 0,
+                average_cost_price: Number(createInvRow.cost) || 0,
+                average_selling_price: Number(createInvRow.price) || 0,
+                delivery_fee: Number(createInvRow.freight) || 0,
+                stock_added_date: new Date().toISOString().slice(0, 10),
+              } as any).select().single();
+              if (error) { toast({ title: 'Create failed', description: error.message, variant: 'destructive' }); return; }
+              // Attach to the preview row and refresh inventory cache
+              setBillPreview((prev) => prev?.map((r, idx) => idx === createInvRow.index ? { ...r, matched_inventory_id: data.id, matched_sku: data.sku, matched_name: data.product_name } : r) ?? null);
+              qc.invalidateQueries({ queryKey: ['inventory'] });
+              toast({ title: `Added ${data.sku} to Inventory` });
+              setCreateInvOpen(false);
+              setCreateInvRow(null);
+            }}>Create</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
     </div>
   );

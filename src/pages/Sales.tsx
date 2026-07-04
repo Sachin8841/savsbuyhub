@@ -60,6 +60,8 @@ export default function Sales() {
   const [payBusy, setPayBusy] = useState(false);
   const [payPreview, setPayPreview] = useState<any[] | null>(null);
   const [payPreviewOpen, setPayPreviewOpen] = useState(false);
+  const [createInvOpen, setCreateInvOpen] = useState(false);
+  const [createInvRow, setCreateInvRow] = useState<{ index: number; sku: string; product_name: string; cost: string; price: string; freight: string } | null>(null);
   const billFileRef = useRef<HTMLInputElement>(null);
   const payFileRef = useRef<HTMLInputElement>(null);
   const qc = useQueryClient();

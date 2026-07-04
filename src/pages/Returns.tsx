@@ -224,27 +224,40 @@ export default function Returns() {
       const rows = parseMeeshoReturnsCsv(text);
       if (!rows.length) { toast({ title: 'No return rows detected', description: 'The CSV does not contain a recognisable header row.', variant: 'destructive' }); return; }
 
-      const normOrder = (s: string) => String(s || '').trim().replace(/_\d+$/, '').toLowerCase();
-      const existingByKey = new Map<string, any>();
+      // Normalize IDs aggressively — strip trailing _N batch suffixes, spaces, dashes, case.
+      const normId = (s: string) => String(s || '').trim().toLowerCase().replace(/[\s\-]+/g, '').replace(/_\d+$/, '');
+      // A row is a duplicate if ANY of its candidate IDs (order OR sub-order) matches
+      // an existing return's order OR sub-order id. This handles the case where the
+      // trained parser sometimes writes the sub-order-id into the order-id field.
+      const existingByAnyId = new Map<string, any>();
+      const seenComposite = new Set<string>();
       for (const r of returns as any[]) {
         const sale = (r as any).sales;
-        const order = normOrder(r.sub_order_number || r.order_number || sale?.order_number || '');
+        const ids = [r.sub_order_number, r.order_number, sale?.order_number].map(normId).filter(Boolean);
+        for (const id of ids) existingByAnyId.set(id, r);
         const invId = r.inventory_id || sale?.inventory_id || '';
-        const key = order ? `${order}|${invId}|${r.return_type}` : `${r.sales_id ?? ''}|${r.return_date ?? ''}|${invId}|${r.return_type}`;
-        existingByKey.set(key, r);
+        seenComposite.add(`${r.return_date ?? ''}|${invId}|${r.return_type}|${r.quantity_returned}`);
       }
-      // Meesho intransit/RTO report = items currently in transit back to seller.
-      // Only mark "Received" when the status EXPLICITLY says the seller has the parcel.
       const isReceivedStatus = (s: string) =>
         /(delivered_to_seller|received_by_supplier|seller.?received|rto.?delivered|return.?delivered.?to.?seller|delivered.?to.?supplier)/i.test(s);
+      // Also dedupe WITHIN the file itself.
+      const fileIds = new Set<string>();
+      const fileComposite = new Set<string>();
       const previews = rows.map((r) => {
         const inv = matchInventoryBySku(inventory as any, r.sku, r.productName);
-        const sale = sales.find((s: any) => s.order_number && (s.order_number === r.subOrderNumber || s.order_number === r.orderNumber));
+        const sale = sales.find((s: any) => s.order_number && (normId(s.order_number) === normId(r.subOrderNumber) || normId(s.order_number) === normId(r.orderNumber)));
         const return_type = classifyReturnType(r.typeOfReturn);
         const return_date = r.returnCreatedDate || r.dispatchDate || new Date().toISOString().slice(0, 10);
-        const orderKey = normOrder(r.subOrderNumber || r.orderNumber);
-        const dedupKey = orderKey ? `${orderKey}|${inv?.id ?? ''}|${return_type}` : `${sale?.id ?? ''}|${return_date}|${inv?.id ?? ''}|${return_type}`;
-        const existingReturn = existingByKey.get(dedupKey);
+        const candidateIds = [r.subOrderNumber, r.orderNumber].map(normId).filter(Boolean);
+        const composite = `${return_date}|${inv?.id ?? ''}|${return_type}|${r.quantity || 1}`;
+        let existingReturn: any = null;
+        for (const id of candidateIds) {
+          if (existingByAnyId.has(id)) { existingReturn = existingByAnyId.get(id); break; }
+        }
+        const dupInDb = !!existingReturn || (candidateIds.length === 0 && seenComposite.has(composite));
+        const dupInFile = candidateIds.some(id => fileIds.has(id)) || (candidateIds.length === 0 && fileComposite.has(composite));
+        candidateIds.forEach(id => fileIds.add(id));
+        fileComposite.add(composite);
         return {
           ...r,
           matchedInventory: inv,
@@ -254,7 +267,8 @@ export default function Returns() {
           delivery_status: isReceivedStatus(r.status) ? 'Received' : 'In Transit',
           platform: 'Meesho',
           existingReturn,
-          duplicate: !!existingReturn,
+          duplicate: dupInDb || dupInFile,
+          duplicateReason: dupInFile && !dupInDb ? 'duplicate row in file' : dupInDb ? 'already logged' : '',
         };
       });
       setMeeshoPreview(previews);
@@ -273,7 +287,10 @@ export default function Returns() {
     const errors: string[] = [];
     for (const p of meeshoPreview) {
       if (!p.matchedInventory) { skipped++; continue; }
+      if (p.duplicate && !p.existingReturn) { skipped++; continue; }
       const penalty_per_unit = p.return_type === 'Customer Return' ? 160 : 0;
+
+
       const reportRow = {
         sku: p.sku,
         productName: p.productName,

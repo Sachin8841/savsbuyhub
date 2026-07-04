@@ -447,18 +447,22 @@ export default function Sales() {
   const confirmBillImport = async () => {
     if (!billPreview) return;
     const today = new Date().toISOString().slice(0, 10);
-    const existingOrderIds = new Set(
-      (sales as any[])
-        .map(s => String(s.order_number ?? '').trim().toLowerCase())
-        .filter(Boolean)
-    );
+    // Normalize IDs so trained parser variants (order_id vs sub_order_id, batch suffixes,
+    // stray spaces/dashes/case) collapse to the same key.
+    const normId = (s: any) => String(s ?? '').trim().toLowerCase().replace(/[\s\-]+/g, '').replace(/_\d+$/, '');
+    const existingOrderIds = new Set<string>();
+    for (const s of sales as any[]) {
+      const k = normId(s.order_number);
+      if (k) existingOrderIds.add(k);
+    }
     const rows: any[] = [];
     const skipped: string[] = [];
     const alreadyLogged: string[] = [];
+    const seenInFile = new Set<string>();
     for (const it of billPreview) {
       if (!it.matched_inventory_id) { skipped.push(it.product_name || it.sku || 'unknown'); continue; }
-      const orderKey = String(it.order_number ?? '').trim().toLowerCase();
-      if (orderKey && existingOrderIds.has(orderKey)) {
+      const orderKey = normId(it.order_number);
+      if (orderKey && (existingOrderIds.has(orderKey) || seenInFile.has(orderKey))) {
         alreadyLogged.push(it.order_number);
         continue;
       }
@@ -477,7 +481,7 @@ export default function Sales() {
         payment_method: it.payment_method ?? null,
         order_number: it.order_number ?? null,
       });
-      if (orderKey) existingOrderIds.add(orderKey);
+      if (orderKey) { existingOrderIds.add(orderKey); seenInFile.add(orderKey); }
     }
     if (rows.length) {
       let { error } = await supabase.from('sales').insert(rows);
@@ -997,24 +1001,33 @@ export default function Sales() {
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">{s.courier_partner ?? '—'}</TableCell>
                     <TableCell>
-                      {admin ? (
-                        <Select value={s.payment_status} onValueChange={(v) => handleStatusChange(s, v)}>
-                          <SelectTrigger className="h-7 text-xs border-0 bg-transparent px-2 w-[120px] focus:ring-0">
-                            <Badge variant={['Settled', 'Packed', 'Dispatched', 'In Transit'].includes(s.payment_status) ? 'default' : s.payment_status === 'Cancelled' ? 'destructive' : 'outline'}>
-                              {s.payment_status}
-                            </Badge>
-                          </SelectTrigger>
-                          <SelectContent>
-                            {['Pending', 'Packed', 'Dispatched', 'In Transit', 'Settled', 'Cancelled', 'Order RTO', 'Return'].map(opt => (
-                              <SelectItem key={opt} value={opt}>{opt}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      ) : (
-                        <Badge variant={['Settled', 'Packed', 'Dispatched', 'In Transit'].includes(s.payment_status) ? 'default' : s.payment_status === 'Cancelled' ? 'destructive' : 'outline'}>
-                          {s.payment_status}
-                        </Badge>
-                      )}
+                      {(() => {
+                        const st = s.payment_status;
+                        const isRed = ['Cancelled', 'Order RTO', 'Return'].includes(st);
+                        const isGreen = st === 'Settled';
+                        const isAmber = st === 'Pending';
+                        const badgeClass = isRed
+                          ? 'bg-red-600 hover:bg-red-600 text-white border-transparent'
+                          : isGreen
+                            ? 'bg-emerald-600 hover:bg-emerald-600 text-white border-transparent'
+                            : isAmber
+                              ? 'bg-amber-500 hover:bg-amber-500 text-white border-transparent'
+                              : 'bg-blue-600 hover:bg-blue-600 text-white border-transparent';
+                        return admin ? (
+                          <Select value={st} onValueChange={(v) => handleStatusChange(s, v)}>
+                            <SelectTrigger className="h-7 text-xs border-0 bg-transparent px-2 w-[120px] focus:ring-0">
+                              <Badge className={badgeClass}>{st}</Badge>
+                            </SelectTrigger>
+                            <SelectContent>
+                              {['Pending', 'Packed', 'Dispatched', 'In Transit', 'Settled', 'Cancelled', 'Order RTO', 'Return'].map(opt => (
+                                <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <Badge className={badgeClass}>{st}</Badge>
+                        );
+                      })()}
                     </TableCell>
                     <TableCell className="text-right font-mono text-xs text-muted-foreground">
                       {s.payment_status === 'Settled' ? fmt(Number((s as any).settlement_amount ?? sp * qty)) : '—'}

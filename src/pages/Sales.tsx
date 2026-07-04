@@ -1221,6 +1221,7 @@ export default function Sales() {
                       {p.action === 'already' && <Badge variant="secondary" className="text-[10px]">Already settled</Badge>}
                       {p.action === 'settle' && <Badge className="text-[10px] bg-emerald-600">Will settle exact</Badge>}
                       {p.action === 'change' && <Badge className="text-[10px] bg-amber-600">Will adjust exact</Badge>}
+                      {p.action === 'return' && <Badge className="text-[10px] bg-red-600">Will log {p.returnKind}</Badge>}
                     </TableCell>
                   </TableRow>
                   );

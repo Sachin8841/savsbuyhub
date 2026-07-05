@@ -246,8 +246,8 @@ export default function PnL() {
       title: 'SAVS BuyHub - Profit & Loss Statement',
       rows: lineItems.map(item => ({
         'Line Item': item.label,
-        'Amount (₹)': item.isMeta ? item.value : Math.abs(item.value),
-        'Type': item.isMeta ? 'Units' : (item.value ?? 0) >= 0 ? 'Income' : 'Expense',
+        'Amount (₹)': Math.abs(Number(item.value) || 0),
+        'Type': item.isMeta ? 'Units' : Number(item.value ?? 0) >= 0 ? 'Income' : 'Expense',
       })),
     });
   };

@@ -412,17 +412,17 @@ export default function PnL() {
 
         <SectionCard title="Operating Expenses Breakdown" description="Distribution of non-COGS overheads">
           <div className="h-64">
-            {pnl.totalExpenses > 0 ? (
+            {pnl.operatingExpenses > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
                     data={[
-                      { name: 'Delivery Fees', value: pnl.deliveryFees },
-                      { name: 'Inventory Freight', value: pnl.inventoryDeliveryFees },
+                      { name: 'Inbound Freight', value: pnl.inboundFreight },
                       { name: 'Return Penalties', value: pnl.returnPenalties },
                       { name: 'Ad Spend', value: pnl.adSpend },
-                      { name: 'Freight', value: pnl.freightExpenses },
+                      { name: 'Delivery / Courier', value: pnl.freightExpenses },
                       { name: 'Packaging', value: pnl.packagingExpenses },
+                      { name: 'Software', value: pnl.softwareExpenses },
                       { name: 'Other', value: pnl.otherExpenses }
                     ].filter(d => d.value > 0)}
                     cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={2} dataKey="value"

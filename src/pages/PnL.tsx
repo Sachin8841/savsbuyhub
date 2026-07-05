@@ -219,21 +219,23 @@ export default function PnL() {
   const liveNetWorth = activePeriod ? Number(activePeriod.net_worth ?? 0) : liveHotCash + liveAccountValue + pnl.stockHoldingValue;
 
   const lineItems = [
-    { label: 'Sales Revenue', value: pnl.revenue, bold: true, type: 'income' as const },
-    { label: `  Units Sold`, value: pnl.units, isMeta: true },
-    { label: 'Cost of Goods Sold (COGS)', value: -pnl.cogs, type: 'expense' as const },
+    { label: 'Gross Revenue (before returns)', value: pnl.grossSales, isMeta: false, type: 'income' as const },
+    { label: 'Less: Returned Revenue', value: -pnl.returnedRevenue, type: 'expense' as const },
+    { label: 'Net Revenue', value: pnl.revenue, bold: true, type: 'income' as const },
+    { label: `  Units Sold / Returned`, value: `${pnl.units} / ${pnl.returnedUnits}`, isMeta: true },
+    { label: 'Cost of Goods Sold (net of returns)', value: -pnl.cogs, type: 'expense' as const },
     { label: 'Gross Profit', value: pnl.grossProfit, bold: true, type: 'subtotal' as const },
-    { label: 'Outbound Delivery Fees (Couriers)', value: -pnl.deliveryFees, type: 'expense' as const },
-    { label: 'Inventory Delivery / Inbound Freight', value: -pnl.inventoryDeliveryFees, type: 'expense' as const },
+    { label: 'Inbound Freight (allocated per unit sold)', value: -pnl.inboundFreight, type: 'expense' as const },
     { label: `Return Penalties (${pnl.returnedUnits} units)`, value: -pnl.returnPenalties, type: 'expense' as const },
     { label: 'Advertising & Marketing', value: -pnl.adSpend, type: 'expense' as const },
-    { label: 'Inbound Freight & Dealer Delivery', value: -pnl.freightExpenses, type: 'expense' as const },
+    { label: 'Delivery / Courier Expenses (logged)', value: -pnl.freightExpenses, type: 'expense' as const },
     { label: 'Packaging Costs', value: -pnl.packagingExpenses, type: 'expense' as const },
+    { label: 'Software & Subscriptions', value: -pnl.softwareExpenses, type: 'expense' as const },
     { label: 'Other General Expenses', value: -pnl.otherExpenses, type: 'expense' as const },
-    { label: 'Total Operating Expenses', value: -pnl.totalExpenses, bold: true, type: 'subtotal' as const },
+    { label: 'Total Operating Expenses', value: -pnl.operatingExpenses, bold: true, type: 'subtotal' as const },
     { label: 'Net Profit / (Loss)', value: pnl.netProfit, bold: true, type: 'total' as const },
-    { label: 'Profit Per Unit', value: pnl.profitPerUnit, bold: true, type: 'total' as const },
-    { label: 'Total Capital Outlay (Expenses + COGS)', value: -(pnl.cogs + pnl.totalExpenses), bold: true, type: 'expense' as const },
+    { label: 'Profit Per Unit (net units)', value: pnl.profitPerUnit, bold: true, type: 'total' as const },
+    { label: 'Total Capital Outlay (COGS + Operating Expenses)', value: -(pnl.cogs + pnl.operatingExpenses), bold: true, type: 'expense' as const },
     { label: 'Capital Tied Up in Unsold Inventory (Asset)', value: pnl.stockHoldingValue, bold: true, type: 'income' as const },
   ];
 

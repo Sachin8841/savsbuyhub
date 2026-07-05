@@ -222,7 +222,7 @@ export default function PnL() {
     { label: 'Gross Revenue (before returns)', value: pnl.grossSales, isMeta: false, type: 'income' as const },
     { label: 'Less: Returned Revenue', value: -pnl.returnedRevenue, type: 'expense' as const },
     { label: 'Net Revenue', value: pnl.revenue, bold: true, type: 'income' as const },
-    { label: `  Units Sold / Returned`, value: `${pnl.units} / ${pnl.returnedUnits}`, isMeta: true },
+    { label: `  Units Sold / Returned`, value: (pnl.units - pnl.returnedUnits), isMeta: true, metaText: `${pnl.units} sold · ${pnl.returnedUnits} returned` },
     { label: 'Cost of Goods Sold (net of returns)', value: -pnl.cogs, type: 'expense' as const },
     { label: 'Gross Profit', value: pnl.grossProfit, bold: true, type: 'subtotal' as const },
     { label: 'Inbound Freight (allocated per unit sold)', value: -pnl.inboundFreight, type: 'expense' as const },

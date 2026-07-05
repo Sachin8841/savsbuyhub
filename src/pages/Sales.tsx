@@ -781,12 +781,17 @@ export default function Sales() {
           <Button variant="outline" size="sm" onClick={handleExport}><Download className="mr-1 h-4 w-4" />Export Excel</Button>
           
           {admin && (
-            <>
-              <input ref={billFileRef} type="file" accept="application/pdf,image/*" className="sr-only" disabled={billUploading} onChange={(e) => { const f = e.target.files?.[0]; if (f) { handleBillUpload(f); e.target.value = ''; } }} />
-              <Button type="button" variant="outline" size="sm" disabled={billUploading} onClick={() => billFileRef.current?.click()}>
-                {billUploading ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <FileUp className="mr-1 h-4 w-4" />}Upload Bill
-              </Button>
-            </>
+            <label className={`inline-flex items-center gap-1 h-9 px-3 rounded-md border border-input bg-background text-sm font-medium shadow-sm hover:bg-accent hover:text-accent-foreground cursor-pointer ${billUploading ? 'opacity-50 pointer-events-none' : ''}`}>
+              {billUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileUp className="h-4 w-4" />}
+              <span>Upload Bill</span>
+              <input
+                type="file"
+                accept="application/pdf,image/*"
+                disabled={billUploading}
+                style={{ position: 'absolute', width: 1, height: 1, opacity: 0, pointerEvents: 'none' }}
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) { handleBillUpload(f); e.target.value = ''; } }}
+              />
+            </label>
           )}
           {admin && (
             <>

@@ -219,21 +219,23 @@ export default function PnL() {
   const liveNetWorth = activePeriod ? Number(activePeriod.net_worth ?? 0) : liveHotCash + liveAccountValue + pnl.stockHoldingValue;
 
   const lineItems = [
-    { label: 'Sales Revenue', value: pnl.revenue, bold: true, type: 'income' as const },
-    { label: `  Units Sold`, value: pnl.units, isMeta: true },
-    { label: 'Cost of Goods Sold (COGS)', value: -pnl.cogs, type: 'expense' as const },
+    { label: 'Gross Revenue (before returns)', value: pnl.grossSales, isMeta: false, type: 'income' as const },
+    { label: 'Less: Returned Revenue', value: -pnl.returnedRevenue, type: 'expense' as const },
+    { label: 'Net Revenue', value: pnl.revenue, bold: true, type: 'income' as const },
+    { label: `  Units Sold / Returned`, value: (pnl.units - pnl.returnedUnits), isMeta: true, metaText: `${pnl.units} sold · ${pnl.returnedUnits} returned` },
+    { label: 'Cost of Goods Sold (net of returns)', value: -pnl.cogs, type: 'expense' as const },
     { label: 'Gross Profit', value: pnl.grossProfit, bold: true, type: 'subtotal' as const },
-    { label: 'Outbound Delivery Fees (Couriers)', value: -pnl.deliveryFees, type: 'expense' as const },
-    { label: 'Inventory Delivery / Inbound Freight', value: -pnl.inventoryDeliveryFees, type: 'expense' as const },
+    { label: 'Inbound Freight (allocated per unit sold)', value: -pnl.inboundFreight, type: 'expense' as const },
     { label: `Return Penalties (${pnl.returnedUnits} units)`, value: -pnl.returnPenalties, type: 'expense' as const },
     { label: 'Advertising & Marketing', value: -pnl.adSpend, type: 'expense' as const },
-    { label: 'Inbound Freight & Dealer Delivery', value: -pnl.freightExpenses, type: 'expense' as const },
+    { label: 'Delivery / Courier Expenses (logged)', value: -pnl.freightExpenses, type: 'expense' as const },
     { label: 'Packaging Costs', value: -pnl.packagingExpenses, type: 'expense' as const },
+    { label: 'Software & Subscriptions', value: -pnl.softwareExpenses, type: 'expense' as const },
     { label: 'Other General Expenses', value: -pnl.otherExpenses, type: 'expense' as const },
-    { label: 'Total Operating Expenses', value: -pnl.totalExpenses, bold: true, type: 'subtotal' as const },
+    { label: 'Total Operating Expenses', value: -pnl.operatingExpenses, bold: true, type: 'subtotal' as const },
     { label: 'Net Profit / (Loss)', value: pnl.netProfit, bold: true, type: 'total' as const },
-    { label: 'Profit Per Unit', value: pnl.profitPerUnit, bold: true, type: 'total' as const },
-    { label: 'Total Capital Outlay (Expenses + COGS)', value: -(pnl.cogs + pnl.totalExpenses), bold: true, type: 'expense' as const },
+    { label: 'Profit Per Unit (net units)', value: pnl.profitPerUnit, bold: true, type: 'total' as const },
+    { label: 'Total Capital Outlay (COGS + Operating Expenses)', value: -(pnl.cogs + pnl.operatingExpenses), bold: true, type: 'expense' as const },
     { label: 'Capital Tied Up in Unsold Inventory (Asset)', value: pnl.stockHoldingValue, bold: true, type: 'income' as const },
   ];
 
@@ -244,8 +246,8 @@ export default function PnL() {
       title: 'SAVS BuyHub - Profit & Loss Statement',
       rows: lineItems.map(item => ({
         'Line Item': item.label,
-        'Amount (₹)': item.isMeta ? item.value : Math.abs(item.value),
-        'Type': item.isMeta ? 'Units' : (item.value ?? 0) >= 0 ? 'Income' : 'Expense',
+        'Amount (₹)': Math.abs(Number(item.value) || 0),
+        'Type': item.isMeta ? 'Units' : Number(item.value ?? 0) >= 0 ? 'Income' : 'Expense',
       })),
     });
   };
@@ -410,17 +412,17 @@ export default function PnL() {
 
         <SectionCard title="Operating Expenses Breakdown" description="Distribution of non-COGS overheads">
           <div className="h-64">
-            {pnl.totalExpenses > 0 ? (
+            {pnl.operatingExpenses > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
                     data={[
-                      { name: 'Delivery Fees', value: pnl.deliveryFees },
-                      { name: 'Inventory Freight', value: pnl.inventoryDeliveryFees },
+                      { name: 'Inbound Freight', value: pnl.inboundFreight },
                       { name: 'Return Penalties', value: pnl.returnPenalties },
                       { name: 'Ad Spend', value: pnl.adSpend },
-                      { name: 'Freight', value: pnl.freightExpenses },
+                      { name: 'Delivery / Courier', value: pnl.freightExpenses },
                       { name: 'Packaging', value: pnl.packagingExpenses },
+                      { name: 'Software', value: pnl.softwareExpenses },
                       { name: 'Other', value: pnl.otherExpenses }
                     ].filter(d => d.value > 0)}
                     cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={2} dataKey="value"
@@ -459,10 +461,10 @@ export default function PnL() {
                   <TableCell className={`${item.bold ? 'font-bold text-slate-900 dark:text-slate-100' : 'text-slate-600 dark:text-slate-400'} ${item.isMeta ? 'text-xs italic' : 'pl-6'}`}>
                     {item.label}
                   </TableCell>
-                  <TableCell className={`text-right font-mono ${item.bold ? 'font-bold text-slate-900 dark:text-slate-100' : ''} ${item.isMeta ? 'text-muted-foreground text-xs' : ''} ${item.type === 'total' ? (item.value >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400') : ''}`}>
-                    {item.isMeta ? item.value.toLocaleString() : fmt(Math.round(Math.abs(item.value)))}
-                    {!item.isMeta && item.value < 0 && <span className="text-red-500 ml-2 inline-block w-3">▼</span>}
-                    {!item.isMeta && item.value > 0 && item.type !== 'expense' && <span className="text-emerald-500 ml-2 inline-block w-3">▲</span>}
+                  <TableCell className={`text-right font-mono ${item.bold ? 'font-bold text-slate-900 dark:text-slate-100' : ''} ${item.isMeta ? 'text-muted-foreground text-xs' : ''} ${item.type === 'total' ? ((item.value as number) >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400') : ''}`}>
+                    {item.isMeta ? ((item as any).metaText ?? Number(item.value).toLocaleString()) : fmt(Math.round(Math.abs(Number(item.value))))}
+                    {!item.isMeta && Number(item.value) < 0 && <span className="text-red-500 ml-2 inline-block w-3">▼</span>}
+                    {!item.isMeta && Number(item.value) > 0 && item.type !== 'expense' && <span className="text-emerald-500 ml-2 inline-block w-3">▲</span>}
                   </TableCell>
                 </TableRow>
               ))}

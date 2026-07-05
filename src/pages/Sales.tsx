@@ -787,7 +787,6 @@ export default function Sales() {
               <input
                 type="file"
                 accept="application/pdf,image/*"
-                capture="environment"
                 disabled={billUploading}
                 style={{ position: 'absolute', width: 1, height: 1, opacity: 0, pointerEvents: 'none' }}
                 onChange={(e) => { const f = e.target.files?.[0]; if (f) { handleBillUpload(f); e.target.value = ''; } }}

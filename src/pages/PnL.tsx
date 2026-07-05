@@ -534,7 +534,7 @@ export default function PnL() {
 
       {/* Cash flow summary */}
       <div className="grid gap-4 lg:grid-cols-2">
-        <SectionCard title="Cash Flow Summary" description="Live working capital position">
+        <SectionCard title="Working Capital Position" description="Live liquid + inventory assets">
           <div className="grid grid-cols-2 gap-3">
             <div className="rounded-lg border bg-gradient-to-br from-emerald-50 to-white dark:from-emerald-950/30 dark:to-slate-900 p-4">
               <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">Hot Cash (COD)</p>
@@ -555,11 +555,72 @@ export default function PnL() {
               <p className="text-[10px] text-muted-foreground mt-1">Saved from completed monthly disclosures</p>
             </div>
           </div>
+        </SectionCard>
+
+        {/* 3-section Cash Flow Statement */}
+        <SectionCard title="Cash Flow Statement" description="Operating · Investing · Financing (from ledger + cash movements)">
+          {(() => {
+            // Operating: net profit + non-cash reconciliations (approx: use direct-method figures)
+            const opInflow = pnl.realizedRevenue;
+            const opOutflow = pnl.cogs + pnl.inboundFreight + pnl.adSpend + pnl.freightExpenses + pnl.packagingExpenses + pnl.softwareExpenses + pnl.otherExpenses + pnl.returnPenalties;
+            const opNet = opInflow - opOutflow;
+
+            // Investing: stock purchases / restocks — approximated from period ad_expenses? Skip; use manual_adjustment movements tagged inventory
+            const investingMovements = (cashMovements as any[]).filter(m => ['inventory_purchase', 'restock'].includes(m.movement_type));
+            const investNet = investingMovements.reduce((s, m) => s + Number(m.hot_cash_delta || 0) + Number(m.account_delta || 0), 0);
+
+            // Financing: manual_set, cash_to_account (internal transfer — net zero), manual_adjustment as owner contributions
+            const financeMovements = (cashMovements as any[]).filter(m => ['manual_set', 'manual_adjustment', 'dividend', 'capital_injection', 'withdrawal'].includes(m.movement_type));
+            const financeNet = financeMovements.reduce((s, m) => s + Number(m.hot_cash_delta || 0) + Number(m.account_delta || 0), 0);
+
+            const netChange = opNet + investNet + financeNet;
+
+            const Row = ({ label, value, indent = false, bold = false, section = false }: any) => (
+              <div className={`flex items-center justify-between text-xs py-1.5 ${section ? 'border-t border-slate-200 dark:border-slate-800 pt-2 mt-1 bg-slate-50 dark:bg-slate-900/40 px-2 rounded' : ''} ${indent ? 'pl-4' : ''}`}>
+                <span className={bold ? 'font-semibold' : 'text-muted-foreground'}>{label}</span>
+                <span className={`font-mono tabular-nums ${bold ? 'font-semibold' : ''} ${value < 0 ? 'text-red-600' : value > 0 ? 'text-emerald-600' : ''}`}>
+                  {value >= 0 ? '+' : ''}{fmt(value)}
+                </span>
+              </div>
+            );
+
+            return (
+              <div className="space-y-1">
+                <Row label="Operating Activities" bold section />
+                <Row label="Cash from settled sales" value={opInflow} indent />
+                <Row label="COGS paid" value={-pnl.cogs} indent />
+                <Row label="Inbound freight (allocated)" value={-pnl.inboundFreight} indent />
+                <Row label="Advertising & marketing" value={-pnl.adSpend} indent />
+                <Row label="Delivery / packaging / software / other" value={-(pnl.freightExpenses + pnl.packagingExpenses + pnl.softwareExpenses + pnl.otherExpenses)} indent />
+                <Row label="Return penalties" value={-pnl.returnPenalties} indent />
+                <Row label="Net cash from operating" value={opNet} bold />
+
+                <Row label="Investing Activities" bold section />
+                <Row label="Inventory purchases / restocks" value={investNet} indent />
+                <Row label="Net cash from investing" value={investNet} bold />
+
+                <Row label="Financing Activities" bold section />
+                <Row label="Owner contributions / adjustments" value={financeNet} indent />
+                <Row label="Net cash from financing" value={financeNet} bold />
+
+                <div className="flex items-center justify-between text-sm py-2 mt-2 border-t-2 border-indigo-200 dark:border-indigo-800 bg-indigo-50/50 dark:bg-indigo-900/20 px-2 rounded">
+                  <span className="font-bold">Net change in cash</span>
+                  <span className={`font-mono tabular-nums font-bold ${netChange >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
+                    {netChange >= 0 ? '+' : ''}{fmt(netChange)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-xs py-1 px-2 text-muted-foreground">
+                  <span>Closing cash balance</span>
+                  <span className="font-mono tabular-nums">{fmt(liveHotCash + liveAccountValue)}</span>
+                </div>
+              </div>
+            );
+          })()}
           {cashMovements.length > 0 && (
             <div className="mt-3 border-t pt-3">
               <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold mb-2">Recent Movements</p>
-              <div className="space-y-1 max-h-40 overflow-y-auto">
-                {cashMovements.slice(0, 8).map((m: any) => (
+              <div className="space-y-1 max-h-32 overflow-y-auto">
+                {cashMovements.slice(0, 6).map((m: any) => (
                   <div key={m.id} className="flex items-center justify-between text-xs py-1 border-b border-dashed last:border-0">
                     <span className="text-muted-foreground truncate">{m.movement_type.replace(/_/g, ' ')} · {new Date(m.created_at).toLocaleDateString()}</span>
                     <span className={`font-mono tabular-nums ${(m.hot_cash_delta + m.account_delta) >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>

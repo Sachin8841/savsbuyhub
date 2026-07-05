@@ -461,10 +461,10 @@ export default function PnL() {
                   <TableCell className={`${item.bold ? 'font-bold text-slate-900 dark:text-slate-100' : 'text-slate-600 dark:text-slate-400'} ${item.isMeta ? 'text-xs italic' : 'pl-6'}`}>
                     {item.label}
                   </TableCell>
-                  <TableCell className={`text-right font-mono ${item.bold ? 'font-bold text-slate-900 dark:text-slate-100' : ''} ${item.isMeta ? 'text-muted-foreground text-xs' : ''} ${item.type === 'total' ? (item.value >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400') : ''}`}>
-                    {item.isMeta ? item.value.toLocaleString() : fmt(Math.round(Math.abs(item.value)))}
-                    {!item.isMeta && item.value < 0 && <span className="text-red-500 ml-2 inline-block w-3">▼</span>}
-                    {!item.isMeta && item.value > 0 && item.type !== 'expense' && <span className="text-emerald-500 ml-2 inline-block w-3">▲</span>}
+                  <TableCell className={`text-right font-mono ${item.bold ? 'font-bold text-slate-900 dark:text-slate-100' : ''} ${item.isMeta ? 'text-muted-foreground text-xs' : ''} ${item.type === 'total' ? ((item.value as number) >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400') : ''}`}>
+                    {item.isMeta ? ((item as any).metaText ?? Number(item.value).toLocaleString()) : fmt(Math.round(Math.abs(Number(item.value))))}
+                    {!item.isMeta && Number(item.value) < 0 && <span className="text-red-500 ml-2 inline-block w-3">▼</span>}
+                    {!item.isMeta && Number(item.value) > 0 && item.type !== 'expense' && <span className="text-emerald-500 ml-2 inline-block w-3">▲</span>}
                   </TableCell>
                 </TableRow>
               ))}

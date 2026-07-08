@@ -827,6 +827,11 @@ export default function Sales() {
                       </Select>
                     )} />
                     {form.formState.errors.inventory_id && <p className="text-xs text-destructive mt-1">{form.formState.errors.inventory_id.message}</p>}
+                    {selectedInvId && !editId && (
+                      <p className={`text-[11px] mt-1 font-medium ${selectedStock !== null && selectedStock <= 0 ? 'text-destructive' : selectedStock !== null && selectedStock <= 5 ? 'text-amber-600' : 'text-muted-foreground'}`}>
+                        Available stock: {selectedStock ?? 0} units
+                      </p>
+                    )}
                   </div>
 
                   {/* Row: Qty + SP */}

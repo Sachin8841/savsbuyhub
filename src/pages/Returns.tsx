@@ -81,7 +81,7 @@ export default function Returns() {
   const totalPenalty = returns.reduce((sum, r) => sum + r.penalty_amount, 0);
   const inTransit = returns.filter(r => r.delivery_status === 'In Transit').length;
   const received = returns.filter(r => r.delivery_status === 'Received').length;
-  const fmt = (n: number) => '₹' + n.toLocaleString('en-IN', { maximumFractionDigits: 0 });
+  const fmt = (n: number | null | undefined) => { const v = Number(n); return '₹' + (Number.isFinite(v) ? v : 0).toLocaleString('en-IN', { maximumFractionDigits: 0 }); };
 
   // Generate Penalty Chart Data
   const penaltyBySku = filtered.reduce((acc: any, curr) => {

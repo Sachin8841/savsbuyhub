@@ -10,7 +10,7 @@ import { useNavigate } from 'react-router-dom';
 import { PeriodSelector, getFilterDate } from '@/components/DateRangePicker';
 import { useAuthStore } from '@/stores/authStore';
 
-const fmt = (n: number) => '₹' + n.toLocaleString('en-IN', { maximumFractionDigits: 0 });
+const fmt = (n: number | null | undefined) => { const v = Number(n); return '₹' + (Number.isFinite(v) ? v : 0).toLocaleString('en-IN', { maximumFractionDigits: 0 }); };
 
 export default function Forecast() {
   const [sharePrice, setSharePrice] = useState<number>(100);

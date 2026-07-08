@@ -155,7 +155,7 @@ export default function Inventory() {
     toast({ title: 'Item deleted' });
   };
 
-  const fmt = (n: number) => '₹' + n.toLocaleString('en-IN', { maximumFractionDigits: 2 });
+  const fmt = (n: number | null | undefined) => { const v = Number(n); return '₹' + (Number.isFinite(v) ? v : 0).toLocaleString('en-IN', { maximumFractionDigits: 2 }); };
 
   const handleExport = () => {
     exportToXlsx({

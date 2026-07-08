@@ -139,17 +139,17 @@ export default function Sales() {
       const totalQty = values.quantity_sold * numOrders;
 
       if (!editId) {
+        let availableStock: number | null = null;
         try {
           const { data: stock, error: rpcError } = await supabase.rpc('get_current_stock', { inv_id: values.inventory_id });
-          
-          if (rpcError) {
-            console.warn('Stock validation RPC failed (likely schema cache issue). Proceeding with sale log anyway.');
-          } else if (stock !== null && totalQty > (stock as number)) {
-            toast({ title: 'Insufficient stock', description: `Need ${totalQty} units but only ${stock} units available`, variant: 'destructive' });
-            return;
-          }
+          if (!rpcError && stock !== null) availableStock = Number(stock);
         } catch (e) {
-          console.warn('Failed to check stock, continuing...');
+          console.warn('Stock RPC failed, falling back to client cache');
+        }
+        if (availableStock === null) availableStock = Number(currentStocks[values.inventory_id] ?? 0);
+        if (totalQty > availableStock) {
+          toast({ title: 'Insufficient stock', description: `Need ${totalQty} units but only ${availableStock} available. Restock inventory before logging this sale.`, variant: 'destructive' });
+          return;
         }
       }
 

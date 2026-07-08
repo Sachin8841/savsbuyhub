@@ -216,7 +216,7 @@ export function summarizeFinancials({
       : n(item.total_bulk_stock_in)
         - (sales ?? []).filter((sale) => sale.inventory_id === item.id && !isCancelledSale(sale)).reduce((s, sale) => s + saleQuantity(sale), 0)
         + (returns ?? []).filter((ret) => (ret.inventory_id || saleById.get(ret.sales_id)?.inventory_id) === item.id && ret.delivery_status === 'Received').reduce((s, ret) => s + n(ret.quantity_returned), 0);
-    return sum + Math.max(0, stock) * (n(item.average_cost_price) + inventoryUnitFreight(item));
+    return sum + Math.max(0, stock) * n(item.average_cost_price);
   }, 0);
 
   const platforms = Array.from(platformMap.values())

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { useSales, useInventory } from '@/hooks/useData';
+import { useSales, useInventory, useCurrentStocks } from '@/hooks/useData';
 import { useAuthStore } from '@/stores/authStore';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
@@ -23,6 +23,7 @@ import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { parseMeeshoPaymentXlsx } from '@/lib/importMeesho';
+import { summarizeFinancials } from '@/lib/finance';
 
 
 const COURIER_OPTIONS = ['Valmo', 'Delhivery', 'Shadowfax', 'XpressBees', 'SAVS Trans X', 'Other'];
@@ -75,6 +76,8 @@ export default function Sales() {
 
   const paymentStatus = form.watch('payment_status');
   const selectedInvId = form.watch('inventory_id');
+  const currentStocks = useCurrentStocks();
+  const selectedStock = selectedInvId ? Number(currentStocks[selectedInvId] ?? 0) : null;
 
   // Auto-fill selling price from inventory
   const selectedInv = inventory.find(i => i.id === selectedInvId);
@@ -105,25 +108,14 @@ export default function Sales() {
   const visibleSales = useMemo(() => filtered.slice(0, 250), [filtered]);
 
   const metrics = useMemo(() => {
-    let totalRevenue = 0, pendingAmount = 0, settledAmount = 0, totalCostPrice = 0, totalFreight = 0;
-    for (const s of filtered as any[]) {
-      if (s.payment_status === 'Cancelled') continue;
-      const listed = Number(s.quantity_sold * s.average_selling_price);
-      const realized = s.payment_status === 'Settled'
-        ? Number(s.settlement_amount ?? listed)
-        : listed;
-      totalRevenue += realized;
-      if (['Pending', 'Packed', 'Dispatched', 'In Transit'].includes(s.payment_status)) pendingAmount += listed;
-      if (s.payment_status === 'Settled') settledAmount += Number(s.settlement_amount ?? listed);
-      const inv = (Array.isArray(s.inventory) ? s.inventory[0] : s.inventory) as any;
-      const cp = s.cost_price ?? inv?.average_cost_price ?? 0;
-      const baseStock = Math.max(1, Number(inv?.total_bulk_stock_in ?? 1));
-      const unitFreight = Number(inv?.delivery_fee ?? 0) / baseStock;
-      totalCostPrice += s.quantity_sold * cp;
-      totalFreight += s.quantity_sold * unitFreight;
-    }
-    return { totalRevenue, pendingAmount, settledAmount, totalProfit: totalRevenue - totalCostPrice - totalFreight };
-  }, [filtered]);
+    const summary = summarizeFinancials({ sales: filtered as any[], returns: [], inventory: inventory as any[], expenses: [] });
+    return {
+      totalRevenue: summary.revenue,
+      pendingAmount: summary.pendingRevenue,
+      settledAmount: summary.realizedRevenue,
+      totalProfit: summary.revenue - summary.cogs - summary.inboundFreight,
+    };
+  }, [filtered, inventory]);
   const { totalRevenue, pendingAmount, settledAmount, totalProfit } = metrics;
   const fmt = (n: number | null | undefined) => { const v = Number(n); return '₹' + (Number.isFinite(v) ? v : 0).toLocaleString('en-IN', { maximumFractionDigits: 0 }); };
 
@@ -147,17 +139,17 @@ export default function Sales() {
       const totalQty = values.quantity_sold * numOrders;
 
       if (!editId) {
+        let availableStock: number | null = null;
         try {
           const { data: stock, error: rpcError } = await supabase.rpc('get_current_stock', { inv_id: values.inventory_id });
-          
-          if (rpcError) {
-            console.warn('Stock validation RPC failed (likely schema cache issue). Proceeding with sale log anyway.');
-          } else if (stock !== null && totalQty > (stock as number)) {
-            toast({ title: 'Insufficient stock', description: `Need ${totalQty} units but only ${stock} units available`, variant: 'destructive' });
-            return;
-          }
+          if (!rpcError && stock !== null) availableStock = Number(stock);
         } catch (e) {
-          console.warn('Failed to check stock, continuing...');
+          console.warn('Stock RPC failed, falling back to client cache');
+        }
+        if (availableStock === null) availableStock = Number(currentStocks[values.inventory_id] ?? 0);
+        if (totalQty > availableStock) {
+          toast({ title: 'Insufficient stock', description: `Need ${totalQty} units but only ${availableStock} available. Restock inventory before logging this sale.`, variant: 'destructive' });
+          return;
         }
       }
 
@@ -835,6 +827,11 @@ export default function Sales() {
                       </Select>
                     )} />
                     {form.formState.errors.inventory_id && <p className="text-xs text-destructive mt-1">{form.formState.errors.inventory_id.message}</p>}
+                    {selectedInvId && !editId && (
+                      <p className={`text-[11px] mt-1 font-medium ${selectedStock !== null && selectedStock <= 0 ? 'text-destructive' : selectedStock !== null && selectedStock <= 5 ? 'text-amber-600' : 'text-muted-foreground'}`}>
+                        Available stock: {selectedStock ?? 0} units
+                      </p>
+                    )}
                   </div>
 
                   {/* Row: Qty + SP */}

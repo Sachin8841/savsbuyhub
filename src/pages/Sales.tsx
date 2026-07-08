@@ -125,7 +125,7 @@ export default function Sales() {
     return { totalRevenue, pendingAmount, settledAmount, totalProfit: totalRevenue - totalCostPrice - totalFreight };
   }, [filtered]);
   const { totalRevenue, pendingAmount, settledAmount, totalProfit } = metrics;
-  const fmt = (n: number) => '₹' + n.toLocaleString('en-IN', { maximumFractionDigits: 0 });
+  const fmt = (n: number | null | undefined) => { const v = Number(n); return '₹' + (Number.isFinite(v) ? v : 0).toLocaleString('en-IN', { maximumFractionDigits: 0 }); };
 
   // Generate data for Sales Velocity Chart
   const salesByDate = filtered.reduce((acc: any, curr) => {

@@ -17,7 +17,7 @@ import { AlertNotifications } from '@/components/AlertNotifications';
 import { PeriodSelector, getFilterDate } from '@/components/DateRangePicker';
 import { inventoryUnitFreight, saleQuantity, saleRealizedAmount, saleUnitCost, saleUnitRevenue, summarizeFinancials } from '@/lib/finance';
 
-const fmt = (n: number) => '₹' + n.toLocaleString('en-IN', { maximumFractionDigits: 0 });
+const fmt = (n: number | null | undefined) => { const v = Number(n); return '₹' + (Number.isFinite(v) ? v : 0).toLocaleString('en-IN', { maximumFractionDigits: 0 }); };
 
 export default function Dashboard() {
   const { data: sales = [] } = useSales();

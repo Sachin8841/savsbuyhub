@@ -76,6 +76,8 @@ export default function Sales() {
 
   const paymentStatus = form.watch('payment_status');
   const selectedInvId = form.watch('inventory_id');
+  const currentStocks = useCurrentStocks();
+  const selectedStock = selectedInvId ? Number(currentStocks[selectedInvId] ?? 0) : null;
 
   // Auto-fill selling price from inventory
   const selectedInv = inventory.find(i => i.id === selectedInvId);

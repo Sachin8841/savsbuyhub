@@ -31,7 +31,7 @@ export default function PnL() {
   const { data: adExpenses = [] } = useAdExpenses();
   const { data: capital } = useCapitalAccounts();
   const { data: cashMovements = [] } = useCashMovements();
-  const [period, setPeriod] = useState('month');
+  const [period, setPeriod] = useState('max');
   const [dateRange, setDateRange] = useState<{ from?: Date; to?: Date }>({});
   const [disclosureOpen, setDisclosureOpen] = useState(false);
   const [disclosureConfirm, setDisclosureConfirm] = useState('');

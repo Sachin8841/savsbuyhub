@@ -11,13 +11,15 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DollarSign, Clock, AlertTriangle, Package, ShoppingCart, ArrowUpRight, ArrowDownRight, Megaphone, Warehouse, Download, TrendingUp, Trash2, Pencil, Percent, Truck, Banknote, Landmark, ArrowRightLeft } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Line, PieChart, Pie, Cell, Legend, ComposedChart, Area } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Line, PieChart, Pie, Cell, Legend, ComposedChart, Area, ReferenceLine, Brush } from 'recharts';
 import { exportDashboardReport } from '@/lib/xlsx-export';
 import { AlertNotifications } from '@/components/AlertNotifications';
 import { PeriodSelector, getFilterDate } from '@/components/DateRangePicker';
 import { inventoryUnitFreight, saleQuantity, saleRealizedAmount, saleUnitCost, saleUnitRevenue, summarizeFinancials } from '@/lib/finance';
+import { formatMoney, formatMoneyCompact, formatNumber, formatPercent } from '@/lib/format';
 
-const fmt = (n: number | null | undefined) => { const v = Number(n); return '₹' + (Number.isFinite(v) ? v : 0).toLocaleString('en-IN', { maximumFractionDigits: 0 }); };
+const fmt = (n: number | null | undefined) => formatMoney(n, 0);
+
 
 export default function Dashboard() {
   const { data: sales = [] } = useSales();
@@ -286,21 +288,32 @@ export default function Dashboard() {
 
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (!active || !payload?.length) return null;
+    const d = payload[0]?.payload ?? {};
+    const margin = d.revenue > 0 ? (d.profit / d.revenue) * 100 : 0;
     return (
-      <div className="rounded-lg border bg-card p-3 shadow-lg text-sm">
-        <p className="font-medium text-foreground mb-1">{label}</p>
+      <div className="rounded-lg border bg-card p-3 shadow-lg text-sm min-w-[190px]">
+        <p className="font-semibold text-foreground mb-1.5">{label}</p>
         {payload.map((p: any, i: number) => (
-          <div key={i} className="flex items-center gap-2">
-            <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: p.color }} />
-            <span className="text-muted-foreground">{p.name}:</span>
-            <span className="font-medium text-foreground">
-              {p.name === 'Orders' || p.name === 'Units' ? p.value : fmt(p.value)}
+          <div key={i} className="flex items-center justify-between gap-3">
+            <span className="flex items-center gap-1.5 text-muted-foreground">
+              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: p.color }} />
+              {p.name}
+            </span>
+            <span className="font-medium text-foreground tabular-nums">
+              {p.name === 'Orders' || p.name === 'Units' ? formatNumber(p.value) : fmt(p.value)}
             </span>
           </div>
         ))}
+        <div className="mt-1.5 pt-1.5 border-t space-y-0.5 text-[11px] text-muted-foreground">
+          {'orders' in d && <div className="flex justify-between"><span>Orders</span><span className="tabular-nums text-foreground">{formatNumber(d.orders)}</span></div>}
+          {'units' in d && <div className="flex justify-between"><span>Units</span><span className="tabular-nums text-foreground">{formatNumber(d.units)}</span></div>}
+          {'profit' in d && <div className="flex justify-between"><span>Margin</span><span className={`tabular-nums ${margin >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{formatPercent(margin)}</span></div>}
+          {'profitPerUnit' in d && <div className="flex justify-between"><span>Profit / unit</span><span className="tabular-nums text-foreground">{fmt(d.profitPerUnit)}</span></div>}
+        </div>
       </div>
     );
   };
+
 
   const ReturnTooltip = ({ active, payload }: any) => {
     if (!active || !payload?.length) return null;
@@ -455,31 +468,43 @@ export default function Dashboard() {
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div>
-              <CardTitle className="text-base">Revenue & Profit Trend</CardTitle>
-              <CardDescription>Investment, revenue, profit/loss & unit count by dispatch date</CardDescription>
+              <CardTitle className="text-base">Revenue vs Investment &amp; Profit</CardTitle>
+              <CardDescription>Bars compare money in vs money out; the line tracks realised profit/loss per period</CardDescription>
             </div>
           </div>
         </CardHeader>
-        <CardContent className="h-80">
+        <CardContent className="h-[22rem] px-1 sm:px-4">
           {trendData.length > 0 ? (
             <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={trendData}>
-                <defs>
-                  <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="hsl(224, 76%, 48%)" stopOpacity={0.2} />
-                    <stop offset="100%" stopColor="hsl(224, 76%, 48%)" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="label" fontSize={10} tick={{ fill: 'hsl(var(--muted-foreground))' }} />
-                <YAxis yAxisId="money" fontSize={10} tickFormatter={(v) => `₹${v >= 1000 ? (v / 1000).toFixed(0) + 'k' : v}`} tick={{ fill: 'hsl(var(--muted-foreground))' }} />
-                <YAxis yAxisId="count" orientation="right" fontSize={10} tick={{ fill: 'hsl(var(--muted-foreground))' }} label={{ value: 'Units', angle: 90, position: 'insideRight', fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
-                <Tooltip content={<CustomTooltip />} />
-                <Area yAxisId="money" dataKey="revenue" stroke="hsl(224, 76%, 48%)" strokeWidth={2.5} fill="url(#revGrad)" name="Revenue" />
-                <Line yAxisId="money" dataKey="investment" stroke="hsl(38, 92%, 50%)" strokeWidth={2} name="Investment" dot={false} />
-                <Line yAxisId="money" dataKey="profit" stroke="hsl(142, 76%, 36%)" strokeWidth={2} name="Profit" dot={{ r: 3, fill: 'hsl(142, 76%, 36%)' }} />
-                <Bar yAxisId="count" dataKey="units" name="Units" fill="hsl(280, 68%, 50%)" opacity={0.4} barSize={trendData.length > 20 ? 6 : 16} />
-                <Legend />
+              <ComposedChart data={trendData} margin={{ top: 8, right: 8, left: 0, bottom: trendData.length > 8 ? 28 : 8 }} barGap={2}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
+                <XAxis
+                  dataKey="label"
+                  fontSize={10}
+                  tickLine={false}
+                  axisLine={false}
+                  interval="preserveStartEnd"
+                  angle={trendData.length > 8 ? -35 : 0}
+                  textAnchor={trendData.length > 8 ? 'end' : 'middle'}
+                  height={trendData.length > 8 ? 48 : 24}
+                  tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                />
+                <YAxis
+                  yAxisId="money"
+                  fontSize={10}
+                  width={56}
+                  tickLine={false}
+                  axisLine={false}
+                  tickFormatter={formatMoneyCompact}
+                  tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                />
+                <Tooltip content={<CustomTooltip />} cursor={{ fill: 'hsl(var(--primary)/0.06)' }} />
+                <Legend verticalAlign="top" height={28} iconType="circle" wrapperStyle={{ fontSize: 11 }} />
+                <ReferenceLine yAxisId="money" y={0} stroke="hsl(var(--border))" />
+                <Bar yAxisId="money" dataKey="revenue" name="Revenue" fill="hsl(224, 76%, 48%)" radius={[3, 3, 0, 0]} maxBarSize={26} />
+                <Bar yAxisId="money" dataKey="investment" name="Investment" fill="hsl(38, 92%, 50%)" radius={[3, 3, 0, 0]} maxBarSize={26} />
+                <Line yAxisId="money" type="monotone" dataKey="profit" name="Profit" stroke="hsl(142, 76%, 36%)" strokeWidth={2.5} dot={{ r: 2.5 }} activeDot={{ r: 5 }} />
+                {trendData.length > 12 && <Brush dataKey="label" height={20} travellerWidth={8} stroke="hsl(var(--primary))" />}
               </ComposedChart>
             </ResponsiveContainer>
           ) : (
@@ -487,6 +512,7 @@ export default function Dashboard() {
           )}
         </CardContent>
       </Card>
+
 
       {/* Profit Per Unit + Units Sold */}
       <div className="grid gap-6 lg:grid-cols-2">

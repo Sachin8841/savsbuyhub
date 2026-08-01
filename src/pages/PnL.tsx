@@ -18,11 +18,10 @@ import { AlertTriangle, TrendingUp, TrendingDown, DollarSign, Landmark, Scale, R
 import { useEffect } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid, Line, Area, AreaChart } from 'recharts';
 import { inventoryUnitFreight, saleQuantity, saleRealizedAmount, saleUnitCost, saleUnitRevenue, summarizeFinancials } from '@/lib/finance';
+import { formatMoney } from '@/lib/format';
 
-const fmt = (n: number | null | undefined) => {
-  const v = Number(n);
-  return '₹' + (Number.isFinite(v) ? v : 0).toLocaleString('en-IN', { maximumFractionDigits: 0 });
-};
+const fmt = (n: number | null | undefined) => formatMoney(n, 0);
+
 
 export default function PnL() {
   const { data: sales = [] } = useSales();
@@ -326,6 +325,49 @@ export default function PnL() {
     }
   };
 
+  // Recomputes the same figures the Dashboard shows and compares them line by line.
+  const handleParityCheck = () => {
+    const dash = summarizeFinancials({
+      sales: sales as any[],
+      returns: returns as any[],
+      inventory: inventory as any[],
+      expenses: adExpenses as any[],
+      currentStocks,
+      from: filterFrom,
+      to: filterTo,
+    });
+    const checks: { label: string; a: number; b: number }[] = [
+      { label: 'Net Revenue', a: pnl.revenue, b: dash.revenue },
+      { label: 'COGS', a: pnl.cogs, b: dash.cogs },
+      { label: 'Operating Expenses', a: pnl.operatingExpenses, b: dash.operatingExpenses },
+      { label: 'Net Profit', a: pnl.netProfit, b: dash.netProfit },
+      { label: 'Stock Value', a: pnl.stockHoldingValue, b: dash.stockHoldingValue },
+      { label: 'Units Sold', a: pnl.unitsSold, b: dash.unitsSold },
+    ];
+    const drift = checks.filter(c => Math.abs(c.a - c.b) > 1);
+    if (activePeriod) {
+      toast({ title: 'Parity check skipped', description: 'Switch to the Active Ledger to compare against the live dashboard.' });
+      return;
+    }
+    toast({
+      title: drift.length === 0 ? 'Parity check passed' : `Parity drift on ${drift.length} line(s)`,
+      description: (
+        <div className="space-y-0.5 text-xs">
+          {checks.map(c => (
+            <div key={c.label} className="flex justify-between gap-4">
+              <span>{c.label}</span>
+              <span className={Math.abs(c.a - c.b) > 1 ? 'text-destructive font-semibold' : ''}>
+                {c.label === 'Units Sold' ? `${c.a} / ${c.b}` : `${fmt(c.a)} / ${fmt(c.b)}`}
+              </span>
+            </div>
+          ))}
+        </div>
+      ) as any,
+      variant: drift.length === 0 ? undefined : 'destructive',
+    });
+  };
+
+
   return (
     <div className="space-y-5 animate-in">
       <PageHeader
@@ -345,6 +387,8 @@ export default function PnL() {
               ))}
             </select>
           </div>
+          <Button variant="outline" size="sm" className="gap-1 h-9" onClick={handleParityCheck}><Scale className="h-4 w-4" />Parity Check</Button>
+
           <Dialog open={disclosureOpen} onOpenChange={setDisclosureOpen}>
             <DialogTrigger asChild>
               <Button variant="destructive" size="sm" className="gap-1 h-9"><AlertTriangle className="h-4 w-4" />Monthly Disclosure</Button>

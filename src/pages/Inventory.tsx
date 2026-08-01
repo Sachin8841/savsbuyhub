@@ -193,10 +193,11 @@ export default function Inventory() {
     return { success, errors };
   };
 
-  // Each SKU row (including restocked batches) is treated as a unique SKU.
-  const totalSkus = inventory.length;
+  // Restocks are merged into the existing SKU row, so a SKU is counted exactly once.
+  const totalSkus = new Set(inventory.map(i => String(i.sku).trim().toUpperCase())).size;
   const lowStockCount = inventory.filter(i => (currentStocks[i.id] ?? 0) <= 5).length;
   const totalBulk = inventory.reduce((s, i) => s + i.total_bulk_stock_in, 0);
+
 
 
   return (
@@ -292,9 +293,10 @@ export default function Inventory() {
       {/* KPI Row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <StatCard title="Locked Capital" value={fmt(totalStockValue)} icon={<Package />} color="primary" subtitle={`${totalSkus} unique SKUs`} />
-        <StatCard title="Total Stock In" value={totalBulk.toLocaleString()} icon={<Boxes />} color="slate" subtitle="All batches" />
+        <StatCard title="Total Stock In" value={totalBulk.toLocaleString()} icon={<Boxes />} color="slate" subtitle="Including restocks" />
         <StatCard title="Low Stock" value={lowStockCount} icon={<AlertTriangle />} color={lowStockCount > 0 ? 'amber' : 'emerald'} subtitle="≤ 5 units remaining" />
-        <StatCard title="Unique SKUs" value={totalSkus} icon={<BarChart2 />} color="slate" subtitle="Every batch counted" />
+        <StatCard title="Unique SKUs" value={totalSkus} icon={<BarChart2 />} color="slate" subtitle="Restocks merged into SKU" />
+
       </div>
 
       {/* Chart */}
@@ -329,7 +331,7 @@ export default function Inventory() {
             <TableHeader>
               <TableRow className="bg-muted/30">
                 <TableHead className="font-semibold">SKU</TableHead>
-                <TableHead className="font-semibold">Type</TableHead>
+                <TableHead className="font-semibold">Aliases</TableHead>
                 <TableHead className="font-semibold">Product Name</TableHead>
                 <TableHead className="text-right font-semibold">Cost Price</TableHead>
                 <TableHead className="text-right font-semibold">Selling Price</TableHead>
@@ -346,9 +348,10 @@ export default function Inventory() {
                 return (
                   <TableRow key={item.id} className="hover:bg-primary/5 transition-colors group">
                     <TableCell className="font-mono text-xs font-medium text-primary">{item.sku}</TableCell>
-                    <TableCell>
-                      {(item as any).parent_inventory_id ? <Badge variant="secondary" className="text-[10px]">Child</Badge> : <Badge variant="outline" className="text-[10px]">Unique</Badge>}
+                    <TableCell className="max-w-[160px] truncate text-xs text-muted-foreground" title={(item.aliases ?? []).join(', ')}>
+                      {(item.aliases ?? []).length ? (item.aliases as string[]).join(', ') : '—'}
                     </TableCell>
+
                     <TableCell className="font-medium">{item.product_name}</TableCell>
                     <TableCell className="text-right text-muted-foreground">{fmt(item.average_cost_price)}</TableCell>
                     <TableCell className="text-right text-muted-foreground">{fmt(item.average_selling_price ?? 0)}</TableCell>
@@ -364,10 +367,9 @@ export default function Inventory() {
                     <TableCell className="text-muted-foreground text-sm">{(item as any).stock_added_date ?? '—'}</TableCell>
                     {admin && (
                       <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                          {!/_B\d+$/.test(item.sku) && (
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-indigo-500 hover:text-indigo-700 hover:bg-indigo-50" title="Restock (New Batch)" onClick={() => handleRestockInit(item)}><PackagePlus className="h-4 w-4" /></Button>
-                          )}
+                        <div className="flex items-center justify-end gap-0.5 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-indigo-500 hover:text-indigo-700 hover:bg-indigo-50" title="Restock (merges into this SKU)" onClick={() => handleRestockInit(item)}><PackagePlus className="h-4 w-4" /></Button>
+
                           <Button variant="ghost" size="icon" className="h-8 w-8" title="Edit" onClick={() => handleEdit(item)}><Pencil className="h-3.5 w-3.5" /></Button>
                           <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10" title="Delete" onClick={() => handleDelete(item.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
                         </div>

@@ -1028,9 +1028,10 @@ export default function Sales() {
                 <TableHead className="font-semibold text-xs">SKU</TableHead>
                 <TableHead className="font-semibold text-xs">Product</TableHead>
                 <TableHead className="text-right font-semibold text-xs">Qty</TableHead>
-                <TableHead className="text-right font-semibold text-xs">CP</TableHead>
-                <TableHead className="text-right font-semibold text-xs">SP</TableHead>
+                <TableHead className="text-right font-semibold text-xs whitespace-nowrap">Total CP</TableHead>
+                <TableHead className="text-right font-semibold text-xs whitespace-nowrap">Total SP</TableHead>
                 <TableHead className="text-right font-semibold text-xs">P/L</TableHead>
+
                 <TableHead className="font-semibold text-xs">Courier</TableHead>
                 <TableHead className="font-semibold text-xs">Status</TableHead>
                 <TableHead className="text-right font-semibold text-xs">Settled</TableHead>
@@ -1043,7 +1044,9 @@ export default function Sales() {
                 const cp = s.cost_price ?? inv?.average_cost_price ?? 0;
                 const sp = s.average_selling_price;
                 const qty = s.quantity_sold;
-                const rowProfit = (sp - cp) * qty;
+                const totalCp = cp * qty;
+                const totalSp = (s as any).settlement_amount ?? sp * qty;
+                const rowProfit = totalSp - totalCp;
                 return (
                   <TableRow key={s.id} className="hover:bg-primary/5 transition-colors group">
                     <TableCell className="text-sm font-medium text-muted-foreground">{s.dispatch_date}</TableCell>
@@ -1052,11 +1055,18 @@ export default function Sales() {
                     <TableCell className="font-mono text-xs text-primary font-medium">{inv?.sku}</TableCell>
                     <TableCell className="max-w-[200px] truncate font-medium">{inv?.product_name}</TableCell>
                     <TableCell className="text-right tabular-nums font-semibold">{qty}</TableCell>
-                    <TableCell className="text-right font-mono text-xs text-muted-foreground">{fmt(cp)}</TableCell>
-                    <TableCell className="text-right font-mono text-xs text-muted-foreground">{fmt(sp)}</TableCell>
+                    <TableCell className="text-right font-mono text-xs whitespace-nowrap">
+                      <span className="font-semibold text-foreground">{fmt(totalCp)}</span>
+                      <span className="block text-[10px] text-muted-foreground">{fmt(cp)}/u</span>
+                    </TableCell>
+                    <TableCell className="text-right font-mono text-xs whitespace-nowrap">
+                      <span className="font-semibold text-foreground">{fmt(totalSp)}</span>
+                      <span className="block text-[10px] text-muted-foreground">{fmt(qty > 0 ? totalSp / qty : sp)}/u</span>
+                    </TableCell>
                     <TableCell className={`text-right font-mono text-xs font-bold ${rowProfit > 0 ? 'text-emerald-600 dark:text-emerald-400' : rowProfit < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-500'}`}>
                       {rowProfit >= 0 ? '+' : ''}{fmt(rowProfit)}
                     </TableCell>
+
                     <TableCell className="text-sm text-muted-foreground">{s.courier_partner ?? '—'}</TableCell>
                     <TableCell>
                       {(() => {

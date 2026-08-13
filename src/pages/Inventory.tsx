@@ -354,14 +354,23 @@ export default function Inventory() {
               {filtered.map(item => {
                 const stock = currentStocks[item.id] ?? 0;
                 const isLow = stock <= 5;
+                const isBatch = !!(item as any).parent_inventory_id;
                 return (
                   <TableRow key={item.id} className="hover:bg-primary/5 transition-colors group">
-                    <TableCell className="font-mono text-xs font-medium text-primary">{item.sku}</TableCell>
+                    <TableCell className="font-mono text-xs font-medium text-primary">
+                      <span className={isBatch ? 'pl-3 text-muted-foreground' : ''}>{item.sku}</span>
+                    </TableCell>
                     <TableCell className="max-w-[160px] truncate text-xs text-muted-foreground" title={(item.aliases ?? []).join(', ')}>
                       {(item.aliases ?? []).length ? (item.aliases as string[]).join(', ') : '—'}
                     </TableCell>
 
-                    <TableCell className="font-medium">{item.product_name}</TableCell>
+                    <TableCell className="font-medium">
+                      <span className="inline-flex items-center gap-2">
+                        {item.product_name}
+                        {isBatch && <Badge variant="secondary" className="text-[10px]">Batch</Badge>}
+                      </span>
+                    </TableCell>
+
                     <TableCell className="text-right text-muted-foreground">{fmt(item.average_cost_price)}</TableCell>
                     <TableCell className="text-right text-muted-foreground">{fmt(item.average_selling_price ?? 0)}</TableCell>
                     <TableCell className="text-right">

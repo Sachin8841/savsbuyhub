@@ -257,13 +257,14 @@ export default function Inventory() {
                 </DialogHeader>
                 <form onSubmit={restockForm.handleSubmit(onRestockSubmit)} className="space-y-4 pt-2">
                   <div>
-                    <Label>SKU (read-only)</Label>
+                    <Label>Batch SKU (auto)</Label>
                     <Input {...restockForm.register('sku')} readOnly className="bg-muted/40" />
                   </div>
                   <div>
-                    <Label>Product Name (read-only)</Label>
+                    <Label>Batch Product Name (auto)</Label>
                     <Input {...restockForm.register('product_name')} readOnly className="bg-muted/40" />
                   </div>
+
                   <div>
                     <Label>Aliases (comma-separated, optional)</Label>
                     <Input placeholder="e.g. Blue Tee, Cotton T-shirt Blue" {...restockForm.register('aliases')} />

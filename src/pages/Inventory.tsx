@@ -53,14 +53,22 @@ export default function Inventory() {
     defaultValues: { sku: '', product_name: '', aliases: '', average_cost_price: 0, average_selling_price: 0, total_bulk_stock_in: 0, delivery_fee: 0, stock_added_date: new Date().toISOString().slice(0, 10) }
   });
 
+  // Batch numbering: parent = Batch 1, each restock creates the next batch child row.
+  const childrenOf = (parentId: string) => inventory.filter((i: any) => i.parent_inventory_id === parentId);
+
   const handleRestockInit = (item: any) => {
-    setRestockItem(item);
+    // Restock always anchors to the parent SKU, never to a batch child.
+    const parent = item.parent_inventory_id
+      ? (inventory.find((i: any) => i.id === item.parent_inventory_id) ?? item)
+      : item;
+    const nextBatch = childrenOf(parent.id).length + 2;
+    setRestockItem({ ...parent, nextBatch });
     restockForm.reset({
-      sku: item.sku,
-      product_name: item.product_name,
-      aliases: (item.aliases ?? []).join(', '),
-      average_cost_price: item.average_cost_price ?? 0,
-      average_selling_price: item.average_selling_price ?? 0,
+      sku: `${parent.sku}-B${nextBatch}`,
+      product_name: `${parent.product_name} (Batch ${nextBatch})`,
+      aliases: (parent.aliases ?? []).join(', '),
+      average_cost_price: parent.average_cost_price ?? 0,
+      average_selling_price: parent.average_selling_price ?? 0,
       total_bulk_stock_in: 0,
       delivery_fee: 0,
       stock_added_date: new Date().toISOString().slice(0, 10)
@@ -71,23 +79,22 @@ export default function Inventory() {
   const onRestockSubmit = async (values: FormData) => {
     if (!restockItem) return;
     try {
-      // Merge into existing SKU using weighted-average cost — no duplicate rows.
-      const { error } = await supabase.rpc('merge_restock', {
-        _inventory_id: restockItem.id,
-        _added_qty: values.total_bulk_stock_in,
-        _new_cost: values.average_cost_price,
-        _added_freight: values.delivery_fee ?? 0,
-        _new_selling_price: values.average_selling_price || null,
-      });
+      const aliases = (values.aliases ?? '').split(',').map(s => s.trim()).filter(Boolean);
+      // New batch is stored as a child row of the parent SKU — it is NOT a unique SKU.
+      const { error } = await supabase.from('inventory').insert({
+        sku: values.sku,
+        product_name: values.product_name,
+        aliases,
+        average_cost_price: values.average_cost_price,
+        average_selling_price: values.average_selling_price || restockItem.average_selling_price || 0,
+        total_bulk_stock_in: values.total_bulk_stock_in,
+        delivery_fee: values.delivery_fee ?? 0,
+        stock_added_date: values.stock_added_date || new Date().toISOString().slice(0, 10),
+        parent_inventory_id: restockItem.id,
+      } as any);
       if (error) throw error;
 
-      // Update aliases separately if changed.
-      const aliases = (values.aliases ?? '').split(',').map(s => s.trim()).filter(Boolean);
-      if (aliases.length) {
-        await supabase.from('inventory').update({ aliases } as any).eq('id', restockItem.id);
-      }
-
-      toast({ title: 'Restock merged', description: `+${values.total_bulk_stock_in} units · weighted-avg cost applied` });
+      toast({ title: `Batch ${restockItem.nextBatch} added`, description: `+${values.total_bulk_stock_in} units under ${restockItem.sku}` });
       qc.invalidateQueries({ queryKey: ['inventory'] });
       setRestockDialogOpen(false);
       setRestockItem(null);
@@ -96,6 +103,7 @@ export default function Inventory() {
       toast({ title: 'Error', description: err.message, variant: 'destructive' });
     }
   };
+
 
 
   const filtered = inventory.filter(i =>
@@ -193,8 +201,8 @@ export default function Inventory() {
     return { success, errors };
   };
 
-  // Restocks are merged into the existing SKU row, so a SKU is counted exactly once.
-  const totalSkus = new Set(inventory.map(i => String(i.sku).trim().toUpperCase())).size;
+  // Restock batches are child rows of a parent SKU, so they never count as unique SKUs.
+  const totalSkus = new Set(inventory.filter((i: any) => !i.parent_inventory_id).map(i => String(i.sku).trim().toUpperCase())).size;
   const lowStockCount = inventory.filter(i => (currentStocks[i.id] ?? 0) <= 5).length;
   const totalBulk = inventory.reduce((s, i) => s + i.total_bulk_stock_in, 0);
 
@@ -244,18 +252,19 @@ export default function Inventory() {
                     Restock "{restockItem?.product_name}"
                   </DialogTitle>
                   <div className="text-xs text-muted-foreground mt-1">
-                    Adds units to the <b>existing SKU</b>. Cost basis is recomputed as a weighted average of your old and new cost. Freight is added to the item's delivery fee.
+                    Creates <b>Batch {restockItem?.nextBatch}</b> under parent SKU <b>{restockItem?.sku}</b>. The batch keeps the same product name with the batch tag, and is never counted as a unique SKU.
                   </div>
                 </DialogHeader>
                 <form onSubmit={restockForm.handleSubmit(onRestockSubmit)} className="space-y-4 pt-2">
                   <div>
-                    <Label>SKU (read-only)</Label>
+                    <Label>Batch SKU (auto)</Label>
                     <Input {...restockForm.register('sku')} readOnly className="bg-muted/40" />
                   </div>
                   <div>
-                    <Label>Product Name (read-only)</Label>
+                    <Label>Batch Product Name (auto)</Label>
                     <Input {...restockForm.register('product_name')} readOnly className="bg-muted/40" />
                   </div>
+
                   <div>
                     <Label>Aliases (comma-separated, optional)</Label>
                     <Input placeholder="e.g. Blue Tee, Cotton T-shirt Blue" {...restockForm.register('aliases')} />
@@ -282,7 +291,7 @@ export default function Inventory() {
                       <Input type="number" step="0.01" {...restockForm.register('delivery_fee', { valueAsNumber: true })} />
                     </div>
                   </div>
-                  <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white">Merge Restock</Button>
+                  <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white">Add Batch {restockItem?.nextBatch}</Button>
                 </form>
               </DialogContent>
             </Dialog>
@@ -295,7 +304,7 @@ export default function Inventory() {
         <StatCard title="Locked Capital" value={fmt(totalStockValue)} icon={<Package />} color="primary" subtitle={`${totalSkus} unique SKUs`} />
         <StatCard title="Total Stock In" value={totalBulk.toLocaleString()} icon={<Boxes />} color="slate" subtitle="Including restocks" />
         <StatCard title="Low Stock" value={lowStockCount} icon={<AlertTriangle />} color={lowStockCount > 0 ? 'amber' : 'emerald'} subtitle="≤ 5 units remaining" />
-        <StatCard title="Unique SKUs" value={totalSkus} icon={<BarChart2 />} color="slate" subtitle="Restocks merged into SKU" />
+        <StatCard title="Unique SKUs" value={totalSkus} icon={<BarChart2 />} color="slate" subtitle="Restock batches excluded" />
 
       </div>
 
@@ -345,14 +354,23 @@ export default function Inventory() {
               {filtered.map(item => {
                 const stock = currentStocks[item.id] ?? 0;
                 const isLow = stock <= 5;
+                const isBatch = !!(item as any).parent_inventory_id;
                 return (
                   <TableRow key={item.id} className="hover:bg-primary/5 transition-colors group">
-                    <TableCell className="font-mono text-xs font-medium text-primary">{item.sku}</TableCell>
+                    <TableCell className="font-mono text-xs font-medium text-primary">
+                      <span className={isBatch ? 'pl-3 text-muted-foreground' : ''}>{item.sku}</span>
+                    </TableCell>
                     <TableCell className="max-w-[160px] truncate text-xs text-muted-foreground" title={(item.aliases ?? []).join(', ')}>
                       {(item.aliases ?? []).length ? (item.aliases as string[]).join(', ') : '—'}
                     </TableCell>
 
-                    <TableCell className="font-medium">{item.product_name}</TableCell>
+                    <TableCell className="font-medium">
+                      <span className="inline-flex items-center gap-2">
+                        {item.product_name}
+                        {isBatch && <Badge variant="secondary" className="text-[10px]">Batch</Badge>}
+                      </span>
+                    </TableCell>
+
                     <TableCell className="text-right text-muted-foreground">{fmt(item.average_cost_price)}</TableCell>
                     <TableCell className="text-right text-muted-foreground">{fmt(item.average_selling_price ?? 0)}</TableCell>
                     <TableCell className="text-right">
@@ -368,7 +386,9 @@ export default function Inventory() {
                     {admin && (
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-0.5 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-indigo-500 hover:text-indigo-700 hover:bg-indigo-50" title="Restock (merges into this SKU)" onClick={() => handleRestockInit(item)}><PackagePlus className="h-4 w-4" /></Button>
+                          {!isBatch && (
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-indigo-500 hover:text-indigo-700 hover:bg-indigo-50" title="Restock (adds a new batch under this SKU)" onClick={() => handleRestockInit(item)}><PackagePlus className="h-4 w-4" /></Button>
+                          )}
 
                           <Button variant="ghost" size="icon" className="h-8 w-8" title="Edit" onClick={() => handleEdit(item)}><Pencil className="h-3.5 w-3.5" /></Button>
                           <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10" title="Delete" onClick={() => handleDelete(item.id)}><Trash2 className="h-3.5 w-3.5" /></Button>

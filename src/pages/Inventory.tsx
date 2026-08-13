@@ -53,14 +53,22 @@ export default function Inventory() {
     defaultValues: { sku: '', product_name: '', aliases: '', average_cost_price: 0, average_selling_price: 0, total_bulk_stock_in: 0, delivery_fee: 0, stock_added_date: new Date().toISOString().slice(0, 10) }
   });
 
+  // Batch numbering: parent = Batch 1, each restock creates the next batch child row.
+  const childrenOf = (parentId: string) => inventory.filter((i: any) => i.parent_inventory_id === parentId);
+
   const handleRestockInit = (item: any) => {
-    setRestockItem(item);
+    // Restock always anchors to the parent SKU, never to a batch child.
+    const parent = item.parent_inventory_id
+      ? (inventory.find((i: any) => i.id === item.parent_inventory_id) ?? item)
+      : item;
+    const nextBatch = childrenOf(parent.id).length + 2;
+    setRestockItem({ ...parent, nextBatch });
     restockForm.reset({
-      sku: item.sku,
-      product_name: item.product_name,
-      aliases: (item.aliases ?? []).join(', '),
-      average_cost_price: item.average_cost_price ?? 0,
-      average_selling_price: item.average_selling_price ?? 0,
+      sku: `${parent.sku}-B${nextBatch}`,
+      product_name: `${parent.product_name} (Batch ${nextBatch})`,
+      aliases: (parent.aliases ?? []).join(', '),
+      average_cost_price: parent.average_cost_price ?? 0,
+      average_selling_price: parent.average_selling_price ?? 0,
       total_bulk_stock_in: 0,
       delivery_fee: 0,
       stock_added_date: new Date().toISOString().slice(0, 10)
@@ -71,23 +79,22 @@ export default function Inventory() {
   const onRestockSubmit = async (values: FormData) => {
     if (!restockItem) return;
     try {
-      // Merge into existing SKU using weighted-average cost — no duplicate rows.
-      const { error } = await supabase.rpc('merge_restock', {
-        _inventory_id: restockItem.id,
-        _added_qty: values.total_bulk_stock_in,
-        _new_cost: values.average_cost_price,
-        _added_freight: values.delivery_fee ?? 0,
-        _new_selling_price: values.average_selling_price || null,
-      });
+      const aliases = (values.aliases ?? '').split(',').map(s => s.trim()).filter(Boolean);
+      // New batch is stored as a child row of the parent SKU — it is NOT a unique SKU.
+      const { error } = await supabase.from('inventory').insert({
+        sku: values.sku,
+        product_name: values.product_name,
+        aliases,
+        average_cost_price: values.average_cost_price,
+        average_selling_price: values.average_selling_price || restockItem.average_selling_price || 0,
+        total_bulk_stock_in: values.total_bulk_stock_in,
+        delivery_fee: values.delivery_fee ?? 0,
+        stock_added_date: values.stock_added_date || new Date().toISOString().slice(0, 10),
+        parent_inventory_id: restockItem.id,
+      } as any);
       if (error) throw error;
 
-      // Update aliases separately if changed.
-      const aliases = (values.aliases ?? '').split(',').map(s => s.trim()).filter(Boolean);
-      if (aliases.length) {
-        await supabase.from('inventory').update({ aliases } as any).eq('id', restockItem.id);
-      }
-
-      toast({ title: 'Restock merged', description: `+${values.total_bulk_stock_in} units · weighted-avg cost applied` });
+      toast({ title: `Batch ${restockItem.nextBatch} added`, description: `+${values.total_bulk_stock_in} units under ${restockItem.sku}` });
       qc.invalidateQueries({ queryKey: ['inventory'] });
       setRestockDialogOpen(false);
       setRestockItem(null);
@@ -96,6 +103,7 @@ export default function Inventory() {
       toast({ title: 'Error', description: err.message, variant: 'destructive' });
     }
   };
+
 
 
   const filtered = inventory.filter(i =>

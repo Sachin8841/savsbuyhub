@@ -386,7 +386,9 @@ export default function Inventory() {
                     {admin && (
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-0.5 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-indigo-500 hover:text-indigo-700 hover:bg-indigo-50" title="Restock (merges into this SKU)" onClick={() => handleRestockInit(item)}><PackagePlus className="h-4 w-4" /></Button>
+                          {!isBatch && (
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-indigo-500 hover:text-indigo-700 hover:bg-indigo-50" title="Restock (adds a new batch under this SKU)" onClick={() => handleRestockInit(item)}><PackagePlus className="h-4 w-4" /></Button>
+                          )}
 
                           <Button variant="ghost" size="icon" className="h-8 w-8" title="Edit" onClick={() => handleEdit(item)}><Pencil className="h-3.5 w-3.5" /></Button>
                           <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10" title="Delete" onClick={() => handleDelete(item.id)}><Trash2 className="h-3.5 w-3.5" /></Button>

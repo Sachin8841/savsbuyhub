@@ -291,7 +291,7 @@ export default function Inventory() {
                       <Input type="number" step="0.01" {...restockForm.register('delivery_fee', { valueAsNumber: true })} />
                     </div>
                   </div>
-                  <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white">Merge Restock</Button>
+                  <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white">Add Batch {restockItem?.nextBatch}</Button>
                 </form>
               </DialogContent>
             </Dialog>

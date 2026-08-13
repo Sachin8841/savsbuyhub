@@ -252,7 +252,7 @@ export default function Inventory() {
                     Restock "{restockItem?.product_name}"
                   </DialogTitle>
                   <div className="text-xs text-muted-foreground mt-1">
-                    Adds units to the <b>existing SKU</b>. Cost basis is recomputed as a weighted average of your old and new cost. Freight is added to the item's delivery fee.
+                    Creates <b>Batch {restockItem?.nextBatch}</b> under parent SKU <b>{restockItem?.sku}</b>. The batch keeps the same product name with the batch tag, and is never counted as a unique SKU.
                   </div>
                 </DialogHeader>
                 <form onSubmit={restockForm.handleSubmit(onRestockSubmit)} className="space-y-4 pt-2">

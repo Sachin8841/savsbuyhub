@@ -201,8 +201,8 @@ export default function Inventory() {
     return { success, errors };
   };
 
-  // Restocks are merged into the existing SKU row, so a SKU is counted exactly once.
-  const totalSkus = new Set(inventory.map(i => String(i.sku).trim().toUpperCase())).size;
+  // Restock batches are child rows of a parent SKU, so they never count as unique SKUs.
+  const totalSkus = new Set(inventory.filter((i: any) => !i.parent_inventory_id).map(i => String(i.sku).trim().toUpperCase())).size;
   const lowStockCount = inventory.filter(i => (currentStocks[i.id] ?? 0) <= 5).length;
   const totalBulk = inventory.reduce((s, i) => s + i.total_bulk_stock_in, 0);
 

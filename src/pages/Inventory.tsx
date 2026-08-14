@@ -57,14 +57,14 @@ export default function Inventory() {
   const { toast } = useToast();
   const admin = isAdmin();
 
-  const form = useForm<FormData>({ resolver: zodResolver(schema), defaultValues: { sku: '', product_name: '', aliases: '', average_cost_price: 0, average_selling_price: 0, total_bulk_stock_in: 0, delivery_fee: 0, stock_added_date: new Date().toISOString().slice(0, 10) } });
+  const form = useForm<FormData>({ resolver: zodResolver(schema), defaultValues: { sku: '', product_name: '', aliases: '', average_cost_price: 0, average_selling_price: 0, total_bulk_stock_in: 0, delivery_fee: 0, stock_added_date: new Date().toISOString().slice(0, 10), ...emptyPurchase } });
 
   const [restockDialogOpen, setRestockDialogOpen] = useState(false);
   const [restockItem, setRestockItem] = useState<any>(null);
 
   const restockForm = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: { sku: '', product_name: '', aliases: '', average_cost_price: 0, average_selling_price: 0, total_bulk_stock_in: 0, delivery_fee: 0, stock_added_date: new Date().toISOString().slice(0, 10) }
+    defaultValues: { sku: '', product_name: '', aliases: '', average_cost_price: 0, average_selling_price: 0, total_bulk_stock_in: 0, delivery_fee: 0, stock_added_date: new Date().toISOString().slice(0, 10), ...emptyPurchase }
   });
 
   // Batch numbering: parent = Batch 1, each restock creates the next batch child row.
@@ -85,9 +85,36 @@ export default function Inventory() {
       average_selling_price: parent.average_selling_price ?? 0,
       total_bulk_stock_in: 0,
       delivery_fee: 0,
-      stock_added_date: new Date().toISOString().slice(0, 10)
+      stock_added_date: new Date().toISOString().slice(0, 10),
+      ...emptyPurchase,
     });
     setRestockDialogOpen(true);
+  };
+
+  // Stock purchases consume real money: goods value + transport bill leave the bank / cash box.
+  const recordPurchaseSpend = async (values: FormData, label: string) => {
+    const source = values.pay_source ?? 'account';
+    if (source === 'none') return;
+    const goods = (Number(values.total_bulk_stock_in) || 0) * (Number(values.average_cost_price) || 0);
+    const freight = Number(values.delivery_fee) || 0;
+    const total = goods + freight;
+    if (total <= 0) return;
+    const { error } = await supabase.rpc('record_cash_movement', {
+      _movement_type: 'inventory_purchase',
+      _amount: total,
+      _hot_cash_delta: source === 'hot' ? -total : 0,
+      _account_delta: source === 'account' ? -total : 0,
+      _reference_table: 'inventory',
+      _reference_id: null as any,
+      _notes: `Stock purchase — ${label} · goods ${goods.toFixed(2)} + transport ${freight.toFixed(2)}${values.supplier_name ? ` · supplier ${values.supplier_name}` : ''}${values.transport_bill_number ? ` · transport bill ${values.transport_bill_number}` : ''}`,
+    });
+    if (error) {
+      toast({ title: 'Stock saved, but cash not deducted', description: error.message, variant: 'destructive' });
+      return;
+    }
+    qc.invalidateQueries({ queryKey: ['capital_accounts'] });
+    qc.invalidateQueries({ queryKey: ['cash_movements'] });
+    toast({ title: `₹${total.toLocaleString('en-IN')} deducted`, description: source === 'hot' ? 'Taken from hot cash.' : 'Taken from bank / account holding value.' });
   };
 
   const onRestockSubmit = async (values: FormData) => {
@@ -104,9 +131,17 @@ export default function Inventory() {
         total_bulk_stock_in: values.total_bulk_stock_in,
         delivery_fee: values.delivery_fee ?? 0,
         stock_added_date: values.stock_added_date || new Date().toISOString().slice(0, 10),
+        supplier_name: values.supplier_name || null,
+        supplier_contact: values.supplier_contact || null,
+        supplier_invoice_number: values.supplier_invoice_number || null,
+        transport_provider: values.transport_provider || null,
+        transport_bill_number: values.transport_bill_number || null,
+        purchase_notes: values.purchase_notes || null,
         parent_inventory_id: restockItem.id,
       } as any);
       if (error) throw error;
+
+      await recordPurchaseSpend(values, `Batch ${restockItem.nextBatch} of ${restockItem.sku}`);
 
       toast({ title: `Batch ${restockItem.nextBatch} added`, description: `+${values.total_bulk_stock_in} units under ${restockItem.sku}` });
       qc.invalidateQueries({ queryKey: ['inventory'] });
@@ -144,6 +179,12 @@ export default function Inventory() {
         total_bulk_stock_in: values.total_bulk_stock_in,
         delivery_fee: values.delivery_fee,
         stock_added_date: values.stock_added_date || new Date().toISOString().slice(0, 10),
+        supplier_name: values.supplier_name || null,
+        supplier_contact: values.supplier_contact || null,
+        supplier_invoice_number: values.supplier_invoice_number || null,
+        transport_provider: values.transport_provider || null,
+        transport_bill_number: values.transport_bill_number || null,
+        purchase_notes: values.purchase_notes || null,
       };
       if (editId) {
         const { error } = await supabase.from('inventory').update(payload).eq('id', editId);
@@ -153,6 +194,7 @@ export default function Inventory() {
         const { error } = await supabase.from('inventory').insert(payload);
         if (error) throw error;
         toast({ title: 'Item added' });
+        await recordPurchaseSpend(values, payload.sku);
       }
       qc.invalidateQueries({ queryKey: ['inventory'] });
       setDialogOpen(false);
@@ -165,7 +207,7 @@ export default function Inventory() {
 
   const handleEdit = (item: any) => {
     setEditId(item.id);
-    form.reset({ sku: item.sku, product_name: item.product_name, aliases: (item.aliases ?? []).join(', '), average_cost_price: item.average_cost_price, average_selling_price: item.average_selling_price ?? 0, total_bulk_stock_in: item.total_bulk_stock_in, delivery_fee: item.delivery_fee ?? 0, stock_added_date: (item as any).stock_added_date ?? new Date().toISOString().slice(0, 10) });
+    form.reset({ sku: item.sku, product_name: item.product_name, aliases: (item.aliases ?? []).join(', '), average_cost_price: item.average_cost_price, average_selling_price: item.average_selling_price ?? 0, total_bulk_stock_in: item.total_bulk_stock_in, delivery_fee: item.delivery_fee ?? 0, stock_added_date: (item as any).stock_added_date ?? new Date().toISOString().slice(0, 10), supplier_name: (item as any).supplier_name ?? '', supplier_contact: (item as any).supplier_contact ?? '', supplier_invoice_number: (item as any).supplier_invoice_number ?? '', transport_provider: (item as any).transport_provider ?? '', transport_bill_number: (item as any).transport_bill_number ?? '', purchase_notes: (item as any).purchase_notes ?? '', pay_source: 'none' });
     setDialogOpen(true);
   };
 

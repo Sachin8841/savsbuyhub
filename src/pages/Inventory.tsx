@@ -293,6 +293,34 @@ export default function Inventory() {
                     <div><Label>Delivery Fee (₹)</Label><Input type="number" step="0.01" {...form.register('delivery_fee', { valueAsNumber: true })} /></div>
                   </div>
                   <div><Label>Stock Added Date</Label><Input type="date" {...form.register('stock_added_date')} /></div>
+                  <div className="rounded-lg border bg-muted/20 p-3 space-y-3">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Supplier & Transport Bill</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div><Label>Supplier Name</Label><Input placeholder="e.g. Tirupur Textiles" {...form.register('supplier_name')} /></div>
+                      <div><Label>Supplier Contact</Label><Input placeholder="Phone / email" {...form.register('supplier_contact')} /></div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div><Label>Supplier Invoice No.</Label><Input {...form.register('supplier_invoice_number')} /></div>
+                      <div><Label>Transport Provider</Label><Input placeholder="e.g. VRL Logistics" {...form.register('transport_provider')} /></div>
+                    </div>
+                    <div><Label>Transport Bill No.</Label><Input {...form.register('transport_bill_number')} /></div>
+                    <div><Label>Purchase Notes</Label><Input placeholder="Optional remarks" {...form.register('purchase_notes')} /></div>
+                    <div>
+                      <Label>Pay purchase from</Label>
+                      <select
+                        className="mt-1 h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                        {...form.register('pay_source')}
+                      >
+                        <option value="account">Bank / Account holding value</option>
+                        <option value="hot">Hot cash</option>
+                        <option value="none">Do not deduct</option>
+                      </select>
+                      <p className="text-[11px] text-muted-foreground mt-1">
+                        Goods value (units × cost price) plus the transport bill is deducted from the selected balance.
+                      </p>
+                    </div>
+                  </div>
+
                   <Button type="submit" className="w-full">{editId ? 'Update' : 'Add'}</Button>
                 </form>
               </DialogContent>
@@ -345,6 +373,33 @@ export default function Inventory() {
                     <div>
                       <Label>Additional Freight (₹)</Label>
                       <Input type="number" step="0.01" {...restockForm.register('delivery_fee', { valueAsNumber: true })} />
+                    </div>
+                  </div>
+                  <div className="rounded-lg border bg-muted/20 p-3 space-y-3">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Supplier & Transport Bill</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div><Label>Supplier Name</Label><Input placeholder="e.g. Tirupur Textiles" {...restockForm.register('supplier_name')} /></div>
+                      <div><Label>Supplier Contact</Label><Input placeholder="Phone / email" {...restockForm.register('supplier_contact')} /></div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div><Label>Supplier Invoice No.</Label><Input {...restockForm.register('supplier_invoice_number')} /></div>
+                      <div><Label>Transport Provider</Label><Input placeholder="e.g. VRL Logistics" {...restockForm.register('transport_provider')} /></div>
+                    </div>
+                    <div><Label>Transport Bill No.</Label><Input {...restockForm.register('transport_bill_number')} /></div>
+                    <div><Label>Purchase Notes</Label><Input placeholder="Optional remarks" {...restockForm.register('purchase_notes')} /></div>
+                    <div>
+                      <Label>Pay purchase from</Label>
+                      <select
+                        className="mt-1 h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                        {...restockForm.register('pay_source')}
+                      >
+                        <option value="account">Bank / Account holding value</option>
+                        <option value="hot">Hot cash</option>
+                        <option value="none">Do not deduct</option>
+                      </select>
+                      <p className="text-[11px] text-muted-foreground mt-1">
+                        Goods value (units × batch cost) plus the transport bill is deducted from the selected balance.
+                      </p>
                     </div>
                   </div>
                   <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white">Add Batch {restockItem?.nextBatch}</Button>

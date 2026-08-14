@@ -249,9 +249,15 @@ export type Database = {
           id: string
           parent_inventory_id: string | null
           product_name: string
+          purchase_notes: string | null
           sku: string
           stock_added_date: string | null
+          supplier_contact: string | null
+          supplier_invoice_number: string | null
+          supplier_name: string | null
           total_bulk_stock_in: number
+          transport_bill_number: string | null
+          transport_provider: string | null
           updated_at: string
         }
         Insert: {
@@ -263,9 +269,15 @@ export type Database = {
           id?: string
           parent_inventory_id?: string | null
           product_name: string
+          purchase_notes?: string | null
           sku: string
           stock_added_date?: string | null
+          supplier_contact?: string | null
+          supplier_invoice_number?: string | null
+          supplier_name?: string | null
           total_bulk_stock_in?: number
+          transport_bill_number?: string | null
+          transport_provider?: string | null
           updated_at?: string
         }
         Update: {
@@ -277,9 +289,15 @@ export type Database = {
           id?: string
           parent_inventory_id?: string | null
           product_name?: string
+          purchase_notes?: string | null
           sku?: string
           stock_added_date?: string | null
+          supplier_contact?: string | null
+          supplier_invoice_number?: string | null
+          supplier_name?: string | null
           total_bulk_stock_in?: number
+          transport_bill_number?: string | null
+          transport_provider?: string | null
           updated_at?: string
         }
         Relationships: [

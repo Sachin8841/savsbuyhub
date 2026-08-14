@@ -29,8 +29,22 @@ const schema = z.object({
   total_bulk_stock_in: z.number().int().min(0),
   delivery_fee: z.number().min(0),
   stock_added_date: z.string().optional(),
+  supplier_name: z.string().max(160).optional(),
+  supplier_contact: z.string().max(80).optional(),
+  supplier_invoice_number: z.string().max(80).optional(),
+  transport_provider: z.string().max(120).optional(),
+  transport_bill_number: z.string().max(80).optional(),
+  purchase_notes: z.string().max(500).optional(),
+  pay_source: z.enum(['account', 'hot', 'none']).default('account'),
 });
 type FormData = z.infer<typeof schema>;
+
+const emptyPurchase = {
+  supplier_name: '', supplier_contact: '', supplier_invoice_number: '',
+  transport_provider: '', transport_bill_number: '', purchase_notes: '',
+  pay_source: 'account' as const,
+};
+
 
 export default function Inventory() {
   const { data: inventory = [] } = useInventory();

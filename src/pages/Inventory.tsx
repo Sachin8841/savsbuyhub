@@ -35,7 +35,7 @@ const schema = z.object({
   transport_provider: z.string().max(120).optional(),
   transport_bill_number: z.string().max(80).optional(),
   purchase_notes: z.string().max(500).optional(),
-  pay_source: z.enum(['account', 'hot', 'none']).default('account'),
+  pay_source: z.enum(['account', 'hot', 'none']).optional(),
 });
 type FormData = z.infer<typeof schema>;
 

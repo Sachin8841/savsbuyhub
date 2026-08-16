@@ -178,65 +178,7 @@ export default function SettingsPage() {
     }
   }, [admin]);
 
-  // Valuation Simulator state
-  const [simBaseVal, setSimBaseVal] = useState(100);
-  const [simStockValue, setSimStockValue] = useState(0);
-  const [simActiveProfit, setSimActiveProfit] = useState(0);
-  const [simHistoricalProfit, setSimHistoricalProfit] = useState(0);
-  const [simTotalShares, setSimTotalShares] = useState(100000);
-  const [simDaysSinceSale, setSimDaysSinceSale] = useState(0);
 
-  useEffect(() => {
-    if (inventory.length > 0 && sales.length > 0) {
-      const stockVal = inventory.reduce((sum, item) => {
-        const stock = currentStocks[item.id] ?? 0;
-        return sum + stock * (item.average_cost_price || 0);
-      }, 0);
-      
-      const returnedRevenue = returns.reduce((sum, r) => {
-        const sale = salesById.get(r.sales_id) as any;
-        return sum + r.quantity_returned * (sale?.average_selling_price ?? 0);
-      }, 0);
-      const returnedCogs = returns.reduce((sum, r) => {
-        const sale = salesById.get(r.sales_id) as any;
-        const invId = r.inventory_id || sale?.inventory_id;
-        const inv = inventoryById.get(invId) as any;
-        const costPrice = sale?.cost_price ?? inv?.average_cost_price ?? 0;
-        return sum + r.quantity_returned * costPrice;
-      }, 0);
-      const nonCancelledSales = sales.filter(s => s.payment_status !== 'Cancelled');
-      const activeRevenue = nonCancelledSales.reduce((sum, s: any) => sum + Number(s.settlement_amount ?? (s.quantity_sold * s.average_selling_price)), 0) - returnedRevenue;
-      const activeCogs = nonCancelledSales.reduce((sum, s) => {
-        const inv = inventoryById.get(s.inventory_id) as any;
-        const costPrice = s.cost_price ?? inv?.average_cost_price ?? 0;
-        return sum + s.quantity_sold * costPrice;
-      }, 0) - returnedCogs;
-      const activeDeliveryFees = nonCancelledSales.reduce((sum, s) => {
-        const inv = inventoryById.get(s.inventory_id) as any;
-        const feePerUnit = inv ? (inv.delivery_fee || 0) / (inv.total_bulk_stock_in || 1) : 0;
-        return sum + s.quantity_sold * feePerUnit;
-      }, 0);
-      const inventoryDeliveryFees = inventory.reduce((sum, i) => sum + (i.delivery_fee || 0), 0);
-      const activePenalties = returns.reduce((sum, r) => sum + r.penalty_amount, 0);
-      const activeAdSpend = adExpenses.reduce((sum, e) => sum + e.amount, 0);
-      const calculatedActiveProfit = activeRevenue - activeCogs - activeDeliveryFees - inventoryDeliveryFees - activePenalties - activeAdSpend;
-
-      const calculatedHistProfit = disclosedPeriods.reduce((sum, dp) => {
-        return sum + Number(dp.net_profit ?? 0);
-      }, 0);
-
-      setSimStockValue(Math.round(stockVal));
-      setSimActiveProfit(Math.round(calculatedActiveProfit));
-      setSimHistoricalProfit(Math.round(calculatedHistProfit));
-      
-      const dispatchDates = sales.filter(s => s.payment_status !== 'Cancelled' && s.dispatch_date).map(s => new Date(s.dispatch_date).getTime());
-      if (dispatchDates.length > 0) {
-        const lastSale = Math.max(...dispatchDates);
-        const diffDays = Math.floor((new Date().getTime() - lastSale) / (1000 * 60 * 60 * 24));
-        setSimDaysSinceSale(Math.max(0, diffDays));
-      }
-    }
-  }, [inventory, sales, returns, adExpenses, currentStocks, disclosedPeriods, inventoryById, salesById]);
 
   // Compute Platform performance breakdown
   const platformData = useMemo(() => {
@@ -291,30 +233,6 @@ export default function SettingsPage() {
 
 
 
-  // Compute Simulated Share Price components
-  const simValuation = useMemo(() => {
-    const discountedBookValue = (simStockValue * 0.5) / simTotalShares;
-    const totalRetainedEarnings = simActiveProfit + simHistoricalProfit;
-    const earningsPerShare = (totalRetainedEarnings * 5) / simTotalShares;
-    
-    let timeDecayMultiplier = 1.0;
-    if (simDaysSinceSale > 5) {
-      const penalty = Math.min(0.5, (simDaysSinceSale - 5) * 0.01);
-      timeDecayMultiplier = 1.0 - penalty;
-    }
-    
-    const rawPrice = simBaseVal + discountedBookValue + earningsPerShare;
-    const finalPrice = Math.max(10.0, rawPrice * timeDecayMultiplier);
-    
-    return {
-      discountedBookValue,
-      totalRetainedEarnings,
-      earningsPerShare,
-      timeDecayMultiplier,
-      rawPrice,
-      finalPrice: Number(finalPrice.toFixed(2))
-    };
-  }, [simBaseVal, simStockValue, simActiveProfit, simHistoricalProfit, simTotalShares, simDaysSinceSale]);
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -373,7 +291,6 @@ export default function SettingsPage() {
     setUsers(prev => prev.map(u => u.user_id === userId ? { ...u, role: newRole } : u));
   };
 
-  const resetInvalidRole = async (userId: string) => updateRole(userId, 'user');
 
   const deleteUser = async (userId: string) => {
     if (!confirm('WARNING: This will permanently delete this user profile and revoke all access. Proceed?')) return;
@@ -433,7 +350,6 @@ export default function SettingsPage() {
             )}
             Reliability & Logs
           </TabsTrigger>
-          <TabsTrigger value="advanced">Advanced & AI</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
@@ -639,7 +555,7 @@ export default function SettingsPage() {
                       return (u.full_name ?? '').toLowerCase().includes(q) || (u.email ?? '').toLowerCase().includes(q);
                     })
                     .map(u => (
-                    <TableRow key={u.user_id} className={u.role !== 'admin' && u.role !== 'user' ? 'bg-rose-50/50 dark:bg-rose-950/10' : ''}>
+                    <TableRow key={u.user_id}>
                       <TableCell>
                         <div className="flex items-center gap-3 min-w-0">
                           <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold text-xs shrink-0">
@@ -658,10 +574,10 @@ export default function SettingsPage() {
                       <TableCell className="text-muted-foreground text-xs hidden sm:table-cell font-mono">{u.phone || '—'}</TableCell>
                       <TableCell>
                         <Badge
-                          variant={u.role === 'admin' ? 'default' : u.role === 'user' ? 'secondary' : 'destructive'}
-                          className={u.role === 'admin' ? 'bg-indigo-600' : u.role !== 'user' ? 'bg-rose-600 text-white' : ''}
+                          variant={u.role === 'admin' ? 'default' : 'secondary'}
+                          className={u.role === 'admin' ? 'bg-indigo-600' : ''}
                         >
-                          {u.role === 'admin' || u.role === 'user' ? u.role.toUpperCase() : `⚠ ${u.role.toUpperCase()}`}
+                          {u.role?.toUpperCase()}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
@@ -669,11 +585,6 @@ export default function SettingsPage() {
                           <Button variant="ghost" size="icon" className="h-8 w-8" title="View KYC details" onClick={() => setDetailsUser(u)}>
                             <Eye className="h-3.5 w-3.5" />
                           </Button>
-                          {u.role !== 'admin' && u.role !== 'user' && (
-                            <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => resetInvalidRole(u.user_id)}>
-                              Reset
-                            </Button>
-                          )}
                           <Select
                             value={u.role === 'admin' || u.role === 'user' ? u.role : ''}
                             onValueChange={(v) => updateRole(u.user_id, v)}
@@ -738,37 +649,6 @@ export default function SettingsPage() {
             </DialogContent>
           </Dialog>
 
-          {/* Bulk recovery panel — shown automatically when any user has an unexpected role */}
-          {users.some(u => u.role !== 'admin' && u.role !== 'user') && (
-            <div className="rounded-xl border-2 border-rose-300 dark:border-rose-700 bg-rose-50 dark:bg-rose-950/20 p-4 space-y-3">
-              <div className="flex items-start gap-3">
-                <AlertTriangle className="h-5 w-5 text-rose-600 shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-bold text-rose-800 dark:text-rose-300 text-sm">⚠ {users.filter(u => u.role !== 'admin' && u.role !== 'user').length} account(s) have an invalid role</p>
-                  <p className="text-xs text-rose-600 dark:text-rose-400 mt-1">
-                    Accounts with roles other than <code className="font-mono bg-rose-100 dark:bg-rose-900/30 px-1 rounded">admin</code> or <code className="font-mono bg-rose-100 dark:bg-rose-900/30 px-1 rounded">user</code> cannot access the ERP. Click below to reset them to User safely.
-                  </p>
-                </div>
-              </div>
-              <Button
-                size="sm"
-                className="bg-rose-600 hover:bg-rose-700 text-white"
-                onClick={async () => {
-                  const badUsers = users.filter(u => u.role !== 'admin' && u.role !== 'user');
-                  let fixed = 0;
-                  for (const u of badUsers) {
-                    const { error } = await supabase.from('user_roles').upsert({ user_id: u.user_id, role: 'user' as any }, { onConflict: 'user_id' });
-                    if (!error) fixed++;
-                  }
-                  setUsers(prev => prev.map(u => (u.role !== 'admin' && u.role !== 'user') ? { ...u, role: 'user' } : u));
-                  toast({ title: `✅ Fixed ${fixed} account(s)`, description: 'All invalid-role accounts have been reset to User.' });
-                }}
-              >
-                <ShieldCheck className="mr-2 h-4 w-4" />
-                Reset All Invalid Roles → User
-              </Button>
-            </div>
-          )}
         </TabsContent>
 
 
@@ -924,117 +804,6 @@ export default function SettingsPage() {
           </SectionCard>
         </TabsContent>
 
-        <TabsContent value="advanced" className="space-y-6">
-          {/* Share Valuation Simulator Card */}
-          <SectionCard
-            title="Dynamic Share Valuation Simulator"
-            description="Simulate and audit the algorithmic pricing engine that calculates the dynamic SAVS share value. Adjust ledger inputs below to see changes in real-time."
-          >
-            <div className="grid gap-6 lg:grid-cols-3">
-              {/* Sliders panel */}
-              <div className="lg:col-span-2 space-y-6">
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <Label className="font-semibold text-slate-700 dark:text-slate-300">Catalog Inventory Asset Value (Cost + Delivery)</Label>
-                    <span className="font-mono text-indigo-600 font-bold">₹{simStockValue.toLocaleString('en-IN')}</span>
-                  </div>
-                  <input type="range" min="0" max="1000000" step="5000" value={simStockValue} onChange={e => setSimStockValue(Number(e.target.value))} className="w-full accent-indigo-600 cursor-pointer h-2 bg-slate-100 dark:bg-slate-800 rounded-lg appearance-none" />
-                  <p className="text-[11px] text-muted-foreground">Direct book cost value of all unsold inventory in warehouse holdings.</p>
-                </div>
-
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <Label className="font-semibold text-slate-700 dark:text-slate-300">Active Ledger Net Profit / Loss</Label>
-                    <span className={`font-mono font-bold ${simActiveProfit >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
-                      ₹{simActiveProfit.toLocaleString('en-IN')}
-                    </span>
-                  </div>
-                  <input type="range" min="-200000" max="800000" step="2000" value={simActiveProfit} onChange={e => setSimActiveProfit(Number(e.target.value))} className="w-full accent-indigo-600 cursor-pointer h-2 bg-slate-100 dark:bg-slate-800 rounded-lg appearance-none" />
-                  <p className="text-[11px] text-muted-foreground">Cumulative net profits minus refunds & penalties in the active disclosure period.</p>
-                </div>
-
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <Label className="font-semibold text-slate-700 dark:text-slate-300">Historical Disclosed Period Earnings</Label>
-                    <span className="font-mono text-indigo-600 font-bold">₹{simHistoricalProfit.toLocaleString('en-IN')}</span>
-                  </div>
-                  <input type="range" min="0" max="1000000" step="5000" value={simHistoricalProfit} onChange={e => setSimHistoricalProfit(Number(e.target.value))} className="w-full accent-indigo-600 cursor-pointer h-2 bg-slate-100 dark:bg-slate-800 rounded-lg appearance-none" />
-                  <p className="text-[11px] text-muted-foreground">Locked earnings archived from previously closed monthly disclosure cycles.</p>
-                </div>
-
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <Label className="font-semibold text-slate-700 dark:text-slate-300">Total Equity Shares</Label>
-                      <span className="font-mono text-indigo-600 font-bold">{simTotalShares.toLocaleString('en-IN')}</span>
-                    </div>
-                    <input type="range" min="50000" max="200000" step="5000" value={simTotalShares} onChange={e => setSimTotalShares(Number(e.target.value))} className="w-full accent-indigo-600 cursor-pointer h-2 bg-slate-100 dark:bg-slate-800 rounded-lg appearance-none" />
-                  </div>
-
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <Label className="font-semibold text-slate-700 dark:text-slate-300">Days Since Last Dispatch Sale</Label>
-                      <span className={`font-mono font-bold ${simDaysSinceSale > 5 ? 'text-amber-500' : 'text-emerald-500'}`}>
-                        {simDaysSinceSale} days
-                      </span>
-                    </div>
-                    <input type="range" min="0" max="60" step="1" value={simDaysSinceSale} onChange={e => setSimDaysSinceSale(Number(e.target.value))} className="w-full accent-indigo-600 cursor-pointer h-2 bg-slate-100 dark:bg-slate-800 rounded-lg appearance-none" />
-                  </div>
-                </div>
-              </div>
-
-              {/* Formula display panel */}
-              <div className="lg:col-span-1 p-5 border rounded-2xl bg-indigo-50/20 dark:bg-slate-900/50 flex flex-col justify-between">
-                <div className="space-y-4">
-                  <h4 className="text-sm font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">Valuation Formula Breakdown</h4>
-                  
-                  <div className="space-y-2.5 text-xs">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Base Equity Value:</span>
-                      <span className="font-mono font-bold text-slate-700 dark:text-slate-300">₹{simBaseVal.toFixed(2)}</span>
-                    </div>
-
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Discounted Asset Value:</span>
-                      <span className="font-mono font-semibold text-slate-700 dark:text-slate-300" title="(Stock Value * 50% discount) / Total Shares">
-                        + ₹{simValuation.discountedBookValue.toFixed(2)}
-                      </span>
-                    </div>
-
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Capitalized Earnings EPS:</span>
-                      <span className="font-mono font-semibold text-slate-700 dark:text-slate-300" title="(Retained Earnings * 5x multiplier) / Total Shares">
-                        + ₹{simValuation.earningsPerShare.toFixed(2)}
-                      </span>
-                    </div>
-
-                    <div className="flex justify-between border-t pt-2 mt-2">
-                      <span className="text-slate-700 dark:text-slate-300 font-semibold">Raw Share Price:</span>
-                      <span className="font-mono font-bold text-slate-900 dark:text-slate-100">₹{simValuation.rawPrice.toFixed(2)}</span>
-                    </div>
-
-                    <div className="flex justify-between">
-                      <span className="text-slate-700 dark:text-slate-300">Inactivity Time Decay:</span>
-                      <span className="font-mono font-bold text-amber-500">
-                        x {simValuation.timeDecayMultiplier.toFixed(2)}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="border-t pt-4 mt-6 text-center space-y-2">
-                  <span className="text-xs uppercase tracking-widest font-bold text-muted-foreground">Simulated Share Price</span>
-                  <div className="text-3xl font-black text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/20 py-3 rounded-xl border border-emerald-100 dark:border-emerald-900/30 animate-pulse font-mono shadow-sm">
-                    ₹{simValuation.finalPrice.toFixed(2)}
-                  </div>
-                  <p className="text-[10px] text-muted-foreground">
-                    * Formula follows the backend valuation logic used by the live forecast.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </SectionCard>
-        </TabsContent>
       </Tabs>
     </div>
   );

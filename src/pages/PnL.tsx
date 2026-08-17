@@ -17,7 +17,7 @@ import { Label } from '@/components/ui/label';
 import { AlertTriangle, TrendingUp, TrendingDown, DollarSign, Landmark, Scale, RefreshCw, Link2 } from 'lucide-react';
 import { useEffect } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid, Line, Area, AreaChart } from 'recharts';
-import { inventoryUnitFreight, saleQuantity, saleRealizedAmount, saleUnitCost, saleUnitRevenue, summarizeFinancials } from '@/lib/finance';
+import { deriveKpis, inventoryUnitFreight, saleQuantity, saleRealizedAmount, saleUnitCost, saleUnitRevenue, summarizeFinancials } from '@/lib/finance';
 import { formatMoney } from '@/lib/format';
 
 const fmt = (n: number | null | undefined) => formatMoney(n, 0);

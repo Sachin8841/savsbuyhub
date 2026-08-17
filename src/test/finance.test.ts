@@ -74,3 +74,37 @@ describe('finance engine', () => {
     expect(jan10.returnPenalties).toBe(0);
   });
 });
+
+describe('deriveKpis parity', () => {
+  const inventory = [{ id: 'i1', average_cost_price: 100, delivery_fee: 100, total_bulk_stock_in: 10 }];
+  const sales = [{ id: 's1', inventory_id: 'i1', quantity_sold: 2, average_selling_price: 200, payment_status: 'Settled', settlement_amount: 380, dispatch_date: '2026-01-05' }];
+  const returns = [{ id: 'r1', sales_id: 's1', inventory_id: 'i1', quantity_returned: 1, penalty_amount: 160, delivery_status: 'Received', return_date: '2026-01-08' }];
+  const expenses = [{ id: 'e1', amount: 50, category: 'Ads', expense_date: '2026-01-06' }];
+
+  it('produces the same headline numbers as the summary it wraps', () => {
+    const summary = summarizeFinancials({ sales, returns, inventory, expenses });
+    const kpis = deriveKpis(summary, { hot_cash: 1000, account_holding_value: 2000 });
+
+    expect(kpis.revenue).toBe(summary.revenue);
+    expect(kpis.netProfit).toBe(summary.netProfit);
+    expect(kpis.cogs).toBe(summary.cogs);
+    expect(kpis.operatingExpenses).toBe(summary.operatingExpenses);
+    expect(kpis.stockHoldingValue).toBe(summary.stockHoldingValue);
+  });
+
+  it('computes net worth as cash + bank + stock', () => {
+    const summary = summarizeFinancials({ sales, returns, inventory, expenses });
+    const kpis = deriveKpis(summary, { hot_cash: 1000, account_holding_value: 2000 });
+    expect(kpis.availableCapital).toBe(3000);
+    expect(kpis.netWorth).toBeCloseTo(3000 + summary.stockHoldingValue, 6);
+  });
+
+  it('ties ROI to net profit over total investment', () => {
+    const summary = summarizeFinancials({ sales, returns, inventory, expenses });
+    const kpis = deriveKpis(summary, null);
+    expect(kpis.totalInvestment).toBeCloseTo(
+      summary.cogs + summary.inboundFreight + summary.adSpend + summary.freightExpenses +
+      summary.packagingExpenses + summary.softwareExpenses + summary.otherExpenses + summary.returnPenalties, 6);
+    expect(kpis.roi).toBeCloseTo((summary.netProfit / kpis.totalInvestment) * 100, 6);
+  });
+});

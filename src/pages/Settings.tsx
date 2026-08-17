@@ -11,8 +11,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useToast } from '@/hooks/use-toast';
-import { Shield, Users, FileDown, Database, Palette, UserCircle, CheckCircle2, Settings as SettingsIcon, Trash2, ShieldCheck, ShieldAlert, Terminal, RefreshCw, Sparkles, ArrowRightLeft, TrendingUp, AlertTriangle, AlertCircle, Play, Warehouse, Sliders, Eye, Search } from 'lucide-react';
+import { Shield, Users, FileDown, Database, Palette, UserCircle, CheckCircle2, Settings as SettingsIcon, Trash2, ShieldCheck, ShieldAlert, Terminal, RefreshCw, Sparkles, ArrowRightLeft, TrendingUp, AlertTriangle, AlertCircle, Play, Warehouse, Sliders, Eye, Search, MoreHorizontal } from 'lucide-react';
 import { exportDashboardReport } from '@/lib/xlsx-export';
 import { PageHeader, StatCard, SectionCard, EmptyState } from '@/components/PageHeader';
 import { useSales, useInventory, useReturns, useAdExpenses, useCurrentStocks } from '@/hooks/useData';
@@ -581,28 +582,44 @@ export default function SettingsPage() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <Button variant="ghost" size="icon" className="h-8 w-8" title="View KYC details" onClick={() => setDetailsUser(u)}>
-                            <Eye className="h-3.5 w-3.5" />
-                          </Button>
-                          <Select
-                            value={u.role === 'admin' || u.role === 'user' ? u.role : ''}
-                            onValueChange={(v) => updateRole(u.user_id, v)}
-                            disabled={u.user_id === user?.id}
-                          >
-                            <SelectTrigger className="w-28 h-8 text-xs"><SelectValue placeholder="Role…" /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="admin">Admin</SelectItem>
-                              <SelectItem value="user">User</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          {u.user_id !== user?.id && (
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10" title="Delete user" onClick={() => deleteUser(u.user_id)}>
-                              <Trash2 className="h-3.5 w-3.5" />
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="User actions">
+                              <MoreHorizontal className="h-4 w-4" />
                             </Button>
-                          )}
-                        </div>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-48">
+                            <DropdownMenuItem onClick={() => setDetailsUser(u)}>
+                              <Eye className="mr-2 h-3.5 w-3.5" /> View KYC details
+                            </DropdownMenuItem>
+                            {u.user_id !== user?.id && (
+                              <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  disabled={u.role === 'admin'}
+                                  onClick={() => updateRole(u.user_id, 'admin')}
+                                >
+                                  Make admin
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  disabled={u.role === 'user'}
+                                  onClick={() => updateRole(u.user_id, 'user')}
+                                >
+                                  Set as user
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  className="text-destructive focus:text-destructive"
+                                  onClick={() => deleteUser(u.user_id)}
+                                >
+                                  <Trash2 className="mr-2 h-3.5 w-3.5" /> Revoke access
+                                </DropdownMenuItem>
+                              </>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </TableCell>
+
                     </TableRow>
                   ))}
                   {users.length === 0 && !loading && (

@@ -5,7 +5,16 @@ import { useAuthStore } from '@/stores/authStore';
 
 // Keep previous data while refetching so tables don't collapse to zero rows
 // (which would otherwise reset scroll position to top after every status edit).
-const KEEP = { placeholderData: keepPreviousData } as const;
+// staleTime keeps navigation between pages instant instead of refetching the
+// whole ledger every time a route mounts.
+const KEEP = {
+  placeholderData: keepPreviousData,
+  staleTime: 60_000,
+  gcTime: 10 * 60_000,
+  refetchOnWindowFocus: false,
+  refetchOnMount: false,
+} as const;
+
 
 export function useInventory() {
   const loading = useAuthStore((state) => state.loading);

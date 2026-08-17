@@ -435,11 +435,12 @@ export default function PnL() {
 
       {/* Summary Cards */}
       <div className="grid gap-3 grid-cols-2 lg:grid-cols-5">
-        <StatCard title="Gross Revenue" value={fmt(pnl.revenue)} icon={<DollarSign />} color="primary" />
-        <StatCard title="Gross Profit" value={fmt(pnl.grossProfit)} icon={<TrendingUp />} color="amber" />
-        <StatCard title="Net Profit / (Loss)" value={fmt(pnl.netProfit)} icon={pnl.netProfit >= 0 ? <TrendingUp /> : <TrendingDown />} color={pnl.netProfit >= 0 ? 'emerald' : 'red'} />
-        <StatCard title="Profit Per Unit" value={fmt(Math.round(pnl.profitPerUnit))} icon={<DollarSign />} color={pnl.profitPerUnit >= 0 ? 'emerald' : 'red'} />
+        <StatCard title="Net Revenue" value={fmt(kpi.revenue)} icon={<DollarSign />} color="primary" />
+        <StatCard title="Gross Profit" value={fmt(kpi.grossProfit)} icon={<TrendingUp />} color="amber" />
+        <StatCard title="Net Profit / (Loss)" value={fmt(kpi.netProfit)} icon={kpi.netProfit >= 0 ? <TrendingUp /> : <TrendingDown />} color={kpi.netProfit >= 0 ? 'emerald' : 'red'} />
+        <StatCard title="Profit Per Unit" value={fmt(kpi.profitPerUnit)} icon={<DollarSign />} color={kpi.profitPerUnit >= 0 ? 'emerald' : 'red'} />
         <StatCard title="Net Worth" value={fmt(liveNetWorth)} icon={<Landmark />} color="primary" />
+
       </div>
 
       {/* Visualizations */}

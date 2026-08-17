@@ -108,15 +108,20 @@ export default function Sales() {
   const visibleSales = useMemo(() => filtered.slice(0, 250), [filtered]);
 
   const metrics = useMemo(() => {
-    const summary = summarizeFinancials({ sales: filtered as any[], returns: [], inventory: inventory as any[], expenses: [] });
+    // Returns belonging to the currently visible sales, so revenue/profit here
+    // reconcile with the Dashboard and P&L instead of ignoring reversals.
+    const ids = new Set((filtered as any[]).map(s => s.id));
+    const scopedReturns = (returns as any[]).filter(r => ids.has(r.sales_id));
+    const summary = summarizeFinancials({ sales: filtered as any[], returns: scopedReturns, inventory: inventory as any[], expenses: [] });
     return {
       totalRevenue: summary.revenue,
       pendingAmount: summary.pendingRevenue,
       settledAmount: summary.realizedRevenue,
-      totalProfit: summary.revenue - summary.cogs - summary.inboundFreight,
+      totalProfit: summary.netProfit,
     };
-  }, [filtered, inventory]);
+  }, [filtered, returns, inventory]);
   const { totalRevenue, pendingAmount, settledAmount, totalProfit } = metrics;
+
   const fmt = (n: number | null | undefined) => { const v = Number(n); return '₹' + (Number.isFinite(v) ? v : 0).toLocaleString('en-IN', { maximumFractionDigits: 0 }); };
 
   // Generate data for Sales Velocity Chart

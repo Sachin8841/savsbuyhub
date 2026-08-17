@@ -216,9 +216,13 @@ export default function PnL() {
     return acc;
   }, { netProfit: 0, netWorth: 0 }), [disclosedPeriods]);
 
-  const liveHotCash = activePeriod ? Number(activePeriod.hot_cash_snapshot ?? 0) : Number(capital?.hot_cash ?? 0);
-  const liveAccountValue = activePeriod ? Number(activePeriod.account_holding_value_snapshot ?? 0) : Number(capital?.account_holding_value ?? 0);
-  const liveNetWorth = activePeriod ? Number(activePeriod.net_worth ?? 0) : liveHotCash + liveAccountValue + pnl.stockHoldingValue;
+  const kpi = useMemo(() => deriveKpis(pnl as any, activePeriod
+    ? { hot_cash: activePeriod.hot_cash_snapshot, account_holding_value: activePeriod.account_holding_value_snapshot }
+    : (capital as any)), [pnl, activePeriod, capital]);
+  const liveHotCash = kpi.hotCash;
+  const liveAccountValue = kpi.accountValue;
+  const liveNetWorth = activePeriod ? Number(activePeriod.net_worth ?? 0) : kpi.netWorth;
+
 
   const lineItems = [
     { label: 'Gross Revenue (before returns)', value: pnl.grossSales, isMeta: false, type: 'income' as const },

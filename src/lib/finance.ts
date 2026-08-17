@@ -282,3 +282,82 @@ export function calculateCurrentStocks(sales: AnyRow[], returns: AnyRow[], inven
   }
   return stock;
 }
+export interface CapitalSnapshot {
+  hot_cash?: number | null;
+  account_holding_value?: number | null;
+}
+
+export interface LedgerKpis {
+  revenue: number;
+  grossProfit: number;
+  netProfit: number;
+  cogs: number;
+  operatingExpenses: number;
+  totalInvestment: number;
+  pendingRevenue: number;
+  realizedRevenue: number;
+  stockHoldingValue: number;
+  hotCash: number;
+  accountValue: number;
+  availableCapital: number;
+  netWorth: number;
+  unitsSold: number;
+  netUnits: number;
+  orders: number;
+  profitPerUnit: number;
+  margin: number;
+  roi: number;
+  returnRate: number;
+  returnedUnits: number;
+  returnPenalties: number;
+  adSpend: number;
+  freightTotal: number;
+  averageUnitValue: number;
+}
+
+/**
+ * Single source of truth for every headline number shown anywhere in the ERP.
+ * Every page must read these values instead of recomputing them locally.
+ */
+export function deriveKpis(summary: FinancialSummary, capital?: CapitalSnapshot | null): LedgerKpis {
+  const hotCash = n(capital?.hot_cash);
+  const accountValue = n(capital?.account_holding_value);
+  const availableCapital = hotCash + accountValue;
+  const totalInvestment =
+    summary.cogs +
+    summary.inboundFreight +
+    summary.adSpend +
+    summary.freightExpenses +
+    summary.packagingExpenses +
+    summary.softwareExpenses +
+    summary.otherExpenses +
+    summary.returnPenalties;
+
+  return {
+    revenue: summary.revenue,
+    grossProfit: summary.grossProfit,
+    netProfit: summary.netProfit,
+    cogs: summary.cogs,
+    operatingExpenses: summary.operatingExpenses,
+    totalInvestment,
+    pendingRevenue: summary.pendingRevenue,
+    realizedRevenue: summary.realizedRevenue,
+    stockHoldingValue: summary.stockHoldingValue,
+    hotCash,
+    accountValue,
+    availableCapital,
+    netWorth: availableCapital + summary.stockHoldingValue,
+    unitsSold: summary.unitsSold,
+    netUnits: summary.netUnits,
+    orders: summary.orders,
+    profitPerUnit: summary.profitPerUnit,
+    margin: summary.margin,
+    roi: summary.roi,
+    returnRate: summary.returnRate,
+    returnedUnits: summary.returnedUnits,
+    returnPenalties: summary.returnPenalties,
+    adSpend: summary.adSpend,
+    freightTotal: summary.inboundFreight + summary.freightExpenses,
+    averageUnitValue: summary.averageUnitValue,
+  };
+}

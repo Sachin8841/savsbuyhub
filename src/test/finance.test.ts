@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { summarizeFinancials } from '@/lib/finance';
+import { deriveKpis, summarizeFinancials } from '@/lib/finance';
 
 const inventory = [
   { id: 'inv1', sku: 'A1', average_cost_price: 100, average_selling_price: 200, delivery_fee: 100, total_bulk_stock_in: 10 },

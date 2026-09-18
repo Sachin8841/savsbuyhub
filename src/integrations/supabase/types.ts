@@ -111,25 +111,34 @@ export type Database = {
         Row: {
           account_holding_value: number
           created_at: string
+          funds_value: number
           hot_cash: number
           id: boolean
           notes: string | null
+          shares_value: number
+          stocks_value: number
           updated_at: string
         }
         Insert: {
           account_holding_value?: number
           created_at?: string
+          funds_value?: number
           hot_cash?: number
           id?: boolean
           notes?: string | null
+          shares_value?: number
+          stocks_value?: number
           updated_at?: string
         }
         Update: {
           account_holding_value?: number
           created_at?: string
+          funds_value?: number
           hot_cash?: number
           id?: boolean
           notes?: string | null
+          shares_value?: number
+          stocks_value?: number
           updated_at?: string
         }
         Relationships: []
@@ -140,36 +149,45 @@ export type Database = {
           amount: number
           created_at: string
           created_by: string | null
+          funds_delta: number
           hot_cash_delta: number
           id: string
           movement_type: string
           notes: string | null
           reference_id: string | null
           reference_table: string | null
+          shares_delta: number
+          stocks_delta: number
         }
         Insert: {
           account_delta?: number
           amount?: number
           created_at?: string
           created_by?: string | null
+          funds_delta?: number
           hot_cash_delta?: number
           id?: string
           movement_type: string
           notes?: string | null
           reference_id?: string | null
           reference_table?: string | null
+          shares_delta?: number
+          stocks_delta?: number
         }
         Update: {
           account_delta?: number
           amount?: number
           created_at?: string
           created_by?: string | null
+          funds_delta?: number
           hot_cash_delta?: number
           id?: string
           movement_type?: string
           notes?: string | null
           reference_id?: string | null
           reference_table?: string | null
+          shares_delta?: number
+          stocks_delta?: number
         }
         Relationships: []
       }
@@ -680,14 +698,26 @@ export type Database = {
         Args: { _target_user_id: string }
         Returns: boolean
       }
-      set_capital_accounts: {
-        Args: {
-          _account_holding_value: number
-          _hot_cash: number
-          _notes?: string
-        }
-        Returns: boolean
-      }
+      set_capital_accounts:
+        | {
+            Args: {
+              _account_holding_value: number
+              _hot_cash: number
+              _notes?: string
+            }
+            Returns: boolean
+          }
+        | {
+            Args: {
+              _account_holding_value: number
+              _funds_value: number
+              _hot_cash: number
+              _notes?: string
+              _shares_value: number
+              _stocks_value: number
+            }
+            Returns: boolean
+          }
     }
     Enums: {
       app_role: "admin" | "user"

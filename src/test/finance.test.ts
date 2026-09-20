@@ -83,7 +83,7 @@ describe('deriveKpis parity', () => {
 
   it('produces the same headline numbers as the summary it wraps', () => {
     const summary = summarizeFinancials({ sales, returns, inventory, expenses });
-    const kpis = deriveKpis(summary, { hot_cash: 1000, account_holding_value: 2000 });
+    const kpis = deriveKpis(summary, { hot_cash: 1000, account_holding_value: 2000, stocks_value: 300, shares_value: 400, funds_value: 500 });
 
     expect(kpis.revenue).toBe(summary.revenue);
     expect(kpis.netProfit).toBe(summary.netProfit);

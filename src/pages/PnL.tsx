@@ -217,7 +217,13 @@ export default function PnL() {
   }, { netProfit: 0, netWorth: 0 }), [disclosedPeriods]);
 
   const kpi = useMemo(() => deriveKpis(pnl as any, activePeriod
-    ? { hot_cash: activePeriod.hot_cash_snapshot, account_holding_value: activePeriod.account_holding_value_snapshot }
+    ? {
+      hot_cash: activePeriod.hot_cash_snapshot,
+      account_holding_value: activePeriod.account_holding_value_snapshot,
+      stocks_value: activePeriod.stocks_value_snapshot,
+      shares_value: activePeriod.shares_value_snapshot,
+      funds_value: activePeriod.funds_value_snapshot,
+    }
     : (capital as any)), [pnl, activePeriod, capital]);
   const liveHotCash = kpi.hotCash;
   const liveAccountValue = kpi.accountValue;

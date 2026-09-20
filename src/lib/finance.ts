@@ -285,6 +285,9 @@ export function calculateCurrentStocks(sales: AnyRow[], returns: AnyRow[], inven
 export interface CapitalSnapshot {
   hot_cash?: number | null;
   account_holding_value?: number | null;
+  stocks_value?: number | null;
+  shares_value?: number | null;
+  funds_value?: number | null;
 }
 
 export interface LedgerKpis {
@@ -299,6 +302,10 @@ export interface LedgerKpis {
   stockHoldingValue: number;
   hotCash: number;
   accountValue: number;
+  stocksValue: number;
+  sharesValue: number;
+  fundsValue: number;
+  marketAssets: number;
   availableCapital: number;
   netWorth: number;
   unitsSold: number;
@@ -322,7 +329,11 @@ export interface LedgerKpis {
 export function deriveKpis(summary: FinancialSummary, capital?: CapitalSnapshot | null): LedgerKpis {
   const hotCash = n(capital?.hot_cash);
   const accountValue = n(capital?.account_holding_value);
-  const availableCapital = hotCash + accountValue;
+  const stocksValue = n(capital?.stocks_value);
+  const sharesValue = n(capital?.shares_value);
+  const fundsValue = n(capital?.funds_value);
+  const marketAssets = stocksValue + sharesValue + fundsValue;
+  const availableCapital = hotCash + accountValue + marketAssets;
   const totalInvestment =
     summary.cogs +
     summary.inboundFreight +
@@ -345,6 +356,10 @@ export function deriveKpis(summary: FinancialSummary, capital?: CapitalSnapshot 
     stockHoldingValue: summary.stockHoldingValue,
     hotCash,
     accountValue,
+    stocksValue,
+    sharesValue,
+    fundsValue,
+    marketAssets,
     availableCapital,
     netWorth: availableCapital + summary.stockHoldingValue,
     unitsSold: summary.unitsSold,

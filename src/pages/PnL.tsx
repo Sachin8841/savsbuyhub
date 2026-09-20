@@ -221,6 +221,9 @@ export default function PnL() {
     : (capital as any)), [pnl, activePeriod, capital]);
   const liveHotCash = kpi.hotCash;
   const liveAccountValue = kpi.accountValue;
+  const liveStocksValue = kpi.stocksValue;
+  const liveSharesValue = kpi.sharesValue;
+  const liveFundsValue = kpi.fundsValue;
   const liveNetWorth = activePeriod ? Number(activePeriod.net_worth ?? 0) : kpi.netWorth;
 
 
@@ -596,10 +599,22 @@ export default function PnL() {
               <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">Account Value (Bank)</p>
               <p className="text-2xl font-bold text-indigo-700 dark:text-indigo-400 mt-1 tabular-nums">{fmt(liveAccountValue)}</p>
             </div>
+            <div className="rounded-lg border p-4">
+              <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">Stocks</p>
+              <p className="text-xl font-bold mt-1 tabular-nums">{fmt(liveStocksValue)}</p>
+            </div>
+            <div className="rounded-lg border p-4">
+              <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">Shares</p>
+              <p className="text-xl font-bold mt-1 tabular-nums">{fmt(liveSharesValue)}</p>
+            </div>
+            <div className="rounded-lg border p-4">
+              <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">Funds</p>
+              <p className="text-xl font-bold mt-1 tabular-nums">{fmt(liveFundsValue)}</p>
+            </div>
             <div className="rounded-lg border p-4 col-span-2">
               <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">Total Liquid + Inventory Asset</p>
               <p className="text-xl font-bold mt-1 tabular-nums">{fmt(liveNetWorth)}</p>
-              <p className="text-[10px] text-muted-foreground mt-1">Cash + Bank + Unsold inventory at cost</p>
+              <p className="text-[10px] text-muted-foreground mt-1">Cash + Bank + Stocks + Shares + Funds + Unsold inventory at cost</p>
             </div>
             <div className="rounded-lg border p-4 col-span-2">
               <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">Archived Earnings</p>

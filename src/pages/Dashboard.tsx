@@ -41,7 +41,7 @@ export default function Dashboard() {
   const [adForm, setAdForm] = useState({ category: 'Ads', platform: '', amount: '', expense_date: new Date().toISOString().slice(0, 10), description: '' });
   const [adEditId, setAdEditId] = useState<string | null>(null);
   const [capitalDialogOpen, setCapitalDialogOpen] = useState(false);
-  const [capitalForm, setCapitalForm] = useState({ hot_cash: '', account_holding_value: '', notes: '' });
+  const [capitalForm, setCapitalForm] = useState({ hot_cash: '', account_holding_value: '', stocks_value: '', shares_value: '', funds_value: '', notes: '' });
   const [movementForm, setMovementForm] = useState({ type: 'cash_to_account', amount: '', notes: '' });
   const currentStocks = useCurrentStocks();
 
@@ -214,6 +214,9 @@ export default function Dashboard() {
     setCapitalForm({
       hot_cash: String(capitalAccounts.hot_cash ?? 0),
       account_holding_value: String(capitalAccounts.account_holding_value ?? 0),
+      stocks_value: String(capitalAccounts.stocks_value ?? 0),
+      shares_value: String(capitalAccounts.shares_value ?? 0),
+      funds_value: String(capitalAccounts.funds_value ?? 0),
       notes: capitalAccounts.notes ?? '',
     });
   }, [capitalAccounts]);
@@ -221,9 +224,15 @@ export default function Dashboard() {
   const handleCapitalSet = async () => {
     const hotCash = Number(capitalForm.hot_cash || 0);
     const accountValue = Number(capitalForm.account_holding_value || 0);
+    const stocksValue = Number(capitalForm.stocks_value || 0);
+    const sharesValue = Number(capitalForm.shares_value || 0);
+    const fundsValue = Number(capitalForm.funds_value || 0);
     const { error } = await supabase.rpc('set_capital_accounts', {
       _hot_cash: hotCash,
       _account_holding_value: accountValue,
+      _stocks_value: stocksValue,
+      _shares_value: sharesValue,
+      _funds_value: fundsValue,
       _notes: capitalForm.notes || undefined,
     });
     if (error) return;
@@ -267,6 +276,9 @@ export default function Dashboard() {
   const roi = k.roi.toFixed(1);
   const hotCash = k.hotCash;
   const accountHoldingValue = k.accountValue;
+  const stocksValue = k.stocksValue;
+  const sharesValue = k.sharesValue;
+  const fundsValue = k.fundsValue;
   const availableCapital = k.availableCapital;
   const netWorth = k.netWorth;
 
@@ -275,7 +287,7 @@ export default function Dashboard() {
     { title: 'Hot Cash', value: fmt(hotCash), subtitle: 'COD / cash on hand', icon: Banknote, color: 'text-emerald-600', bg: 'bg-emerald-50 dark:bg-emerald-950' },
     { title: 'Account Value', value: fmt(accountHoldingValue), subtitle: 'Bank / account holding', icon: Landmark, color: 'text-primary', bg: 'bg-primary/10' },
     { title: 'Available Capital', value: fmt(availableCapital), subtitle: 'Cash + account', icon: ArrowRightLeft, color: 'text-emerald-600', bg: 'bg-emerald-50 dark:bg-emerald-950' },
-    { title: 'Net Worth', value: fmt(netWorth), subtitle: 'Cash + Bank + Stock', icon: Landmark, color: 'text-primary', bg: 'bg-primary/10' },
+    { title: 'Net Worth', value: fmt(netWorth), subtitle: 'Cash + Bank + Market assets + Stock', icon: Landmark, color: 'text-primary', bg: 'bg-primary/10' },
     { title: 'Total Investment', value: fmt(k.totalInvestment), subtitle: 'COGS + Freight + Ads + Other Opex', icon: Package, color: 'text-amber-600', bg: 'bg-amber-50 dark:bg-amber-950' },
     { title: 'Net Profit', value: fmt(k.netProfit), subtitle: `${k.margin.toFixed(1)}% margin`, icon: k.netProfit >= 0 ? ArrowUpRight : ArrowDownRight, color: k.netProfit >= 0 ? 'text-emerald-600' : 'text-destructive', bg: k.netProfit >= 0 ? 'bg-emerald-50 dark:bg-emerald-950' : 'bg-destructive/10' },
     { title: 'Total Orders', value: formatNumber(k.orders), subtitle: `${k.unitsSold} units · Avg ${fmt(k.averageUnitValue)}/unit`, icon: ShoppingCart, color: 'text-primary', bg: 'bg-primary/10' },
@@ -405,6 +417,9 @@ export default function Dashboard() {
                   <div className="space-y-3 rounded-lg border p-3">
                     <div><Label>Hot Cash (₹)</Label><Input type="number" step="0.01" value={capitalForm.hot_cash} onChange={e => setCapitalForm(p => ({ ...p, hot_cash: e.target.value }))} /></div>
                     <div><Label>Account Holding Value (₹)</Label><Input type="number" step="0.01" value={capitalForm.account_holding_value} onChange={e => setCapitalForm(p => ({ ...p, account_holding_value: e.target.value }))} /></div>
+                    <div><Label>Stocks Value (₹)</Label><Input type="number" step="0.01" value={capitalForm.stocks_value} onChange={e => setCapitalForm(p => ({ ...p, stocks_value: e.target.value }))} /></div>
+                    <div><Label>Shares Value (₹)</Label><Input type="number" step="0.01" value={capitalForm.shares_value} onChange={e => setCapitalForm(p => ({ ...p, shares_value: e.target.value }))} /></div>
+                    <div><Label>Funds Value (₹)</Label><Input type="number" step="0.01" value={capitalForm.funds_value} onChange={e => setCapitalForm(p => ({ ...p, funds_value: e.target.value }))} /></div>
                     <div><Label>Notes</Label><Input value={capitalForm.notes} onChange={e => setCapitalForm(p => ({ ...p, notes: e.target.value }))} /></div>
                     <Button onClick={handleCapitalSet} className="w-full">Update Balances</Button>
                   </div>

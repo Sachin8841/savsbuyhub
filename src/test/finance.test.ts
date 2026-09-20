@@ -92,11 +92,12 @@ describe('deriveKpis parity', () => {
     expect(kpis.stockHoldingValue).toBe(summary.stockHoldingValue);
   });
 
-  it('computes net worth as cash + bank + stock', () => {
+  it('computes net worth as cash + bank + market assets + stock', () => {
     const summary = summarizeFinancials({ sales, returns, inventory, expenses });
-    const kpis = deriveKpis(summary, { hot_cash: 1000, account_holding_value: 2000 });
-    expect(kpis.availableCapital).toBe(3000);
-    expect(kpis.netWorth).toBeCloseTo(3000 + summary.stockHoldingValue, 6);
+    const kpis = deriveKpis(summary, { hot_cash: 1000, account_holding_value: 2000, stocks_value: 300, shares_value: 400, funds_value: 500 });
+    expect(kpis.availableCapital).toBe(4200);
+    expect(kpis.marketAssets).toBe(1200);
+    expect(kpis.netWorth).toBeCloseTo(4200 + summary.stockHoldingValue, 6);
   });
 
   it('ties ROI to net profit over total investment', () => {

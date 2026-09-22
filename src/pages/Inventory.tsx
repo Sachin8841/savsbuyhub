@@ -406,6 +406,19 @@ export default function Inventory() {
                     Creates <b>Batch {restockItem?.nextBatch}</b> under parent SKU <b>{restockItem?.sku}</b>. The batch keeps the same product name with the batch tag, and is never counted as a unique SKU.
                   </div>
                 </DialogHeader>
+                <div className="rounded-lg border border-dashed p-3 mt-2">
+                  <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Upload Purchase Bill</Label>
+                  <Input
+                    type="file"
+                    accept="application/pdf,image/*"
+                    className="mt-2"
+                    disabled={billUploading === 'restock'}
+                    onChange={(e) => { const f = e.target.files?.[0]; if (f) handlePurchaseBill(f, 'restock'); e.target.value = ''; }}
+                  />
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    {billUploading === 'restock' ? 'Reading the bill…' : 'Optional — fills units and batch cost from the supplier bill. Check the values before saving.'}
+                  </p>
+                </div>
                 <form onSubmit={restockForm.handleSubmit(onRestockSubmit)} className="space-y-4 pt-2">
                   <div>
                     <Label>Batch SKU (auto)</Label>

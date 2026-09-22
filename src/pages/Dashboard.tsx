@@ -287,7 +287,7 @@ export default function Dashboard() {
     { title: 'Hot Cash', value: fmt(hotCash), subtitle: 'COD / cash on hand', icon: Banknote, color: 'text-emerald-600', bg: 'bg-emerald-50 dark:bg-emerald-950' },
     { title: 'Account Value', value: fmt(accountHoldingValue), subtitle: 'Bank / account holding', icon: Landmark, color: 'text-primary', bg: 'bg-primary/10' },
     { title: 'Stocks, Shares & Funds', value: fmt(k.marketAssets), subtitle: `Stocks ${fmt(stocksValue)} · Shares ${fmt(sharesValue)} · Funds ${fmt(fundsValue)}`, icon: TrendingUp, color: 'text-primary', bg: 'bg-primary/10' },
-    { title: 'Available Capital', value: fmt(availableCapital), subtitle: 'Cash + account', icon: ArrowRightLeft, color: 'text-emerald-600', bg: 'bg-emerald-50 dark:bg-emerald-950' },
+    { title: 'Available Capital', value: fmt(availableCapital), subtitle: 'Cash + account + market assets', icon: ArrowRightLeft, color: 'text-emerald-600', bg: 'bg-emerald-50 dark:bg-emerald-950' },
     { title: 'Net Worth', value: fmt(netWorth), subtitle: 'Cash + Bank + Market assets + Stock', icon: Landmark, color: 'text-primary', bg: 'bg-primary/10' },
     { title: 'Total Investment', value: fmt(k.totalInvestment), subtitle: 'COGS + Freight + Ads + Other Opex', icon: Package, color: 'text-amber-600', bg: 'bg-amber-50 dark:bg-amber-950' },
     { title: 'Net Profit', value: fmt(k.netProfit), subtitle: `${k.margin.toFixed(1)}% margin`, icon: k.netProfit >= 0 ? ArrowUpRight : ArrowDownRight, color: k.netProfit >= 0 ? 'text-emerald-600' : 'text-destructive', bg: k.netProfit >= 0 ? 'bg-emerald-50 dark:bg-emerald-950' : 'bg-destructive/10' },

@@ -61,6 +61,7 @@ export default function Inventory() {
 
   const [restockDialogOpen, setRestockDialogOpen] = useState(false);
   const [restockItem, setRestockItem] = useState<any>(null);
+  const [billUploading, setBillUploading] = useState<'add' | 'restock' | null>(null);
 
   const restockForm = useForm<FormData>({
     resolver: zodResolver(schema),

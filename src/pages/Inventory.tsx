@@ -61,6 +61,7 @@ export default function Inventory() {
 
   const [restockDialogOpen, setRestockDialogOpen] = useState(false);
   const [restockItem, setRestockItem] = useState<any>(null);
+  const [billUploading, setBillUploading] = useState<'add' | 'restock' | null>(null);
 
   const restockForm = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -152,6 +153,59 @@ export default function Inventory() {
       toast({ title: 'Error', description: err.message, variant: 'destructive' });
     }
   };
+
+  // Purchase bill upload: reads a supplier/transport bill and pre-fills the form.
+  const handlePurchaseBill = async (file: File, target: 'add' | 'restock') => {
+    const targetForm = target === 'add' ? form : restockForm;
+    try {
+      setBillUploading(target);
+      const base64: string = await new Promise((res, rej) => {
+        const reader = new FileReader();
+        reader.onload = () => res((reader.result as string).split(',')[1]);
+        reader.onerror = rej;
+        reader.readAsDataURL(file);
+      });
+
+      const invSlim = inventory.map((i: any) => ({ sku: i.sku, name: i.product_name, aliases: i.aliases ?? [] }));
+      const { data, error } = await supabase.functions.invoke('parse-bill', {
+        body: { pdfBase64: base64, mimeType: file.type, inventory: invSlim },
+      });
+      if (error) throw error;
+
+      const items: any[] = data?.items ?? [];
+      if (!items.length) {
+        toast({ title: 'Nothing readable in that bill', description: 'Please type the details in manually.', variant: 'destructive' });
+        return;
+      }
+
+      const totalQty = items.reduce((s, it) => s + (Number(it.quantity) || 0), 0);
+      const totalValue = items.reduce((s, it) => s + (Number(it.total_amount) || 0), 0);
+      const first = items[0];
+
+      if (totalQty > 0) targetForm.setValue('total_bulk_stock_in', totalQty);
+      if (totalValue > 0 && totalQty > 0) {
+        targetForm.setValue('average_cost_price', Number((totalValue / totalQty).toFixed(2)));
+      }
+      if (target === 'add') {
+        if (first?.sku) targetForm.setValue('sku', String(first.sku));
+        if (first?.product_name) targetForm.setValue('product_name', String(first.product_name));
+      }
+      if (first?.order_number) targetForm.setValue('supplier_invoice_number', String(first.order_number));
+      if (first?.courier_partner) targetForm.setValue('transport_provider', String(first.courier_partner));
+      targetForm.setValue('purchase_notes', `Read from bill: ${file.name}`);
+
+      toast({
+        title: 'Bill read',
+        description: `${items.length} line item(s) · ${totalQty} units${totalValue > 0 ? ` · ${fmt(totalValue)}` : ''}. Please check the values before saving.`,
+      });
+    } catch (err: any) {
+      toast({ title: 'Could not read that bill', description: err.message, variant: 'destructive' });
+    } finally {
+      setBillUploading(null);
+    }
+  };
+
+
 
 
 
@@ -280,6 +334,19 @@ export default function Inventory() {
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader><DialogTitle>{editId ? 'Edit Item' : 'Add Item'}</DialogTitle></DialogHeader>
+                <div className="rounded-lg border border-dashed p-3">
+                  <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Upload Purchase Bill</Label>
+                  <Input
+                    type="file"
+                    accept="application/pdf,image/*"
+                    className="mt-2"
+                    disabled={billUploading === 'add'}
+                    onChange={(e) => { const f = e.target.files?.[0]; if (f) handlePurchaseBill(f, 'add'); e.target.value = ''; }}
+                  />
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    {billUploading === 'add' ? 'Reading the bill…' : 'Optional — fills product, units and cost from the supplier bill. Check the values before saving.'}
+                  </p>
+                </div>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                   <div><Label>SKU</Label><Input {...form.register('sku')} />{form.formState.errors.sku && <p className="text-sm text-destructive">{form.formState.errors.sku.message}</p>}</div>
                   <div><Label>Product Name</Label><Input {...form.register('product_name')} />{form.formState.errors.product_name && <p className="text-sm text-destructive">{form.formState.errors.product_name.message}</p>}</div>
@@ -339,6 +406,19 @@ export default function Inventory() {
                     Creates <b>Batch {restockItem?.nextBatch}</b> under parent SKU <b>{restockItem?.sku}</b>. The batch keeps the same product name with the batch tag, and is never counted as a unique SKU.
                   </div>
                 </DialogHeader>
+                <div className="rounded-lg border border-dashed p-3 mt-2">
+                  <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Upload Purchase Bill</Label>
+                  <Input
+                    type="file"
+                    accept="application/pdf,image/*"
+                    className="mt-2"
+                    disabled={billUploading === 'restock'}
+                    onChange={(e) => { const f = e.target.files?.[0]; if (f) handlePurchaseBill(f, 'restock'); e.target.value = ''; }}
+                  />
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    {billUploading === 'restock' ? 'Reading the bill…' : 'Optional — fills units and batch cost from the supplier bill. Check the values before saving.'}
+                  </p>
+                </div>
                 <form onSubmit={restockForm.handleSubmit(onRestockSubmit)} className="space-y-4 pt-2">
                   <div>
                     <Label>Batch SKU (auto)</Label>

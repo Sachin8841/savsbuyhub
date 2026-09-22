@@ -153,6 +153,59 @@ export default function Inventory() {
     }
   };
 
+  // Purchase bill upload: reads a supplier/transport bill and pre-fills the form.
+  const handlePurchaseBill = async (file: File, target: 'add' | 'restock') => {
+    const targetForm = target === 'add' ? form : restockForm;
+    try {
+      setBillUploading(target);
+      const base64: string = await new Promise((res, rej) => {
+        const reader = new FileReader();
+        reader.onload = () => res((reader.result as string).split(',')[1]);
+        reader.onerror = rej;
+        reader.readAsDataURL(file);
+      });
+
+      const invSlim = inventory.map((i: any) => ({ sku: i.sku, name: i.product_name, aliases: i.aliases ?? [] }));
+      const { data, error } = await supabase.functions.invoke('parse-bill', {
+        body: { pdfBase64: base64, mimeType: file.type, inventory: invSlim },
+      });
+      if (error) throw error;
+
+      const items: any[] = data?.items ?? [];
+      if (!items.length) {
+        toast({ title: 'Nothing readable in that bill', description: 'Please type the details in manually.', variant: 'destructive' });
+        return;
+      }
+
+      const totalQty = items.reduce((s, it) => s + (Number(it.quantity) || 0), 0);
+      const totalValue = items.reduce((s, it) => s + (Number(it.total_amount) || 0), 0);
+      const first = items[0];
+
+      if (totalQty > 0) targetForm.setValue('total_bulk_stock_in', totalQty);
+      if (totalValue > 0 && totalQty > 0) {
+        targetForm.setValue('average_cost_price', Number((totalValue / totalQty).toFixed(2)));
+      }
+      if (target === 'add') {
+        if (first?.sku) targetForm.setValue('sku', String(first.sku));
+        if (first?.product_name) targetForm.setValue('product_name', String(first.product_name));
+      }
+      if (first?.order_number) targetForm.setValue('supplier_invoice_number', String(first.order_number));
+      if (first?.courier_partner) targetForm.setValue('transport_provider', String(first.courier_partner));
+      targetForm.setValue('purchase_notes', `Read from bill: ${file.name}`);
+
+      toast({
+        title: 'Bill read',
+        description: `${items.length} line item(s) · ${totalQty} units${totalValue > 0 ? ` · ${fmt(totalValue)}` : ''}. Please check the values before saving.`,
+      });
+    } catch (err: any) {
+      toast({ title: 'Could not read that bill', description: err.message, variant: 'destructive' });
+    } finally {
+      setBillUploading(null);
+    }
+  };
+
+
+
 
 
   const filtered = inventory.filter(i =>

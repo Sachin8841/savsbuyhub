@@ -334,6 +334,19 @@ export default function Inventory() {
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader><DialogTitle>{editId ? 'Edit Item' : 'Add Item'}</DialogTitle></DialogHeader>
+                <div className="rounded-lg border border-dashed p-3">
+                  <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Upload Purchase Bill</Label>
+                  <Input
+                    type="file"
+                    accept="application/pdf,image/*"
+                    className="mt-2"
+                    disabled={billUploading === 'add'}
+                    onChange={(e) => { const f = e.target.files?.[0]; if (f) handlePurchaseBill(f, 'add'); e.target.value = ''; }}
+                  />
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    {billUploading === 'add' ? 'Reading the bill…' : 'Optional — fills product, units and cost from the supplier bill. Check the values before saving.'}
+                  </p>
+                </div>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                   <div><Label>SKU</Label><Input {...form.register('sku')} />{form.formState.errors.sku && <p className="text-sm text-destructive">{form.formState.errors.sku.message}</p>}</div>
                   <div><Label>Product Name</Label><Input {...form.register('product_name')} />{form.formState.errors.product_name && <p className="text-sm text-destructive">{form.formState.errors.product_name.message}</p>}</div>

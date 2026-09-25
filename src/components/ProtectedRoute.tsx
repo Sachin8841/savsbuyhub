@@ -1,4 +1,4 @@
-import { Navigate } from 'react-router-dom';
+import { Navigate, Outlet } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 
 export function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -18,7 +18,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 /** Operating pages (ledgers, cash, P&L) are for admins only. Members land on the investor view. */
-export function AdminRoute({ children }: { children?: React.ReactNode }) {
+export function AdminRoute() {
   const { user, role, loading } = useAuthStore();
 
   if (loading || (user && role === null)) {
@@ -32,6 +32,6 @@ export function AdminRoute({ children }: { children?: React.ReactNode }) {
   if (!user) return <Navigate to="/login" replace />;
   if (role !== 'admin') return <Navigate to="/forecast" replace />;
 
-  return <>{children}</>;
+  return <Outlet />;
 }
 

@@ -42,8 +42,8 @@ const App = () => (
               <Route path="/forecast" element={<Forecast />} />
               <Route path="/login" element={<Login />} />
               <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
-                <Route path="/" element={<Dashboard />} />
                 <Route element={<AdminRoute />}>
+                  <Route path="/" element={<Dashboard />} />
                   <Route path="/inventory" element={<Inventory />} />
                   <Route path="/sales" element={<Sales />} />
                   <Route path="/returns" element={<Returns />} />

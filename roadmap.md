@@ -4,3 +4,4 @@
 - [x] Show stocks, shares and funds together as one dashboard card
 - [x] Add bill upload option to inventory stocking and restocking dialogs
 - [x] Verify preview build and finance tests pass
+- [ ] Complete security verification for disclosed financial periods and role-gated routes

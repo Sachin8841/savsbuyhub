@@ -18,7 +18,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 /** Operating pages (ledgers, cash, P&L) are for admins only. Members land on the investor view. */
-export function AdminRoute({ children }: { children: React.ReactNode }) {
+export function AdminRoute({ children }: { children?: React.ReactNode }) {
   const { user, role, loading } = useAuthStore();
 
   if (loading || (user && role === null)) {

@@ -4,7 +4,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/components/AuthProvider";
-import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { ProtectedRoute, AdminRoute } from "@/components/ProtectedRoute";
 import { AppLayout } from "@/components/AppLayout";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -43,11 +43,13 @@ const App = () => (
               <Route path="/login" element={<Login />} />
               <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
                 <Route path="/" element={<Dashboard />} />
-                <Route path="/inventory" element={<Inventory />} />
-                <Route path="/sales" element={<Sales />} />
-                <Route path="/returns" element={<Returns />} />
-                <Route path="/pnl" element={<PnL />} />
-                <Route path="/settings" element={<Settings />} />
+                <Route element={<AdminRoute />}>
+                  <Route path="/inventory" element={<Inventory />} />
+                  <Route path="/sales" element={<Sales />} />
+                  <Route path="/returns" element={<Returns />} />
+                  <Route path="/pnl" element={<PnL />} />
+                  <Route path="/settings" element={<Settings />} />
+                </Route>
               </Route>
               <Route path="*" element={<NotFound />} />
             </Routes>

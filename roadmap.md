@@ -5,3 +5,4 @@
 - [x] Add bill upload option to inventory stocking and restocking dialogs
 - [x] Verify preview build and finance tests pass
 - [x] Complete security verification for disclosed financial periods and role-gated routes
+- [ ] Audit confirmed reliability, performance, responsive-layout, and dead-code issues; present a staged fix plan for approval

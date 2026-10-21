@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSales, useReturns, useInventory, useAdExpenses, useCapitalAccounts, useCashMovements, useCurrentStocks } from '@/hooks/useData';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuthStore } from '@/stores/authStore';
@@ -78,7 +78,7 @@ export default function Dashboard() {
     { name: 'RTO', value: rtoReturns.reduce((s, r) => s + r.quantity_returned, 0), penalty: rtoReturns.reduce((s, r) => s + r.penalty_amount, 0) },
   ].filter(d => d.value > 0);
 
-  const buildTrendData = (p: string, dr: { from?: Date; to?: Date }) => {
+  const buildTrendData = useCallback((p: string, dr: { from?: Date; to?: Date }) => {
     const { from, to } = getFilterDate(p, dr);
     const inRange = (value: string | null | undefined) => {
       if (!from) return true;
@@ -128,11 +128,27 @@ export default function Dashboard() {
       m.profitPerUnit = m.units > 0 ? Math.round(m.profit / m.units) : 0;
     });
     return arr;
-  };
+  }, [sales, returns, adExpenses, inventoryById, salesById]);
 
-  const trendData = useMemo(() => buildTrendData(trendPeriod, trendDateRange), [sales, returns, adExpenses, trendPeriod, trendDateRange, inventoryById, salesById]);
-  const profitTrendData = useMemo(() => buildTrendData(profitPeriod, profitDateRange), [sales, returns, adExpenses, profitPeriod, profitDateRange, inventoryById, salesById]);
-  const unitsTrendData = useMemo(() => buildTrendData(unitsPeriod, unitsDateRange), [sales, returns, adExpenses, unitsPeriod, unitsDateRange, inventoryById, salesById]);
+  const trendSeries = useMemo(() => {
+    const cache = new Map<string, ReturnType<typeof buildTrendData>>();
+    const getSeries = (period: string, range: { from?: Date; to?: Date }) => {
+      const key = `${period}|${range.from?.getTime() ?? ''}|${range.to?.getTime() ?? ''}`;
+      const cached = cache.get(key);
+      if (cached) return cached;
+      const series = buildTrendData(period, range);
+      cache.set(key, series);
+      return series;
+    };
+    return {
+      trend: getSeries(trendPeriod, trendDateRange),
+      profit: getSeries(profitPeriod, profitDateRange),
+      units: getSeries(unitsPeriod, unitsDateRange),
+    };
+  }, [buildTrendData, trendPeriod, trendDateRange, profitPeriod, profitDateRange, unitsPeriod, unitsDateRange]);
+  const trendData = trendSeries.trend;
+  const profitTrendData = trendSeries.profit;
+  const unitsTrendData = trendSeries.units;
 
   const topProducts = useMemo(() => {
     const map: Record<string, { name: string; sku: string; revenue: number; units: number; profit: number; profitPerUnit: number }> = {};
@@ -714,14 +730,14 @@ export default function Dashboard() {
           <CardContent>
             {courierData.length > 0 ? (
               <div className="space-y-2">
-                <div className="grid grid-cols-4 text-xs text-muted-foreground font-medium px-2 pb-1 border-b">
+                <div className="grid grid-cols-[minmax(0,1fr)_3rem_3rem_5rem] text-xs text-muted-foreground font-medium px-2 pb-1 border-b">
                   <span>Courier</span>
                   <span className="text-right">Orders</span>
                   <span className="text-right">Units</span>
                   <span className="text-right">Penalties</span>
                 </div>
                 {courierData.map((c, i) => (
-                  <div key={c.courier} className={`grid grid-cols-4 text-sm px-2 py-1.5 rounded-md ${i % 2 === 0 ? 'bg-muted/30' : ''}`}>
+                  <div key={c.courier} className={`grid grid-cols-[minmax(0,1fr)_3rem_3rem_5rem] text-sm px-2 py-1.5 rounded-md ${i % 2 === 0 ? 'bg-muted/30' : ''}`}>
                     <span className="font-medium truncate pr-1">{c.courier}</span>
                     <span className="text-right tabular-nums">{c.orders}</span>
                     <span className="text-right tabular-nums">{c.units}</span>

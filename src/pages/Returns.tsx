@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import { useReturns, useSales, useInventory } from '@/hooks/useData';
 import { useAuthStore } from '@/stores/authStore';
 import { supabase } from '@/integrations/supabase/client';
@@ -59,44 +59,51 @@ export default function Returns() {
     defaultValues: { inventory_id: '', platform: 'Meesho', order_number: '', sub_order_number: '', courier_partner: '', raw_status: '', return_type: 'Customer Return', quantity_returned: 1, return_date: new Date().toISOString().slice(0, 10) },
   });
 
-  const filtered = returns.filter(r => {
-    const sale = r.sales as any;
-    const inv = (r as any).inventory ?? sale?.inventory ?? inventory.find(i => i.id === r.inventory_id);
-    const searchLower = search.toLowerCase();
-    const matchSearch = search === '' ||
-      (inv?.sku && inv.sku.toLowerCase().includes(searchLower)) ||
-      (inv?.product_name && inv.product_name.toLowerCase().includes(searchLower)) ||
-      ((r as any).order_number && (r as any).order_number.toLowerCase().includes(searchLower)) ||
-      ((r as any).sub_order_number && (r as any).sub_order_number.toLowerCase().includes(searchLower)) ||
-      ((r as any).courier_partner && (r as any).courier_partner.toLowerCase().includes(searchLower)) ||
-      (r.return_type && r.return_type.toLowerCase().includes(searchLower));
-    const matchType = typeFilter === 'all' || r.return_type === typeFilter;
-    const matchStatus = statusFilter === 'all' || r.delivery_status === statusFilter;
-    return matchSearch && matchType && matchStatus;
-  });
+  const inventoryById = useMemo(() => new Map(inventory.map(item => [item.id, item])), [inventory]);
+  const salesById = useMemo(() => new Map(sales.map(sale => [sale.id, sale])), [sales]);
+  const filtered = useMemo(() => {
+    const searchLower = search.trim().toLowerCase();
+    return returns.filter(r => {
+      const sale = r.sales as any ?? salesById.get(r.sales_id);
+      const inv = (r as any).inventory ?? sale?.inventory ?? inventoryById.get(r.inventory_id || sale?.inventory_id);
+      const matchSearch = searchLower === '' || [inv?.sku, inv?.product_name, (r as any).order_number, (r as any).sub_order_number, (r as any).courier_partner, r.return_type]
+        .some(value => String(value ?? '').toLowerCase().includes(searchLower));
+      const matchType = typeFilter === 'all' || r.return_type === typeFilter;
+      const matchStatus = statusFilter === 'all' || r.delivery_status === statusFilter;
+      return matchSearch && matchType && matchStatus;
+    });
+  }, [returns, search, typeFilter, statusFilter, salesById, inventoryById]);
 
   // Quantity only counts toward inventory once physically received.
-  const receivedUnits = returns.filter(r => r.delivery_status === 'Received').reduce((sum, r) => sum + r.quantity_returned, 0);
-  const inTransitUnits = returns.filter(r => r.delivery_status === 'In Transit').reduce((sum, r) => sum + r.quantity_returned, 0);
-  const totalPenalty = returns.reduce((sum, r) => sum + r.penalty_amount, 0);
-  const inTransit = returns.filter(r => r.delivery_status === 'In Transit').length;
-  const received = returns.filter(r => r.delivery_status === 'Received').length;
+  const { receivedUnits, inTransitUnits, totalPenalty, inTransit, received } = useMemo(() => returns.reduce((totals, row) => {
+    const quantity = Number(row.quantity_returned ?? 0);
+    totals.totalPenalty += Number(row.penalty_amount ?? 0);
+    if (row.delivery_status === 'Received') {
+      totals.received += 1;
+      totals.receivedUnits += quantity;
+    } else if (row.delivery_status === 'In Transit') {
+      totals.inTransit += 1;
+      totals.inTransitUnits += quantity;
+    }
+    return totals;
+  }, { receivedUnits: 0, inTransitUnits: 0, totalPenalty: 0, inTransit: 0, received: 0 }), [returns]);
   const fmt = (n: number | null | undefined) => { const v = Number(n); return '₹' + (Number.isFinite(v) ? v : 0).toLocaleString('en-IN', { maximumFractionDigits: 0 }); };
 
   // Generate Penalty Chart Data
-  const penaltyBySku = filtered.reduce((acc: any, curr) => {
+  const topPenalizedSkus = useMemo(() => {
+    const penaltyBySku = filtered.reduce((acc: Record<string, { sku: string; penalty: number; count: number }>, curr) => {
     const sale = curr.sales as any;
-    const inv = (curr as any).inventory ?? sale?.inventory ?? inventory.find(i => i.id === curr.inventory_id);
+    const inv = (curr as any).inventory ?? sale?.inventory ?? inventoryById.get(curr.inventory_id || salesById.get(curr.sales_id)?.inventory_id);
     const sku = inv?.sku || 'Unknown';
     if (!acc[sku]) acc[sku] = { sku, penalty: 0, count: 0 };
-    acc[sku].penalty += curr.penalty_amount;
-    acc[sku].count += curr.quantity_returned;
+    acc[sku].penalty += Number(curr.penalty_amount ?? 0);
+    acc[sku].count += Number(curr.quantity_returned ?? 0);
     return acc;
-  }, {});
-  
-  const topPenalizedSkus = Object.values(penaltyBySku)
+    }, {});
+    return Object.values(penaltyBySku)
     .sort((a: any, b: any) => b.penalty - a.penalty)
     .slice(0, 5);
+  }, [filtered, inventoryById, salesById]);
 
   const onSubmit = async (values: FormData) => {
     try {
@@ -225,7 +232,7 @@ export default function Returns() {
       if (!rows.length) { toast({ title: 'No return rows detected', description: 'The CSV does not contain a recognisable header row.', variant: 'destructive' }); return; }
 
       // Normalize IDs aggressively — strip trailing _N batch suffixes, spaces, dashes, case.
-      const normId = (s: string) => String(s || '').trim().toLowerCase().replace(/[\s\-]+/g, '').replace(/_\d+$/, '');
+      const normId = (s: string) => String(s || '').trim().toLowerCase().replace(/[\s-]+/g, '').replace(/_\d+$/, '');
       // A row is a duplicate if ANY of its candidate IDs (order OR sub-order) matches
       // an existing return's order OR sub-order id. This handles the case where the
       // trained parser sometimes writes the sub-order-id into the order-id field.
@@ -370,7 +377,6 @@ export default function Returns() {
         icon={<RotateCcw className="h-5 w-5 text-red-500" />}
         actions={<>
           <Button variant="outline" size="sm" onClick={handleExport} className="gap-1.5"><Download className="h-4 w-4" />Export</Button>
-          {admin && false && null}
           {admin && (
             <>
               <input ref={meeshoFileRef} type="file" accept=".csv,text/csv" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleMeeshoFile(f); }} />
@@ -386,7 +392,7 @@ export default function Returns() {
                 <DialogHeader><DialogTitle>Log Return</DialogTitle></DialogHeader>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                   <div><Label>Return Date</Label><Input type="date" {...form.register('return_date')} /></div>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <Label>Platform</Label>
                       <Controller name="platform" control={form.control} render={({ field }) => (
@@ -400,7 +406,7 @@ export default function Returns() {
                     </div>
                     <div><Label>Courier Partner</Label><Input {...form.register('courier_partner')} placeholder="Valmo / Delhivery…" /></div>
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div><Label>Order ID</Label><Input {...form.register('order_number')} placeholder="Order number" /></div>
                     <div><Label>Sub Order ID</Label><Input {...form.register('sub_order_number')} placeholder="Meesho sub order" /></div>
                   </div>

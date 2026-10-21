@@ -351,22 +351,22 @@ export default function Inventory() {
                   <div><Label>SKU</Label><Input {...form.register('sku')} />{form.formState.errors.sku && <p className="text-sm text-destructive">{form.formState.errors.sku.message}</p>}</div>
                   <div><Label>Product Name</Label><Input {...form.register('product_name')} />{form.formState.errors.product_name && <p className="text-sm text-destructive">{form.formState.errors.product_name.message}</p>}</div>
                   <div><Label>Aliases (comma-separated, used to match product names from bills)</Label><Input placeholder="e.g. Blue Tee, Cotton T-shirt Blue" {...form.register('aliases')} /></div>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div><Label>Cost Price (₹)</Label><Input type="number" step="0.01" {...form.register('average_cost_price', { valueAsNumber: true })} /></div>
                     <div><Label>Selling Price (₹)</Label><Input type="number" step="0.01" {...form.register('average_selling_price', { valueAsNumber: true })} /></div>
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div><Label>Bulk Stock In</Label><Input type="number" {...form.register('total_bulk_stock_in', { valueAsNumber: true })} /></div>
                     <div><Label>Delivery Fee (₹)</Label><Input type="number" step="0.01" {...form.register('delivery_fee', { valueAsNumber: true })} /></div>
                   </div>
                   <div><Label>Stock Added Date</Label><Input type="date" {...form.register('stock_added_date')} /></div>
                   <div className="rounded-lg border bg-muted/20 p-3 space-y-3">
                     <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Supplier & Transport Bill</p>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div><Label>Supplier Name</Label><Input placeholder="e.g. Tirupur Textiles" {...form.register('supplier_name')} /></div>
                       <div><Label>Supplier Contact</Label><Input placeholder="Phone / email" {...form.register('supplier_contact')} /></div>
                     </div>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div><Label>Supplier Invoice No.</Label><Input {...form.register('supplier_invoice_number')} /></div>
                       <div><Label>Transport Provider</Label><Input placeholder="e.g. VRL Logistics" {...form.register('transport_provider')} /></div>
                     </div>

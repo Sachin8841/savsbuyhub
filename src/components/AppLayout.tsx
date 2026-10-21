@@ -2,6 +2,7 @@ import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/AppSidebar';
 import { Outlet, useLocation } from 'react-router-dom';
 import { useScrollRestoration } from '@/hooks/useScrollRestoration';
+import { ThemeToggle } from '@/components/ThemeToggle';
 
 const PAGE_TITLES: Record<string, string> = {
   '/': 'Dashboard',
@@ -31,11 +32,13 @@ export function AppLayout() {
                 </h1>
                 <span className="text-muted-foreground hidden sm:block text-sm">·</span>
                 <span className="text-sm font-medium text-muted-foreground hidden sm:block">{pageTitle}</span>
+                <span className="text-sm font-medium text-foreground sm:hidden">{pageTitle}</span>
               </div>
             </div>
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <span className="pulse-dot" />
               <span className="hidden sm:block">Live</span>
+              <ThemeToggle />
             </div>
           </header>
           <main ref={mainRef} className="flex-1 min-h-0 overflow-auto p-4 md:p-6 pb-24">

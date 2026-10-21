@@ -35,12 +35,11 @@ const App = () => (
       <TooltipProvider>
         <Toaster />
         <Sonner />
-        <ThemeToggle />
         <AuthProvider>
           <BrowserRouter>
             <Routes>
-              <Route path="/forecast" element={<Forecast />} />
-              <Route path="/login" element={<Login />} />
+              <Route path="/forecast" element={<><ThemeToggle floating /><Forecast /></>} />
+              <Route path="/login" element={<><ThemeToggle floating /><Login /></>} />
               <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
                 <Route element={<AdminRoute />}>
                   <Route path="/" element={<Dashboard />} />

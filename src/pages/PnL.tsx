@@ -68,7 +68,7 @@ export default function PnL() {
   const currentSales = activePeriod ? activePeriod.sales_data : sales;
   const currentReturns = activePeriod ? activePeriod.returns_data : returns;
   const currentAdExpenses = activePeriod ? activePeriod.ad_expenses_data : adExpenses;
-  const currentInventory = activePeriod ? activePeriod.inventory_snapshot || [] : inventory;
+  const currentInventory = useMemo(() => activePeriod ? activePeriod.inventory_snapshot || [] : inventory, [activePeriod, inventory]);
 
   const inventoryById = useMemo(() => new Map((currentInventory as any[]).map((i: any) => [i.id, i])), [currentInventory]);
   const saleById = useMemo(() => new Map((currentSales as any[]).map((s: any) => [s.id, s])), [currentSales]);
@@ -143,7 +143,7 @@ export default function PnL() {
     });
     Object.values(buckets).forEach(b => { b.profit = b.revenue - b.cogs - b.expenses; });
     return Object.entries(buckets).sort(([a], [b]) => a.localeCompare(b)).slice(-6).map(([, v]) => v);
-  }, [filteredSales, filteredReturns, filteredAdExpenses, currentInventory, inventoryById]);
+  }, [filteredSales, filteredReturns, filteredAdExpenses, inventoryById, saleById, realizedAmount, realizedUnitPrice]);
 
   // -------- Per-SKU profitability --------
   const skuPnl = useMemo(() => {
@@ -175,7 +175,7 @@ export default function PnL() {
       r.returnRate = r.units > 0 ? (r.returns / r.units) * 100 : 0;
       return r;
     }).sort((a, b) => b.profit - a.profit);
-  }, [filteredSales, filteredReturns, inventoryById, saleById]);
+  }, [filteredSales, filteredReturns, inventoryById, saleById, realizedAmount, realizedUnitPrice]);
 
   // -------- Payment status breakdown --------
   const paymentBreakdown = useMemo(() => {
@@ -187,7 +187,7 @@ export default function PnL() {
       g.value += realizedAmount(s);
     });
     return Object.values(groups).sort((a, b) => b.value - a.value);
-  }, [filteredSales]);
+  }, [filteredSales, realizedAmount]);
 
   const paymentBreakdownTotal = useMemo(() => paymentBreakdown.reduce((s, x) => s + x.value, 0), [paymentBreakdown]);
 
@@ -208,7 +208,7 @@ export default function PnL() {
       cogsReversal: Number(r.quantity_returned ?? 0) * unitCost,
       penalty: Number(r.penalty_amount ?? 0),
     };
-  }), [filteredReturns, saleById, inventoryById]);
+  }), [filteredReturns, saleById, inventoryById, realizedUnitPrice]);
 
   const historicalTotals = useMemo(() => disclosedPeriods.reduce((acc, p) => {
     acc.netProfit += Number(p.net_profit ?? 0);

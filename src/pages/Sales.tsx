@@ -88,7 +88,7 @@ export default function Sales() {
     if (selectedInv && selectedInv.average_selling_price > 0 && !editId) {
       form.setValue('average_selling_price', selectedInv.average_selling_price);
     }
-  }, [selectedInvId]);
+  }, [editId, form, selectedInv, selectedInvId]);
 
   const normalize = (s: any) => String(s ?? '').toLowerCase().replace(/[\s_\-/]+/g, '');
   const filtered = useMemo(() => {

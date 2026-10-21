@@ -130,9 +130,25 @@ export default function Dashboard() {
     return arr;
   }, [sales, returns, adExpenses, inventoryById, salesById]);
 
-  const trendData = useMemo(() => buildTrendData(trendPeriod, trendDateRange), [buildTrendData, trendPeriod, trendDateRange]);
-  const profitTrendData = useMemo(() => buildTrendData(profitPeriod, profitDateRange), [buildTrendData, profitPeriod, profitDateRange]);
-  const unitsTrendData = useMemo(() => buildTrendData(unitsPeriod, unitsDateRange), [buildTrendData, unitsPeriod, unitsDateRange]);
+  const trendSeries = useMemo(() => {
+    const cache = new Map<string, ReturnType<typeof buildTrendData>>();
+    const getSeries = (period: string, range: { from?: Date; to?: Date }) => {
+      const key = `${period}|${range.from?.getTime() ?? ''}|${range.to?.getTime() ?? ''}`;
+      const cached = cache.get(key);
+      if (cached) return cached;
+      const series = buildTrendData(period, range);
+      cache.set(key, series);
+      return series;
+    };
+    return {
+      trend: getSeries(trendPeriod, trendDateRange),
+      profit: getSeries(profitPeriod, profitDateRange),
+      units: getSeries(unitsPeriod, unitsDateRange),
+    };
+  }, [buildTrendData, trendPeriod, trendDateRange, profitPeriod, profitDateRange, unitsPeriod, unitsDateRange]);
+  const trendData = trendSeries.trend;
+  const profitTrendData = trendSeries.profit;
+  const unitsTrendData = trendSeries.units;
 
   const topProducts = useMemo(() => {
     const map: Record<string, { name: string; sku: string; revenue: number; units: number; profit: number; profitPerUnit: number }> = {};

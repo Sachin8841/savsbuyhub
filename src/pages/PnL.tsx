@@ -596,7 +596,7 @@ export default function PnL() {
       {/* Cash flow summary */}
       <div className="grid gap-4 lg:grid-cols-2">
         <SectionCard title="Working Capital Position" description="Live liquid + inventory assets">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="rounded-lg border bg-gradient-to-br from-emerald-50 to-white dark:from-emerald-950/30 dark:to-slate-900 p-4">
               <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">Hot Cash (COD)</p>
               <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-400 mt-1 tabular-nums">{fmt(liveHotCash)}</p>

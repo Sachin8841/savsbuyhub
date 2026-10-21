@@ -23,7 +23,7 @@ import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { parseMeeshoPaymentXlsx } from '@/lib/importMeesho';
-import { summarizeFinancials } from '@/lib/finance';
+import { useLedgerFinance } from '@/hooks/useFinance';
 
 
 const COURIER_OPTIONS = ['Valmo', 'Delhivery', 'Shadowfax', 'XpressBees', 'SAVS Trans X', 'Other'];
@@ -48,6 +48,7 @@ export default function Sales() {
   const { data: sales = [] } = useSales();
   const { data: returns = [] } = useReturns();
   const { data: inventory = [] } = useInventory();
+  const { summary: ledgerSummary } = useLedgerFinance();
   const { isAdmin } = useAuthStore();
   const admin = isAdmin();
   const [search, setSearch] = useState('');
@@ -111,16 +112,13 @@ export default function Sales() {
   const metrics = useMemo(() => {
     // Returns belonging to the currently visible sales, so revenue/profit here
     // reconcile with the Dashboard and P&L instead of ignoring reversals.
-    const ids = new Set((filtered as any[]).map(s => s.id));
-    const scopedReturns = (returns as any[]).filter(r => ids.has(r.sales_id));
-    const summary = summarizeFinancials({ sales: filtered as any[], returns: scopedReturns, inventory: inventory as any[], expenses: [] });
     return {
-      totalRevenue: summary.revenue,
-      pendingAmount: summary.pendingRevenue,
-      settledAmount: summary.realizedRevenue,
-      totalProfit: summary.netProfit,
+      totalRevenue: ledgerSummary.revenue,
+      pendingAmount: ledgerSummary.pendingRevenue,
+      settledAmount: ledgerSummary.realizedRevenue,
+      totalProfit: ledgerSummary.netProfit,
     };
-  }, [filtered, returns, inventory]);
+  }, [ledgerSummary]);
   const { totalRevenue, pendingAmount, settledAmount, totalProfit } = metrics;
 
   const fmt = (n: number | null | undefined) => { const v = Number(n); return '₹' + (Number.isFinite(v) ? v : 0).toLocaleString('en-IN', { maximumFractionDigits: 0 }); };
@@ -449,7 +447,7 @@ export default function Sales() {
     const today = new Date().toISOString().slice(0, 10);
     // Normalize IDs so trained parser variants (order_id vs sub_order_id, batch suffixes,
     // stray spaces/dashes/case) collapse to the same key.
-    const normId = (s: any) => String(s ?? '').trim().toLowerCase().replace(/[\s\-]+/g, '').replace(/_\d+$/, '');
+    const normId = (s: any) => String(s ?? '').trim().toLowerCase().replace(/[\s-]+/g, '').replace(/_\d+$/, '');
     const existingOrderIds = new Set<string>();
     for (const s of sales as any[]) {
       const k = normId(s.order_number);
@@ -806,7 +804,7 @@ export default function Sales() {
                 <DialogHeader><DialogTitle>{editId ? 'Edit Sale' : 'Log New Sale'}</DialogTitle></DialogHeader>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3 pt-1">
                   {/* Row 1: Date + Platform */}
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div><Label className="text-xs font-semibold">Dispatch Date</Label><Input type="date" {...form.register('dispatch_date')} className="mt-1" /></div>
                     <div>
                       <Label className="text-xs font-semibold">Platform</Label>
@@ -841,13 +839,13 @@ export default function Sales() {
                   </div>
 
                   {/* Row: Qty + SP */}
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div><Label className="text-xs font-semibold">Qty / Order</Label><Input type="number" className="mt-1" {...form.register('quantity_sold', { valueAsNumber: true })} /></div>
                     <div><Label className="text-xs font-semibold">Selling Price (₹)</Label><Input type="number" step="0.01" className="mt-1" {...form.register('average_selling_price', { valueAsNumber: true })} /></div>
                   </div>
 
                   {/* Row: Courier + Payment Method */}
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <Label className="text-xs font-semibold">Courier</Label>
                       <Controller name="courier_partner" control={form.control} render={({ field }) => (
@@ -875,7 +873,7 @@ export default function Sales() {
                   </div>
 
                   {/* Row: Status + (Settlement Date if Settled) */}
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <Label className="text-xs font-semibold">Payment Status</Label>
                       <Controller name="payment_status" control={form.control} render={({ field }) => (

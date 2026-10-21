@@ -59,6 +59,10 @@ describe('finance engine', () => {
     expect(s.margin).toBeCloseTo((s.netProfit / s.revenue) * 100, 6);
   });
 
+  it('includes every operating expense in net profit', () => {
+    expect(s.netProfit).toBe(-70);
+  });
+
   it('values stock at cost using live stock counts', () => {
     expect(s.stockHoldingValue).toBe(800);
   });

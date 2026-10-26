@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { useSales, useReturns, useInventory, useCurrentStocks } from '@/hooks/useData';
+import { useCurrentStocks } from '@/hooks/useData';
 import { useAuthStore } from '@/stores/authStore';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
@@ -45,10 +45,7 @@ const schema = z.object({
 type FormData = z.infer<typeof schema>;
 
 export default function Sales() {
-  const { data: sales = [] } = useSales();
-  const { data: returns = [] } = useReturns();
-  const { data: inventory = [] } = useInventory();
-  const { summary: ledgerSummary } = useLedgerFinance();
+  const { sales, returns, inventory, summary: ledgerSummary } = useLedgerFinance();
   const { isAdmin } = useAuthStore();
   const admin = isAdmin();
   const [search, setSearch] = useState('');

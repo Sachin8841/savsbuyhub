@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { useSales, useReturns, useInventory, useAdExpenses, useCapitalAccounts, useCashMovements, useCurrentStocks } from '@/hooks/useData';
+import { useCapitalAccounts, useCashMovements } from '@/hooks/useData';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -19,15 +19,12 @@ import { useEffect } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid, Line, Area, AreaChart } from 'recharts';
 import { deriveKpis, inventoryUnitFreight, saleQuantity, saleRealizedAmount, saleUnitCost, saleUnitRevenue, summarizeFinancials } from '@/lib/finance';
 import { formatMoney } from '@/lib/format';
+import { useLedgerFinance } from '@/hooks/useFinance';
 
 const fmt = (n: number | null | undefined) => formatMoney(n, 0);
 
 
 export default function PnL() {
-  const { data: sales = [] } = useSales();
-  const { data: returns = [] } = useReturns();
-  const { data: inventory = [] } = useInventory();
-  const { data: adExpenses = [] } = useAdExpenses();
   const { data: capital } = useCapitalAccounts();
   const { data: cashMovements = [] } = useCashMovements();
   const [period, setPeriod] = useState('max');
@@ -42,7 +39,6 @@ export default function PnL() {
   const [accountingRecs, setAccountingRecs] = useState<any[]>([]);
   const [reconciling, setReconciling] = useState(false);
   const [selectedDisclosedPeriod, setSelectedDisclosedPeriod] = useState<string>('active');
-  const currentStocks = useCurrentStocks();
 
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -74,6 +70,8 @@ export default function PnL() {
   const saleById = useMemo(() => new Map((currentSales as any[]).map((s: any) => [s.id, s])), [currentSales]);
 
   const { from: filterFrom, to: filterTo } = getFilterDate(period, dateRange);
+  const ledger = useLedgerFinance({ from: filterFrom ?? undefined, to: filterTo ?? undefined });
+  const { sales, returns, inventory, expenses: adExpenses, currentStocks } = ledger;
 
   const inRange = (dateStr: string) => {
     if (!filterFrom) return true;
@@ -86,7 +84,7 @@ export default function PnL() {
   const realizedUnitPrice = saleUnitRevenue;
 
   const pnl = useMemo(() => {
-    const summary = summarizeFinancials({
+    const summary = activePeriod ? summarizeFinancials({
       sales: currentSales as any[],
       returns: currentReturns as any[],
       inventory: currentInventory as any[],
@@ -94,7 +92,7 @@ export default function PnL() {
       currentStocks: activePeriod ? undefined : currentStocks,
       from: filterFrom,
       to: filterTo,
-    });
+    }) : ledger.summary;
     return {
       ...summary,
       units: summary.unitsSold,
@@ -102,7 +100,7 @@ export default function PnL() {
       inventoryDeliveryFees: 0,
       totalExpenses: summary.operatingExpenses,
     };
-  }, [currentSales, currentReturns, currentAdExpenses, currentInventory, currentStocks, activePeriod, filterFrom, filterTo]);
+  }, [currentSales, currentReturns, currentAdExpenses, currentInventory, currentStocks, activePeriod, filterFrom, filterTo, ledger.summary]);
 
   const filteredSales = pnl.sales as any[];
   const filteredReturns = pnl.returns as any[];

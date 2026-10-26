@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { useSales, useReturns, useInventory, useAdExpenses, useCapitalAccounts, useCashMovements, useCurrentStocks } from '@/hooks/useData';
+import { useCapitalAccounts, useCashMovements } from '@/hooks/useData';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuthStore } from '@/stores/authStore';
 import { useQueryClient } from '@tanstack/react-query';
@@ -15,17 +15,14 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { exportDashboardReport } from '@/lib/xlsx-export';
 import { AlertNotifications } from '@/components/AlertNotifications';
 import { PeriodSelector, getFilterDate } from '@/components/DateRangePicker';
-import { deriveKpis, inventoryUnitFreight, saleQuantity, saleRealizedAmount, saleUnitCost, saleUnitRevenue, summarizeFinancials } from '@/lib/finance';
+import { deriveKpis, inventoryUnitFreight, saleQuantity, saleRealizedAmount, saleUnitCost, saleUnitRevenue } from '@/lib/finance';
+import { useLedgerFinance } from '@/hooks/useFinance';
 import { formatMoney, formatMoneyCompact, formatNumber, formatPercent } from '@/lib/format';
 
 const fmt = (n: number | null | undefined) => formatMoney(n, 0);
 
 
 export default function Dashboard() {
-  const { data: sales = [] } = useSales();
-  const { data: returns = [] } = useReturns();
-  const { data: inventory = [] } = useInventory();
-  const { data: adExpenses = [] } = useAdExpenses();
   const { data: capitalAccounts } = useCapitalAccounts();
   const { data: cashMovements = [] } = useCashMovements();
   const { isAdmin } = useAuthStore();
@@ -43,10 +40,9 @@ export default function Dashboard() {
   const [capitalDialogOpen, setCapitalDialogOpen] = useState(false);
   const [capitalForm, setCapitalForm] = useState({ hot_cash: '', account_holding_value: '', stocks_value: '', shares_value: '', funds_value: '', notes: '' });
   const [movementForm, setMovementForm] = useState({ type: 'cash_to_account', amount: '', notes: '' });
-  const currentStocks = useCurrentStocks();
 
   const { from: filterFrom, to: filterTo } = getFilterDate(trendPeriod, trendDateRange);
-  const finance = useMemo(() => summarizeFinancials({ sales, returns, inventory, expenses: adExpenses, currentStocks, from: filterFrom, to: filterTo }), [sales, returns, inventory, adExpenses, currentStocks, filterFrom, filterTo]);
+  const { summary: finance, sales, returns, inventory, expenses: adExpenses, currentStocks } = useLedgerFinance({ from: filterFrom ?? undefined, to: filterTo ?? undefined });
   const filteredSales = finance.sales;
   const filteredReturns = finance.returns;
   const filteredAdExpenses = finance.expenses;

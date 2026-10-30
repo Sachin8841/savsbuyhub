@@ -60,6 +60,9 @@ export default function PnL() {
 
   // Determine which data to use (Active ledger vs Archived snapshot)
   const activePeriod = selectedDisclosedPeriod === 'active' ? null : disclosedPeriods.find(p => p.id === selectedDisclosedPeriod);
+  const { from: filterFrom, to: filterTo } = getFilterDate(period, dateRange);
+  const ledger = useLedgerFinance({ from: filterFrom ?? undefined, to: filterTo ?? undefined });
+  const { sales, returns, inventory, expenses: adExpenses, currentStocks } = ledger;
   
   const currentSales = activePeriod ? activePeriod.sales_data : sales;
   const currentReturns = activePeriod ? activePeriod.returns_data : returns;
@@ -68,10 +71,6 @@ export default function PnL() {
 
   const inventoryById = useMemo(() => new Map((currentInventory as any[]).map((i: any) => [i.id, i])), [currentInventory]);
   const saleById = useMemo(() => new Map((currentSales as any[]).map((s: any) => [s.id, s])), [currentSales]);
-
-  const { from: filterFrom, to: filterTo } = getFilterDate(period, dateRange);
-  const ledger = useLedgerFinance({ from: filterFrom ?? undefined, to: filterTo ?? undefined });
-  const { sales, returns, inventory, expenses: adExpenses, currentStocks } = ledger;
 
   const inRange = (dateStr: string) => {
     if (!filterFrom) return true;
@@ -453,7 +452,7 @@ export default function PnL() {
       {/* Visualizations */}
       <div className="grid gap-6 lg:grid-cols-2">
         <SectionCard title="Revenue vs Total Costs" description="Outlay vs Net Earnings">
-          <div className="h-64">
+          <div className="h-64 w-full min-w-0">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={[{ name: 'Financials', Revenue: pnl.revenue, Costs: pnl.cogs + pnl.totalExpenses, Profit: pnl.netProfit }]} layout="vertical" margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="hsl(var(--border))" />
@@ -470,7 +469,7 @@ export default function PnL() {
         </SectionCard>
 
         <SectionCard title="Operating Expenses Breakdown" description="Distribution of non-COGS overheads">
-          <div className="h-64">
+          <div className="h-64 w-full min-w-0">
             {pnl.operatingExpenses > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
@@ -569,7 +568,7 @@ export default function PnL() {
       {/* Monthly Trend */}
       {monthlyTrend.length > 0 && (
         <SectionCard title="Monthly Trend" description="Revenue, COGS, expenses and net profit by month">
-          <div className="h-72">
+          <div className="h-72 w-full min-w-0">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={monthlyTrend} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
                 <defs>

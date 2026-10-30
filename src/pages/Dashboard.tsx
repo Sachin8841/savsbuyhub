@@ -126,25 +126,9 @@ export default function Dashboard() {
     return arr;
   }, [sales, returns, adExpenses, inventoryById, salesById]);
 
-  const trendSeries = useMemo(() => {
-    const cache = new Map<string, ReturnType<typeof buildTrendData>>();
-    const getSeries = (period: string, range: { from?: Date; to?: Date }) => {
-      const key = `${period}|${range.from?.getTime() ?? ''}|${range.to?.getTime() ?? ''}`;
-      const cached = cache.get(key);
-      if (cached) return cached;
-      const series = buildTrendData(period, range);
-      cache.set(key, series);
-      return series;
-    };
-    return {
-      trend: getSeries(trendPeriod, trendDateRange),
-      profit: getSeries(profitPeriod, profitDateRange),
-      units: getSeries(unitsPeriod, unitsDateRange),
-    };
-  }, [buildTrendData, trendPeriod, trendDateRange, profitPeriod, profitDateRange, unitsPeriod, unitsDateRange]);
-  const trendData = trendSeries.trend;
-  const profitTrendData = trendSeries.profit;
-  const unitsTrendData = trendSeries.units;
+  const trendData = useMemo(() => buildTrendData(trendPeriod, trendDateRange), [buildTrendData, trendPeriod, trendDateRange]);
+  const profitTrendData = useMemo(() => buildTrendData(profitPeriod, profitDateRange), [buildTrendData, profitPeriod, profitDateRange]);
+  const unitsTrendData = useMemo(() => buildTrendData(unitsPeriod, unitsDateRange), [buildTrendData, unitsPeriod, unitsDateRange]);
 
   const topProducts = useMemo(() => {
     const map: Record<string, { name: string; sku: string; revenue: number; units: number; profit: number; profitPerUnit: number }> = {};
@@ -503,7 +487,7 @@ export default function Dashboard() {
             </div>
           </div>
         </CardHeader>
-        <CardContent className="h-[22rem] px-1 sm:px-4">
+        <CardContent className="h-[22rem] min-w-0 px-1 sm:px-4">
           {trendData.length > 0 ? (
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={trendData} margin={{ top: 8, right: 8, left: 0, bottom: trendData.length > 8 ? 28 : 8 }} barGap={2}>
@@ -556,7 +540,7 @@ export default function Dashboard() {
               <PeriodSelector value={profitPeriod} onChange={setProfitPeriod} dateRange={profitDateRange} onDateRangeChange={setProfitDateRange} />
             </div>
           </CardHeader>
-          <CardContent className="h-64">
+          <CardContent className="h-64 min-w-0">
             {profitTrendData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={profitTrendData} barSize={profitTrendData.length > 20 ? 8 : 24}>
@@ -587,7 +571,7 @@ export default function Dashboard() {
               <PeriodSelector value={unitsPeriod} onChange={setUnitsPeriod} dateRange={unitsDateRange} onDateRangeChange={setUnitsDateRange} />
             </div>
           </CardHeader>
-          <CardContent className="h-64">
+          <CardContent className="h-64 min-w-0">
             {unitsTrendData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={unitsTrendData} barSize={unitsTrendData.length > 20 ? 8 : 24}>
@@ -614,7 +598,7 @@ export default function Dashboard() {
             <CardTitle className="text-base">Platform Performance</CardTitle>
             <CardDescription>Revenue, cost, profit & units by platform</CardDescription>
           </CardHeader>
-          <CardContent className="h-72">
+          <CardContent className="h-72 min-w-0">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={platformData} barGap={2}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
@@ -637,7 +621,7 @@ export default function Dashboard() {
             <CardTitle className="text-base">Return Breakdown</CardTitle>
             <CardDescription>Units & penalty by return type</CardDescription>
           </CardHeader>
-          <CardContent className="h-72">
+          <CardContent className="h-72 min-w-0">
             {returnPieData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
@@ -693,7 +677,7 @@ export default function Dashboard() {
             <CardTitle className="text-base">Expenses Breakdown</CardTitle>
             <CardDescription>Ads, delivery fees & return penalties split</CardDescription>
           </CardHeader>
-          <CardContent className="h-72">
+          <CardContent className="h-72 min-w-0">
             {expensePieData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>

@@ -204,7 +204,7 @@ export default function Forecast() {
           </Card>
           
         <SectionCard title="Price History" description="Historical valuation based on daily performance" className="lg:col-span-2">
-          <div className="h-72">
+          <div className="h-72 w-full min-w-0">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={priceHistory}>
                 <defs>
@@ -228,7 +228,7 @@ export default function Forecast() {
         </div>
 
         <SectionCard title="Revenue & Profit Trend" description="Investment, revenue, profit & units with 3-month projection" action={<Badge variant="secondary" className="bg-indigo-500/20 text-indigo-400">AI Forecast</Badge>}>
-          <div className="h-80">
+          <div className="h-80 w-full min-w-0">
             {combinedTrend.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={combinedTrend}>

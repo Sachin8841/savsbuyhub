@@ -433,7 +433,7 @@ export default function Inventory() {
                     <Label>Aliases (comma-separated, optional)</Label>
                     <Input placeholder="e.g. Blue Tee, Cotton T-shirt Blue" {...restockForm.register('aliases')} />
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <Label>New Batch Cost/Unit (₹) *</Label>
                       <Input type="number" step="0.01" {...restockForm.register('average_cost_price', { valueAsNumber: true })} />
@@ -444,7 +444,7 @@ export default function Inventory() {
                       <Input type="number" step="0.01" {...restockForm.register('average_selling_price', { valueAsNumber: true })} />
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <Label>Units Added *</Label>
                       <Input type="number" {...restockForm.register('total_bulk_stock_in', { valueAsNumber: true })} />
@@ -457,11 +457,11 @@ export default function Inventory() {
                   </div>
                   <div className="rounded-lg border bg-muted/20 p-3 space-y-3">
                     <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Supplier & Transport Bill</p>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div><Label>Supplier Name</Label><Input placeholder="e.g. Tirupur Textiles" {...restockForm.register('supplier_name')} /></div>
                       <div><Label>Supplier Contact</Label><Input placeholder="Phone / email" {...restockForm.register('supplier_contact')} /></div>
                     </div>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div><Label>Supplier Invoice No.</Label><Input {...restockForm.register('supplier_invoice_number')} /></div>
                       <div><Label>Transport Provider</Label><Input placeholder="e.g. VRL Logistics" {...restockForm.register('transport_provider')} /></div>
                     </div>
@@ -501,7 +501,7 @@ export default function Inventory() {
 
       {/* Chart */}
       <SectionCard title="Top 10 SKUs by Stock Value" noPadding={false}>
-        <div className="h-48">
+        <div className="h-48 w-full min-w-0">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={filtered.map(i => ({ name: i.sku, value: (currentStocks[i.id] ?? 0) * (i.average_cost_price || 0) })).sort((a,b) => b.value - a.value).slice(0, 10)}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />

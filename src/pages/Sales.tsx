@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { useCurrentStocks } from '@/hooks/useData';
 import { useAuthStore } from '@/stores/authStore';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
@@ -45,7 +44,7 @@ const schema = z.object({
 type FormData = z.infer<typeof schema>;
 
 export default function Sales() {
-  const { sales, returns, inventory, summary: ledgerSummary } = useLedgerFinance();
+  const { sales, returns, inventory, currentStocks, summary: ledgerSummary } = useLedgerFinance();
   const { isAdmin } = useAuthStore();
   const admin = isAdmin();
   const [search, setSearch] = useState('');
@@ -75,7 +74,6 @@ export default function Sales() {
 
   const paymentStatus = form.watch('payment_status');
   const selectedInvId = form.watch('inventory_id');
-  const currentStocks = useCurrentStocks();
   const selectedStock = selectedInvId ? Number(currentStocks[selectedInvId] ?? 0) : null;
 
   // Auto-fill selling price from inventory
@@ -87,7 +85,7 @@ export default function Sales() {
     }
   }, [editId, form, selectedInv, selectedInvId]);
 
-  const normalize = (s: any) => String(s ?? '').toLowerCase().replace(/[\s_\-/]+/g, '');
+  const normalize = (s: any) => String(s ?? '').toLowerCase().replace(/[\s_/-]+/g, '');
   const filtered = useMemo(() => {
     const raw = search.trim().toLowerCase();
     const compact = normalize(search);
@@ -971,7 +969,7 @@ export default function Sales() {
       </div>
 
       <SectionCard title="Sales Velocity" description="Last 14 Active Days">
-        <div className="h-48">
+        <div className="h-48 w-full min-w-0">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={velocityData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
               <defs>
@@ -1272,7 +1270,7 @@ export default function Sales() {
             <div className="space-y-3 py-2">
               <div><Label className="text-xs">SKU</Label><Input value={createInvRow.sku} onChange={(e) => setCreateInvRow({ ...createInvRow, sku: e.target.value })} /></div>
               <div><Label className="text-xs">Product name</Label><Input value={createInvRow.product_name} onChange={(e) => setCreateInvRow({ ...createInvRow, product_name: e.target.value })} /></div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div><Label className="text-xs">Cost / unit</Label><Input type="number" value={createInvRow.cost} onChange={(e) => setCreateInvRow({ ...createInvRow, cost: e.target.value })} /></div>
                 <div><Label className="text-xs">Selling price</Label><Input type="number" value={createInvRow.price} onChange={(e) => setCreateInvRow({ ...createInvRow, price: e.target.value })} /></div>
               </div>

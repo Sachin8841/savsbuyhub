@@ -450,7 +450,7 @@ export default function Returns() {
       </div>
 
       <SectionCard title="Top Problematic SKUs" description="Sorted by highest penalty cost" noPadding={false}>
-        <div className="h-52">
+        <div className="h-52 w-full min-w-0">
           {topPenalizedSkus.length > 0 ? (
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={topPenalizedSkus} layout="vertical" margin={{ top: 4, right: 20, left: 16, bottom: 0 }}>

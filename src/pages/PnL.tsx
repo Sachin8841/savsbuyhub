@@ -60,6 +60,9 @@ export default function PnL() {
 
   // Determine which data to use (Active ledger vs Archived snapshot)
   const activePeriod = selectedDisclosedPeriod === 'active' ? null : disclosedPeriods.find(p => p.id === selectedDisclosedPeriod);
+  const { from: filterFrom, to: filterTo } = getFilterDate(period, dateRange);
+  const ledger = useLedgerFinance({ from: filterFrom ?? undefined, to: filterTo ?? undefined });
+  const { sales, returns, inventory, expenses: adExpenses, currentStocks } = ledger;
   
   const currentSales = activePeriod ? activePeriod.sales_data : sales;
   const currentReturns = activePeriod ? activePeriod.returns_data : returns;
@@ -68,10 +71,6 @@ export default function PnL() {
 
   const inventoryById = useMemo(() => new Map((currentInventory as any[]).map((i: any) => [i.id, i])), [currentInventory]);
   const saleById = useMemo(() => new Map((currentSales as any[]).map((s: any) => [s.id, s])), [currentSales]);
-
-  const { from: filterFrom, to: filterTo } = getFilterDate(period, dateRange);
-  const ledger = useLedgerFinance({ from: filterFrom ?? undefined, to: filterTo ?? undefined });
-  const { sales, returns, inventory, expenses: adExpenses, currentStocks } = ledger;
 
   const inRange = (dateStr: string) => {
     if (!filterFrom) return true;

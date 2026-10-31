@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 
 /**
@@ -18,12 +18,12 @@ export function useScrollRestoration<T extends HTMLElement = HTMLElement>(extraK
   const lastSavedRef = useRef<number>(0);
   const userScrolledRef = useRef<boolean>(false);
 
-  const getSaved = () => {
+  const getSaved = useCallback(() => {
     const raw = sessionStorage.getItem(storageKey);
     if (raw === null) return null;
     const n = parseInt(raw, 10);
     return Number.isNaN(n) ? null : n;
-  };
+  }, [storageKey]);
 
   // Restore on mount / route change — before paint to avoid flicker.
   useLayoutEffect(() => {
@@ -37,7 +37,7 @@ export function useScrollRestoration<T extends HTMLElement = HTMLElement>(extraK
     requestAnimationFrame(() => {
       el.scrollTop = top;
     });
-  }, [storageKey]);
+  }, [getSaved, storageKey]);
 
   // Save on scroll + watch for content size changes that wipe scrollTop.
   useEffect(() => {

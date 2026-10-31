@@ -40,7 +40,7 @@ export function AlertNotifications() {
         description: `₹${pendingAmount.toLocaleString('en-IN')} awaiting settlement`,
       });
     }
-  }, [currentStocks, inventory, sales]);
+  }, [currentStocks, inventory, sales, isAdmin, toast]);
 
   return null;
 }

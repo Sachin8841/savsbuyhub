@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuthStore } from '@/stores/authStore';
+import { fetchAllPages } from '@/lib/fetchAllPages';
 
 // Keep previous data while refetching so tables don't collapse to zero rows
 // (which would otherwise reset scroll position to top after every status edit).
@@ -22,9 +23,8 @@ export function useInventory() {
   return useQuery({
     queryKey: ['inventory'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('inventory').select('*').order('created_at', { ascending: false });
-      if (error) throw error;
-      return data;
+      return fetchAllPages((from, to) => supabase.from('inventory').select('*')
+        .order('created_at', { ascending: false }).order('id', { ascending: true }).range(from, to));
     },
     enabled: !loading, ...KEEP,
   });
@@ -68,12 +68,10 @@ export function useSales() {
   return useQuery({
     queryKey: ['sales'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      return fetchAllPages((from, to) => supabase
         .from('sales')
         .select('*, inventory(sku, product_name, average_cost_price, average_selling_price, delivery_fee)')
-        .order('dispatch_date', { ascending: false });
-      if (error) throw error;
-      return data;
+        .order('dispatch_date', { ascending: false }).order('id', { ascending: true }).range(from, to));
     },
     enabled: !loading, ...KEEP,
   });
@@ -85,12 +83,10 @@ export function useReturns() {
   return useQuery({
     queryKey: ['returns'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      return fetchAllPages((from, to) => supabase
         .from('returns')
-        .select('*, sales(id, platform, inventory_id, quantity_sold, average_selling_price, dispatch_date, inventory(sku, product_name, average_cost_price, delivery_fee))')
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      return data;
+        .select('id,sales_id,return_type,quantity_returned,penalty_amount,created_at,delivery_status,return_date,delivered_date,inventory_id,platform,order_number,sub_order_number,courier_partner,raw_status,sku_snapshot,product_name_snapshot,source_report,sales(id,platform,inventory_id,quantity_sold,average_selling_price,dispatch_date,inventory(sku,product_name,average_cost_price,delivery_fee))')
+        .order('created_at', { ascending: false }).order('id', { ascending: true }).range(from, to));
     },
     enabled: !loading, ...KEEP,
   });
@@ -102,12 +98,8 @@ export function useAdExpenses() {
   return useQuery({
     queryKey: ['ad_expenses'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('ad_expenses')
-        .select('*')
-        .order('expense_date', { ascending: false });
-      if (error) throw error;
-      return data;
+      return fetchAllPages((from, to) => supabase.from('ad_expenses').select('*')
+        .order('expense_date', { ascending: false }).order('id', { ascending: true }).range(from, to));
     },
     enabled: !loading, ...KEEP,
   });

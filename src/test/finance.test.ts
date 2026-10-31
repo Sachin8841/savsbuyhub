@@ -63,6 +63,17 @@ describe('finance engine', () => {
     expect(s.netProfit).toBe(-70);
   });
 
+  it('uses the shared totals for Sales, Dashboard, and P&L on the same ledger', () => {
+    const dashboardSummary = summarizeFinancials({ sales, returns, inventory, expenses, currentStocks: { inv1: 8 } });
+    const pnlSummary = summarizeFinancials({ sales, returns, inventory, expenses, currentStocks: { inv1: 8 } });
+    const salesLedgerSummary = summarizeFinancials({ sales, returns, inventory, expenses, currentStocks: { inv1: 8 } });
+
+    expect(salesLedgerSummary.revenue).toBe(390);
+    expect(salesLedgerSummary.netProfit).toBe(-70);
+    expect(dashboardSummary).toMatchObject({ revenue: salesLedgerSummary.revenue, netProfit: salesLedgerSummary.netProfit });
+    expect(pnlSummary).toMatchObject({ revenue: salesLedgerSummary.revenue, netProfit: salesLedgerSummary.netProfit });
+  });
+
   it('values stock at cost using live stock counts', () => {
     expect(s.stockHoldingValue).toBe(800);
   });

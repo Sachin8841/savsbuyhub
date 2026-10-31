@@ -85,7 +85,7 @@ export function useReturns() {
     queryFn: async () => {
       return fetchAllPages((from, to) => supabase
         .from('returns')
-        .select('id,sales_id,return_type,quantity_returned,penalty_amount,created_at,delivery_status,return_date,delivered_date,inventory_id,platform,order_number,sub_order_number,courier_partner,raw_status,sku_snapshot,product_name_snapshot,source_report,sales(id,platform,inventory_id,quantity_sold,average_selling_price,dispatch_date,inventory(sku,product_name,average_cost_price,delivery_fee))')
+        .select('id,sales_id,return_type,quantity_returned,penalty_amount,created_at,delivery_status,return_date,delivered_date,inventory_id,platform,order_number,sub_order_number,courier_partner,raw_status,sku_snapshot,product_name_snapshot,source_report,report_row,sales(id,platform,inventory_id,quantity_sold,average_selling_price,dispatch_date,inventory(sku,product_name,average_cost_price,delivery_fee))')
         .order('created_at', { ascending: false }).order('id', { ascending: true }).range(from, to));
     },
     enabled: !loading, ...KEEP,

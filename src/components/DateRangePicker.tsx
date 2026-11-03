@@ -22,7 +22,7 @@ interface PeriodSelectorProps {
   onDateRangeChange?: (range: { from?: Date; to?: Date }) => void;
 }
 
-export function PeriodSelector({ value, onChange, dateRange, onDateRangeChange }: PeriodSelectorProps) {
+const PeriodSelector = ({ value, onChange, dateRange, onDateRangeChange }: PeriodSelectorProps) => {
   const [open, setOpen] = useState(false);
 
   return (
@@ -69,7 +69,9 @@ export function PeriodSelector({ value, onChange, dateRange, onDateRangeChange }
       )}
     </div>
   );
-}
+};
+
+export default PeriodSelector;
 
 export function getFilterDate(period: string, dateRange?: { from?: Date; to?: Date }): { from: Date | null; to: Date | null } {
   if (period === 'custom' && dateRange?.from) {

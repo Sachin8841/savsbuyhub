@@ -1,9 +1,10 @@
+import { memo } from "react";
 import { Toaster as Sonner, toast } from "sonner";
 import { useTheme } from "@/components/ThemeProvider";
 
 type ToasterProps = React.ComponentProps<typeof Sonner>;
 
-const Toaster = ({ ...props }: ToasterProps) => {
+const Toaster = memo(({ ...props }: ToasterProps) => {
   const { theme } = useTheme();
 
   return (
@@ -22,6 +23,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
       {...props}
     />
   );
-};
+});
+Toaster.displayName = 'Toaster';
 
 export { Toaster, toast };

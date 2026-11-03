@@ -210,14 +210,30 @@ export function summarizeFinancials({
   const netUnits = unitsSold - returnedUnits;
   const costOutlay = Math.max(0, cogs + inboundFreight + adSpend + freightExpenses + packagingExpenses + softwareExpenses + otherExpenses + returnPenalties);
 
-  const stockHoldingValue = (inventory ?? []).reduce((sum, item) => {
-    const stock = currentStocks
-      ? n(currentStocks[item.id])
-      : n(item.total_bulk_stock_in)
-        - (sales ?? []).filter((sale) => sale.inventory_id === item.id && !isCancelledSale(sale)).reduce((s, sale) => s + saleQuantity(sale), 0)
-        + (returns ?? []).filter((ret) => (ret.inventory_id || saleById.get(ret.sales_id)?.inventory_id) === item.id && ret.delivery_status === 'Received').reduce((s, ret) => s + n(ret.quantity_returned), 0);
-    return sum + Math.max(0, stock) * n(item.average_cost_price);
-  }, 0);
+  let stockHoldingValue = 0;
+  if (currentStocks) {
+    stockHoldingValue = (inventory ?? []).reduce((sum, item) =>
+      sum + Math.max(0, n(currentStocks[item.id])) * n(item.average_cost_price), 0);
+  } else {
+    const soldByInventory = new Map<string, number>();
+    for (const sale of sales ?? []) {
+      if (sale.inventory_id && !isCancelledSale(sale)) {
+        soldByInventory.set(sale.inventory_id, (soldByInventory.get(sale.inventory_id) ?? 0) + saleQuantity(sale));
+      }
+    }
+    const receivedByInventory = new Map<string, number>();
+    for (const ret of returns ?? []) {
+      if (ret.delivery_status !== 'Received') continue;
+      const inventoryId = ret.inventory_id || saleById.get(ret.sales_id)?.inventory_id;
+      if (inventoryId) {
+        receivedByInventory.set(inventoryId, (receivedByInventory.get(inventoryId) ?? 0) + n(ret.quantity_returned));
+      }
+    }
+    stockHoldingValue = (inventory ?? []).reduce((sum, item) => {
+      const stock = n(item.total_bulk_stock_in) - (soldByInventory.get(item.id) ?? 0) + (receivedByInventory.get(item.id) ?? 0);
+      return sum + Math.max(0, stock) * n(item.average_cost_price);
+    }, 0);
+  }
 
   const platforms = Array.from(platformMap.values())
     .map((row) => {

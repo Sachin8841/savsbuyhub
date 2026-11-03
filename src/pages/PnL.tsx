@@ -5,7 +5,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Download, FileText } from 'lucide-react';
-import { PeriodSelector, getFilterDate } from '@/components/DateRangePicker';
+import PeriodSelector from '@/components/DateRangePicker';
+import { getFilterDate } from '@/lib/dateRange';
 import { exportToXlsx } from '@/lib/xlsx-export';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';

@@ -31,4 +31,14 @@ describe('fetchAllPages', () => {
     await expect(fetchAllPages(async () => ({ data: null, error: new Error('read failed') })))
       .rejects.toThrow('read failed');
   });
+
+  it('surfaces an error from a later page instead of returning a partial ledger', async () => {
+    let requests = 0;
+    await expect(fetchAllPages(async () => {
+      requests += 1;
+      if (requests === 1) return { data: Array.from({ length: 500 }, (_, id) => ({ id })), error: null };
+      return { data: null, error: new Error('second page failed') };
+    })).rejects.toThrow('second page failed');
+    expect(requests).toBe(2);
+  });
 });

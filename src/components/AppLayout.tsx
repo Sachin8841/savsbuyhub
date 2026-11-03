@@ -20,7 +20,7 @@ export function AppLayout() {
 
   return (
     <SidebarProvider>
-      <div className="h-screen overflow-hidden flex w-full animated-gradient-bg">
+      <div className="h-svh overflow-hidden flex w-full animated-gradient-bg">
         <AppSidebar />
         <div className="flex-1 flex flex-col min-w-0 min-h-0 z-10 backdrop-blur-sm bg-background/40">
           <header className="h-14 flex items-center justify-between border-b border-white/20 dark:border-slate-800/40 glass px-4 sticky top-0 z-30 shadow-sm">

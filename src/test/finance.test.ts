@@ -78,6 +78,11 @@ describe('finance engine', () => {
     expect(s.stockHoldingValue).toBe(800);
   });
 
+  it('computes archived stock value without repeatedly scanning the ledgers', () => {
+    const archived = summarizeFinancials({ sales, returns, inventory, expenses });
+    expect(archived.stockHoldingValue).toBe(800);
+  });
+
   it('respects date filters', () => {
     const jan10 = summarizeFinancials({
       sales, returns, inventory, expenses,

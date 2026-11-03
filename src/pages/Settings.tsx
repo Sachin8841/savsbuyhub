@@ -230,7 +230,7 @@ export default function SettingsPage() {
 
       return { platform: p, revenue: netRev, cost, penalty, profit: netProfit, units, returnRate, margin };
     }).filter(p => p.units > 0);
-  }, [sales, inventory, returns, inventoryById, salesById]);
+  }, [sales, returns, inventoryById, salesById]);
 
 
 

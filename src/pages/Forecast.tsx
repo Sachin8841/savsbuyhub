@@ -7,7 +7,8 @@ import { Button } from '@/components/ui/button';
 import { TrendingUp, Package, BarChart3, ShoppingCart, LogIn, DollarSign, ArrowUpRight, LineChart } from 'lucide-react';
 import { CartesianGrid, Tooltip, ResponsiveContainer, Line, Legend, ComposedChart, Area, AreaChart, XAxis, YAxis, Bar } from 'recharts';
 import { useNavigate } from 'react-router-dom';
-import { PeriodSelector, getFilterDate } from '@/components/DateRangePicker';
+import PeriodSelector from '@/components/DateRangePicker';
+import { getFilterDate } from '@/lib/dateRange';
 import { useAuthStore } from '@/stores/authStore';
 
 const fmt = (n: number | null | undefined) => { const v = Number(n); return '₹' + (Number.isFinite(v) ? v : 0).toLocaleString('en-IN', { maximumFractionDigits: 0 }); };
